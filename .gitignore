@@ -1,0 +1,15 @@
+.DS_Store
+*.sw*
+.ipynb_checkpoints
+compile_commands.json
+.vscode
+__pycache__
+sandbox.ipynb
+logs
+*.so
+_*/
+.polyscope.ini
+*.npz
+*.egg-info
+build
+imgui.ini

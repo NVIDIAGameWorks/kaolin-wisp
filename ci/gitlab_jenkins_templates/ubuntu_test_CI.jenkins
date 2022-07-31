@@ -1,0 +1,147 @@
+#!/usr/bin/env groovy
+
+docker_registry_server = ImageTag.split(':')[0..1].join(':')
+currentBuild.displayName = ImageTag.split(':')[2] + "-${arch}"
+currentBuild.description = sourceBranch + ": " + commitHash
+
+podTemplate(
+cloud:'sc-ipp-blossom-prod',
+yaml:"""
+apiVersion: v1
+kind: Pod
+spec:
+  volumes:
+  - name: pvc-mount
+    persistentVolumeClaim:
+      claimName: 'kaolin-wisp-pvc'
+  containers:
+  - name: docker
+    image: ${imageTag}
+    command:
+    - cat
+    resources: 
+        requests:
+          nvidia.com/gpu: 1
+        limits:
+          nvidia.com/gpu: 1
+    tty: true
+    volumeMounts:
+      - mountPath: /data
+        name: pvc-mount
+  nodeSelector:
+    kubernetes.io/os: linux
+    nvidia.com/gpu_type: ${arch}
+""") {
+  node(POD_LABEL) {
+    container("docker") {
+      updateGitlabCommitStatus(name: "test-${configName}-${arch}", state: 'running')
+      def build_passed = true
+      // Display some info
+      try {
+        timeout(time: 10, unit: 'SECONDS') {
+            stage('Disp info') {
+              sh 'nvidia-smi'
+              sh 'python --version'
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train NeRF with octree
+      try {
+        timeout(time: 260, unit: 'SECONDS') {
+            stage("NGLOD-NeRF") {
+              sh '''
+              cd /wisp
+              python app/main.py --config configs/nglod_nerf.yaml --dataset-path /data/V8
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train NGLOD
+      try {
+        timeout(time: 140, unit: 'SECONDS') {
+            stage("NGLOD-SDF") {
+              sh '''
+              cd /wisp
+              python app/main.py --config configs/nglod_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train NeRF with triplanar feature maps
+      try {
+        timeout(time: 275, unit: 'SECONDS') {
+            stage("Triplanar-NeRF") {
+              sh '''
+              cd /wisp
+              python app/main.py --config configs/triplanar_nerf.yaml --dataset-path /data/V8
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train SDFs with triplanar feature maps
+      try {
+        timeout(time: 325, unit: 'SECONDS') {
+            stage("Triplanar-SDF") {
+              sh '''
+              cd /wisp
+              python app/main.py --config configs/triplanar_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train NeRF with VQAD
+      try {
+        timeout(time: 370, unit: 'SECONDS') {
+            stage("VQAD-NeRF") {
+              sh '''
+              cd /wisp
+              python app/main.py --config configs/vqad_nerf.yaml --dataset-path /data/V8
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      
+      // Train NeRF with VQAD
+      try {
+        timeout(time: 260, unit: 'SECONDS') {
+            stage("NGP-NeRF") {
+              sh '''
+              cd /wisp
+              python app/main.py --config configs/ngp_nerf.yaml --dataset-path /data/V8
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+
+
+      if (build_passed) {
+          updateGitlabCommitStatus(name: "test-${configName}-${arch}", state: 'success')
+          currentBuild.result = "SUCCESS"
+      } else {
+          updateGitlabCommitStatus(name: "test-${configName}-${arch}", state: 'failed')
+          currentBuild.result = "FAILURE"
+      }
+    }
+  }
+}

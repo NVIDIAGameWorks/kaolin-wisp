@@ -1,0 +1,4 @@
+glfw
+imgui
+git+https://github.com/glumpy/glumpy.git@46a7635c08d3a200478397edbe0371a6c59cd9d7#egg=glumpy
+pyopengl
