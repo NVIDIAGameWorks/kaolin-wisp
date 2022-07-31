@@ -32,7 +32,7 @@ If you find the NVIDIA Kaolin Wisp library useful for your research, please cite
 
 ## Key Features
 
-<img src="media/blocks.jpg" alt="drawing" height="450"/>
+<img src="media/blocks.jpg" alt="drawing" width="750"/>
 
 * Differentiable feature grids
     * Octree grids (from NGLOD)
