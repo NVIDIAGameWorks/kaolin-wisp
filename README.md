@@ -73,13 +73,13 @@ You should first install PyTorch by following the [official instructions](https:
 
 ### 3. Install Kaolin
 
-You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html). If you have a Linux distribution, you may also be able to get away with relying on the `requirements.txt` to install Kaolin for you.
+You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html).
 
 ### 4. Install the rest of the dependencies
 
 Install the rest of the dependencies from [requirements](requirements.txt):
 ```
-IGNORE_TORCH_VER=1 pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 5. Installing the interactive renderer (optional)
