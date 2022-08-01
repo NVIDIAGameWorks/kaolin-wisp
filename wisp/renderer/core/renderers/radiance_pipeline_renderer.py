@@ -92,10 +92,6 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         self._last_state['channels'] = self.channels
 
     @property
-    def device(self) -> torch.device:
-        return next(self.nef.parameters()).device
-
-    @property
     def dtype(self) -> torch.dtype:
         return torch.float32
 
