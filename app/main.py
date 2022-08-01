@@ -13,7 +13,7 @@ if __name__ == "__main__":
     from wisp.trainers import *
     from wisp.config_parser import parse_options, argparse_to_str, get_modules_from_config, \
         get_optimizer_from_config
-    from wisp.framework.state import WispState
+    from wisp.framework import WispState
 
     # Usual boilerplate
     parser = parse_options(return_parser=True)

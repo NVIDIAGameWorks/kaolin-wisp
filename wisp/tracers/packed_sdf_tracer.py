@@ -9,21 +9,12 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-import numpy as np
-from PIL import Image
-
-import polyscope as ps
-
-from wisp.ops.perf import PerfTimer
-from wisp.ops.diff import finitediff_gradient
-from wisp.ops.debug import PsDebugger
-from wisp.core import RenderBuffer
-from wisp.tracers import BaseTracer
-from wisp.ops.geometric import find_depth_bound
-
-import kaolin
-import kaolin.ops.spc as spc_ops
 import kaolin.render.spc as spc_render
+from wisp.core import RenderBuffer
+from wisp.utils import PsDebugger, PerfTimer
+from wisp.ops.differential import finitediff_gradient
+from wisp.ops.geometric import find_depth_bound
+from wisp.tracers import BaseTracer
 
 class PackedSDFTracer(BaseTracer):
 

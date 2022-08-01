@@ -7,12 +7,12 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import imgui
-from wisp.core.colors import light_cyan, light_yellow, light_pink, gray
+from wisp.core.colors import light_cyan, light_yellow, light_pink, light_teal, gray
+from wisp.framework import WispState
+from wisp.renderer.core.renderers import NeuralRadianceFieldPackedRenderer
 from .widget_imgui import WidgetImgui
 from .widget_radiance_pipeline import WidgetNeuralRadianceField
 from .widget_property_editor import WidgetPropertyEditor
-from wisp.framework.state import WispState
-from wisp.renderer.core.bottomlevel.radiance_pipeline_renderer import NeuralRadianceFieldPackedRenderer
 
 
 class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
@@ -24,6 +24,7 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
         "Octree Grid": light_yellow,
         "Codebook Grid": light_cyan,
         "Triplanar Grid": light_pink,
+        "Hash Grid": light_teal,
         "Unknown": gray
     }
 
@@ -93,8 +94,8 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                         renderer.tracer.raymarch_type = new_marcher_mode
 
                 properties = {
-                    "Samples per ray (static)": _num_samples_property,
-                    "Samples per ray (movement)": _num_samples_movement_property,
+                    "Ray Samples (static)": _num_samples_property,              # Samples per ray
+                    "Ray Samples (movement)": _num_samples_movement_property,   # Samples per ray
                     "Batch Size (Rays)": _batch_size_property,
                     "Marcher Type": _marcher_type_property,
                     "Render Resolution (W x H)": f"{renderer.render_res_x} x {renderer.render_res_y}"

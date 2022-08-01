@@ -7,13 +7,13 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import imgui
+from wisp.framework import WispState
+from wisp.models.nefs.neural_sdf import NeuralSDF
 from .widget_imgui import WidgetImgui
 from .widget_octree_grid import WidgetOctreeGrid
 from .widget_dictionary_octree_grid import WidgetCodebookOctreeGrid
 from .widget_triplanar_grid import WidgetTriplanarGrid
 from .widget_property_editor import WidgetPropertyEditor
-from wisp.framework.state import WispState
-from wisp.models.nefs.neural_sdf import NeuralSDF
 
 
 class WidgetNeuralSDF(WidgetImgui):

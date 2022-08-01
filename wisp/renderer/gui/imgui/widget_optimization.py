@@ -9,8 +9,8 @@
 import numpy as np
 import datetime
 import imgui
+from wisp.framework import WispState
 from .widget_imgui import WidgetImgui
-from wisp.framework.state import WispState
 
 
 class WidgetOptimization(WidgetImgui):

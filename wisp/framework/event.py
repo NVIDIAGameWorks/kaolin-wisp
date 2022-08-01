@@ -8,6 +8,8 @@
 
 from pydispatch import dispatcher
 
+""" This module contains logic required to set up wisp's event handlers framework. """
+
 # TODO(operel): Add "fire" event
 
 ##############################################

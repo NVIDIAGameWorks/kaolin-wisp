@@ -17,7 +17,7 @@ if __name__ == "__main__":
     from wisp.trainers import *
     from wisp.config_parser import parse_options, argparse_to_str, get_modules_from_config, \
         get_optimizer_from_config
-    from wisp.framework.state import WispState
+    from wisp.framework import WispState
 
     # Usual boilerplate
     parser = parse_options(return_parser=True)
@@ -38,9 +38,9 @@ if __name__ == "__main__":
                                       scene_state=scene_state)
             
     if not os.environ.get('WISP_HEADLESS') == '1':
-        from wisp.renderer.app.optimizer_renderer import OptimizationRenderer
+        from wisp.renderer.app.optimization_app import OptimizationApp
         scene_state.renderer.device = trainer.device  # Use same device for trainer and renderer
-        renderer = OptimizationRenderer(wisp_state=scene_state,
+        renderer = OptimizationApp(wisp_state=scene_state,
                                         trainer_step_func=trainer.iterate,
                                         experiment_name="wisp trainer")
         renderer.run()

@@ -6,24 +6,20 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import os
-import sys
 
+import os
 import logging as log
 from tqdm import tqdm
 import random
-
-import numpy as np
 import pandas as pd
-
 import torch
-import torch.optim as optim
 from lpips import LPIPS
-
 from wisp.trainers import BaseTrainer
-from wisp.ops.perf import PerfTimer
-import wisp.ops.image as img_ops
+from wisp.utils import PerfTimer
+from wisp.ops.image import write_png, write_exr
+from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.core import Rays
+
 
 class MultiviewTrainer(BaseTrainer):
 
@@ -133,9 +129,9 @@ class MultiviewTrainer(BaseTrainer):
 
                 rb.gts = img.cuda()
                 rb.err = (rb.gts[...,:3] - rb.rgb[...,:3])**2
-                psnr_total += img_ops.psnr(rb.rgb[...,:3], rb.gts[...,:3])
-                lpips_total += img_ops.lpips(rb.rgb[...,:3], rb.gts[...,:3], lpips_model)
-                ssim_total += img_ops.ssim(rb.rgb[...,:3], rb.gts[...,:3])
+                psnr_total += psnr(rb.rgb[...,:3], rb.gts[...,:3])
+                lpips_total += lpips(rb.rgb[...,:3], rb.gts[...,:3], lpips_model)
+                ssim_total += ssim(rb.rgb[...,:3], rb.gts[...,:3])
                 
                 exrdict = rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
                 
@@ -143,10 +139,8 @@ class MultiviewTrainer(BaseTrainer):
                 if name is not None:
                     out_name += "-" + name
 
-                img_ops.write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"),
-                                  exrdict)
-                img_ops.write_png(os.path.join(self.valid_log_dir, out_name + ".png"),
-                                  rb.cpu().image().byte().rgb.numpy())
+                write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
+                write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb.numpy())
 
         psnr_total /= len(imgs)
         lpips_total /= len(imgs)  

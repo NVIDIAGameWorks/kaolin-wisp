@@ -7,9 +7,8 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from .primitives import PrimitivesPack
-from .render_buffer import RenderBuffer
 from .rays import Rays
-from .pipeline import Pipeline
 from .channels import *
 from .channel_fn import *
 from .colors import *
+from .render_buffer import RenderBuffer

@@ -7,22 +7,88 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import time
-
+import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.nn as nn
-
-import numpy as np
-from PIL import Image
-
-from wisp.ops.perf import PerfTimer
-from wisp.ops.diff import finitediff_gradient
-from wisp.ops.geometric import look_at, normalized_slice
-from wisp.ops.debug import PsDebugger
-import wisp.ops.shader as shader_ops
-
-from wisp.tracers import *
 from wisp.core import RenderBuffer, Rays
+from wisp.utils import PsDebugger, PerfTimer
+from wisp.ops.shaders import matcap_shader, pointlight_shadow_shader
+from wisp.ops.differential import finitediff_gradient
+from wisp.ops.geometric import normalized_grid, normalized_slice
+from wisp.tracers import *
+
+
+# --  This module will be deprecated, public usage of this functionality is discouraged -- """
+
+
+def _look_at(f, t, height, width, mode='persp', fov=90.0, device='cuda'):
+    """Vectorized look-at function, returns an array of ray origins and directions
+
+    This function is mostly just a wrapper on top of generate_rays, but will calculate for you
+    the view, right, and up vectors based on the from and to.
+
+    Args:
+        f (list of floats): [3] size list or tensor specifying the camera origin
+        t (list of floats): [3] size list or tensor specifying the camera look at point
+        height (int): height of the image
+        width (int): width of the image
+        mode (str): string that specifies the camera mode.
+        fov (float): field of view of the camera.
+        device (str): device the tensor will be allocated on.
+
+    Returns:
+        (torch.FloatTensor, torch.FloatTensor):
+        - [height, width, 3] tensor of ray origins
+        - [height, width, 3] tensor of ray directions
+    """
+
+    camera_origin = torch.FloatTensor(f).to(device)
+    camera_view = F.normalize(torch.FloatTensor(t).to(device) - camera_origin, dim=0)
+    camera_right = F.normalize(torch.cross(camera_view, torch.FloatTensor([0, 1, 0]).to(device)), dim=0)
+    camera_up = F.normalize(torch.cross(camera_right, camera_view), dim=0)
+
+    return _generate_rays(camera_origin, camera_view, camera_right, camera_up,
+                          height, width, mode=mode, fov=fov, device=device)
+
+
+def _generate_rays(camera_origin, camera_view, camera_right, camera_up, height, width,
+                  mode='persp', fov=90.0, device='cuda'):
+    """Generates rays from camera parameters.
+
+    Args:
+        camera_origin (torch.FloatTensor): [3] size tensor specifying the camera origin
+        camera_view (torch.FloatTensor): [3] size tensor specifying the camera view direction
+        camera_right (torch.FloatTensor): [3] size tensor specifying the camera right direction
+        camera_up (torch.FloatTensor): [3] size tensor specifying the camera up direction
+        height (int): height of the image
+        width (int): width of the image
+        mode (str): string that specifies the camera mode.
+        fov (float): field of view of the camera.
+        device (str): device the tensor will be allocated on.
+
+    Returns:
+        (torch.FloatTensor, torch.FloatTensor):
+        - [height, width, 3] tensor of ray origins
+        - [height, width, 3] tensor of ray directions
+    """
+    coord = normalized_grid(height, width, device=device)
+
+    ray_origin = camera_right * coord[..., 0, np.newaxis] * np.tan(np.radians(fov / 2)) + \
+                 camera_up * coord[..., 1, np.newaxis] * np.tan(np.radians(fov / 2)) + \
+                 camera_origin + camera_view
+    ray_origin = ray_origin.reshape(-1, 3)
+    ray_offset = camera_view.unsqueeze(0).repeat(ray_origin.shape[0], 1)
+
+    if mode == 'ortho':  # Orthographic camera
+        ray_dir = F.normalize(ray_offset, dim=-1)
+    elif mode == 'persp':  # Perspective camera
+        ray_dir = F.normalize(ray_origin - camera_origin, dim=-1)
+        ray_origin = camera_origin.repeat(ray_dir.shape[0], 1)
+    else:
+        raise ValueError('Invalid camera mode!')
+
+    return ray_origin, ray_dir
+
 
 class OfflineRenderer():
     """Renderer class to do simple offline, non interactive rendering.
@@ -80,8 +146,7 @@ class OfflineRenderer():
             (wisp.core.RenderBuffer): The rendered image buffers.
         """
         # Generate the ray origins and directions, from camera parameters
-        ray_o, ray_d = look_at(f, t, self.height, self.width, 
-                               fov=fov, mode=camera_proj, device=device)
+        ray_o, ray_d = _look_at(f, t, self.height, self.width, fov=fov, mode=camera_proj, device=device)
         # Rotate the camera into model space
         if mm is not None:
             mm = mm.to('cuda')
@@ -134,7 +199,7 @@ class OfflineRenderer():
         # Shade the image
         if self.shading_mode == 'matcap':
             # TODO(ttakikawa): Should use the mm
-            rb = shader_ops.matcap_shader(rb, rays, self.matcap_path, mm=None)
+            rb = matcap_shader(rb, rays, self.matcap_path, mm=None)
         elif self.shading_mode == 'rb':
             assert rb.rgb is not None and "No rgb in buffer; change shading-mode"
             pass
@@ -151,7 +216,7 @@ class OfflineRenderer():
 
         # Add secondary effects
         if self.shadow:
-            rb = shader_ops.pointlight_shadow_shader(rb, rays, pipeline)
+            rb = pointlight_shadow_shader(rb, rays, pipeline)
         
         if self.ao:
             # TODO(ttakikawa): Mystery function... how did I write this?

@@ -1,8 +1,8 @@
 import numpy as np
 import imgui
-from .widget_imgui import WidgetImgui
-from wisp.framework.state import WispState
+from wisp.framework import WispState
 from wisp.models.grids import TriplanarGrid
+from .widget_imgui import WidgetImgui
 from .widget_property_editor import WidgetPropertyEditor
 
 

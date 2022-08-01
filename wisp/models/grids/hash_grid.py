@@ -14,9 +14,8 @@ import logging as log
 import time
 import math
 
-from wisp.ops.perf import PerfTimer
-from wisp.ops.debug import PsDebugger
-from wisp.ops.mesh import sample_spc
+from wisp.utils import PsDebugger, PerfTimer
+from wisp.ops.spc import sample_spc
 
 import wisp.ops.spc as wisp_spc_ops
 import wisp.ops.grid as grid_ops

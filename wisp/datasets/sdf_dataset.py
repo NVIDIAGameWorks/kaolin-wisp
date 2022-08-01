@@ -6,20 +6,13 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import os
-
 import torch
 from torch.utils.data import Dataset
-
-import numpy as np
 import logging as log
-
-import wisp.ops.mesh as mesh_ops
-
-from wisp.ops.debug import PsDebugger
-
-import kaolin
 import kaolin.ops.spc as spc_ops
+import wisp.ops.mesh as mesh_ops
+import wisp.ops.spc as wisp_spc_ops
+
 
 class SDFDataset(Dataset):
     """Base class for single mesh datasets with points sampled only at a given octree sampling region.
@@ -99,7 +92,7 @@ class SDFDataset(Dataset):
         for mode in self.sample_mode: 
             if mode == "rand":
                 # Sample the points.
-                self.pts_.append(mesh_ops.sample_spc(corners, level, self.samples_per_voxel).cpu())
+                self.pts_.append(wisp_spc_ops.sample_spc(corners, level, self.samples_per_voxel).cpu())
         for mode in self.sample_mode:
             if mode == "rand":
                 pass
@@ -125,6 +118,7 @@ class SDFDataset(Dataset):
             self.rgb_, self.hit_pts_, self.d_ = mesh_ops.closest_tex(grid.blas.V, grid.blas.F, 
                     grid.blas.texv, grid.blas.texf, grid.blas.mats, self.pts_)
         else:
+            log.info(f"Computing SDFs for {self.pts_.shape[0]} samples (may take a while)..")
             self.d_ = mesh_ops.compute_sdf(grid.blas.V, grid.blas.F, self.pts_)
             assert(self.d_.shape[0] == self.pts_.shape[0])
         

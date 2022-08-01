@@ -7,11 +7,11 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-import torch
-from wisp.renderer.core.control.camera_controller_mode import CameraControlMode
-from wisp.framework.state import WispState
-from wisp.renderer.core.control.io import WispMouseButton
 import copy
+import torch
+import wisp.framework.state as state
+from wisp.renderer.core.control.camera_controller_mode import CameraControlMode
+from wisp.renderer.core.control.io import WispMouseButton
 
 # A trackball camera, allowing free orbit movement in all axes.
 # Also known as Arcball, or "Orbit" camera
@@ -47,7 +47,7 @@ def quat_matrix(q): # True only for unit quaternions
 
 class TrackballCameraMode(CameraControlMode):
 
-    def __init__(self, render_core, wisp_state: WispState):
+    def __init__(self, render_core, wisp_state: state.WispState):
         super().__init__(render_core, wisp_state)
         self.radius = 1.0
         self.tb_scale = 1.1

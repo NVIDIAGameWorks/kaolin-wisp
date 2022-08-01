@@ -8,14 +8,14 @@
 
 from __future__ import annotations
 import numpy as np
+import wisp.framework.state as state
 from wisp.renderer.core.control.camera_controller_mode import CameraControlMode
-from wisp.framework.state import WispState
 from wisp.renderer.core.control.io import WispMouseButton
 
 
 class FirstPersonCameraMode(CameraControlMode):
 
-    def __init__(self, render_core, wisp_state: WispState):
+    def __init__(self, render_core, wisp_state: state.WispState):
         super().__init__(render_core, wisp_state)
         self._rotation_sensitivity = 0.2
 

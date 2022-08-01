@@ -14,8 +14,7 @@ import logging as log
 import time
 import math
 
-from wisp.ops.perf import PerfTimer
-from wisp.ops.debug import PsDebugger
+from wisp.utils import PsDebugger, PerfTimer
 
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder

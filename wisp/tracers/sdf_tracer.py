@@ -8,19 +8,10 @@
 
 import torch
 import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
-
-from wisp.ops.perf import PerfTimer
-from wisp.ops.diff import finitediff_gradient
-from wisp.ops.geometric import sample_unif_sphere
 from wisp.core import RenderBuffer
-
-from wisp.ops.debug import PsDebugger
-
+from wisp.utils import PsDebugger, PerfTimer
+from wisp.ops.differential import finitediff_gradient
 from wisp.tracers import BaseTracer
-
-import kaolin.render.spc as spc_render
 
 class SDFTracer(BaseTracer):
 

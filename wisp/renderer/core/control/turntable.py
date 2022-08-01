@@ -9,8 +9,8 @@
 from __future__ import annotations
 import numpy as np
 import torch
+import wisp.framework.state as state
 from wisp.renderer.core.control.camera_controller_mode import CameraControlMode
-from wisp.framework.state import WispState
 from wisp.renderer.core.control.io import WispMouseButton
 
 
@@ -20,7 +20,7 @@ from wisp.renderer.core.control.io import WispMouseButton
 
 class TurntableCameraMode(CameraControlMode):
 
-    def __init__(self, render_core, wisp_state: WispState):
+    def __init__(self, render_core, wisp_state: state.WispState):
         super().__init__(render_core, wisp_state)
         self.sensitivity = 0.95
         self.reset_center_of_focus(reset_radius=True)

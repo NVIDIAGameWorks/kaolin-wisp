@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field, fields
-from typing import List, Tuple, Union
+from typing import List, Tuple, Optional
 import torch
 
 
@@ -27,8 +27,8 @@ class PrimitivesPack:
     line_width = 1.0
     point_size = 1.0
 
-    def append(self, other: PrimitivesPack):
-        """ Appends other to self, changes the dtype and device if needed """
+    def append(self, other: PrimitivesPack) -> None:
+        """ Appends primitives from other to self, changes the dtype and device if needed """
         def _append_field(field_name):
             # Get field attribute by name
             _self_field = getattr(self, field_name)
@@ -40,7 +40,14 @@ class PrimitivesPack:
         for f in fields(self):
             _append_field(f.name)
 
-    def add_lines(self, start: torch.Tensor, end: torch.Tensor, color: torch.Tensor):
+    def add_lines(self, start: torch.Tensor, end: torch.Tensor, color: torch.Tensor) -> None:
+        """ Adds a single or batch of line primitives to the pack.
+
+        Args:
+            start (torch.Tensor): A tensor of (B, 3) or (3,) marking the start point of the line(s).
+            end (torch.Tensor): A tensor of (B, 3) or (3,) marking the end point of the line(s).
+            color (torch.Tensor): A tensor of (B, 4) or (4,) marking the RGB color of the line(s).
+        """
         if start.ndim == 1:
             start = start.unsqueeze(0)
         if end.ndim == 1:
@@ -52,7 +59,15 @@ class PrimitivesPack:
         self._lines_color.append(color)
 
     @property
-    def lines(self) -> Union[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], None]:
+    def lines(self) -> Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+        """
+        Returns:
+            (torch.Tensor, torch.Tensor, torch.Tensor) or None:
+                - start, a tensor of (B, 3) marking the start vertex of each line.
+                - end, a tensor of (B, 3) marking the end vertex of each line.
+                - color, a tensor of (B, 4) marking the line color (the color of each start / end vertex).
+        """
+        # Squash the list of tensors into a single concatenated tensor in lazy load manner
         start = end = color = None
         if len(self._lines_start) > 0:
             start = torch.cat(self._lines_start, dim=0)
