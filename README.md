@@ -108,16 +108,6 @@ in the main wisp directory. You should now be able to run some examples!
 
 ## Training & Rendering with Wisp
 
-### Using `wisp` in headless mode
-
-To disable interactive mode, and run wisp without loading the graphics api, set the env variable:
-```
-WISP_HEADLESS=1
-```
-
-Toggling this flag is useful for debugging on machines without a display. 
-This is also needed if you opt to avoid installing the interactive renderer requirements.
-
 ### Training NGLOD-NeRF from multiview RGB-D data
 
 You will first need to download some sample data to run NGLOD-NeRF. 
@@ -126,11 +116,13 @@ to download a cool Lego V8 engine from the [RTMV dataset](http://www.cs.umd.edu/
 
 Once you have downloaded and extracted the data somewhere, you can train a NeRF using [NGLOD](https://nv-tlabs.github.io/nglod/) with:
 ```
-python3 app/main.py --config configs/nglod_nerf.yaml --dataset-path /path/to/V8
+python3 app/main.py --config configs/nglod_nerf.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
 ```
 This will generate logs inside `_results/logs/runs/test-nglod-nerf` in which you can find the trained 
 checkpoint, and `EXR` images of validation outputs. We highly recommend that you install 
 [tev](https://github.com/Tom94/tev) as the default application to open EXRs.
+Note that the `--dataset-num-workers` argument is used here to control the multiprocessing used to load
+ground truth images. To disable the multiprocessing, you can pass in `--dataset-num-workers -1`.
 
 To view the logs with TensorBoard:
 ```
@@ -149,13 +141,22 @@ for the options that are already passed in.
 
 To run the training task interactively using the renderer engine, run:
 ```
-WISP_HEADLESS=1 python3 app/main_interactive.py --config configs/nglod_nerf_interactive.yaml --dataset-path /path/to/V8
+WISP_HEADLESS=0 python3 app/main_interactive.py --config configs/nglod_nerf_interactive.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
 ```
 
 Every config file that we ship has a `*_interactive.yaml` counterpart that can be used for better settings
 (in terms of user experience)
 for the interactive training app. The later examples we show can all be run interactively with
 `WISP_HEADLESS=1 python3 app/main_interactive.py` and the corresponding configs.
+
+### Using `wisp` in headless mode
+
+To disable interactive mode, and run wisp _without_ loading the graphics API, set the env variable:
+```
+WISP_HEADLESS=1
+```
+Toggling this flag is useful for debugging on machines without a display. 
+This is also needed if you opt to avoid installing the interactive renderer requirements.
 
 ### Training NGLOD-SDF from meshes
 
