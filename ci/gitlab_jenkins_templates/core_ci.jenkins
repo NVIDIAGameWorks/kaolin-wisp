@@ -14,7 +14,7 @@ def ubuntu_from_kaolin_configs = [
 dockerRegistryServer = 'gitlab-master.nvidia.com:5005'
 kaolinDockerRegistryName = 'toronto_dl_lab/kaolin'
 kaolinDockerRegistryFull = "${dockerRegistryServer}/${kaolinDockerRegistryName}/kaolin"
-wispDockerRegistryName = 'ttakikawa/kaolin-wisp'
+wispDockerRegistryName = 'toronto_dl_lab/kaolin-wisp'
 wispDockerRegistryFull = "${dockerRegistryServer}/${wispDockerRegistryName}/wisp"
 
 // Used for target docker image tag, as it doesn't support all characters (such as /)
