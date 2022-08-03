@@ -7,7 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from abc import ABC, abstractmethod
-from wisp.framework.state import WispState
+from wisp.framework import WispState
 
 
 class WidgetImgui(ABC):

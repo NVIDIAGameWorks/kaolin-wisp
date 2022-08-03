@@ -9,11 +9,10 @@ import copy
 
 import imgui
 from typing import Optional
+from kaolin.render.camera import Camera
+from wisp.framework import WispState
 from .widget_imgui import WidgetImgui
 from .widget_property_editor import WidgetPropertyEditor
-from kaolin.render.camera import Camera
-from kaolin.render.camera.intrinsics import CameraFOV
-from wisp.framework.state import WispState
 
 
 class WidgetCameraProperties(WidgetImgui):

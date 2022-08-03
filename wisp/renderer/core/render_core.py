@@ -7,23 +7,19 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-
 import abc
-
 import numpy as np
 import torch
 import copy
 from collections import defaultdict
 from typing import Dict, List, Iterable
-from wisp.core import RenderBuffer, Rays, create_default_channel
-from wisp.framework.state import WispState, BottomLevelRendererState
-from wisp.renderer.core.bl_renderers_factory import create_neural_field_renderer
 from kaolin.render.camera import Camera, PinholeIntrinsics, OrthographicIntrinsics
-from wisp.renderer.core.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
-from wisp.renderer.core.bottomlevel.bl_renderers import BottomLevelRenderer, FramePayload, RayTracedRenderer
-from wisp.ops.datalayers import CameraDatalayers
-from wisp.core.primitives import PrimitivesPack
-from wisp.core.channels import create_default_channel
+from wisp.framework import WispState, BottomLevelRendererState
+from wisp.core import RenderBuffer, Rays, PrimitivesPack, create_default_channel
+from wisp.ops.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
+from wisp.renderer.core.api import BottomLevelRenderer, RayTracedRenderer, create_neural_field_renderer
+from wisp.renderer.core.api import FramePayload
+from wisp.gfx.datalayers import CameraDatalayers
 
 
 class RendererCore:
@@ -126,8 +122,8 @@ class RendererCore:
                 scene_graph.bl_renderers[renderer_id] = bl_state
 
             if bl_state.status == 'loaded':
-                assert(bl_state.renderer is not None,
-                       f'status of renderer {renderer_id} shows it was loaded, but renderer instance is None.')
+                assert bl_state.renderer is not None, \
+                       f'status of renderer {renderer_id} shows it was loaded, but renderer instance is None.'
                 renderers[renderer_id] = bl_state.renderer
             elif bl_state.status == 'pending':
                 bl_state.renderer = create_neural_field_renderer(neural_object=neural_pipeline, **bl_state.setup_args)

@@ -8,11 +8,11 @@
 
 import imgui
 from wisp.core.colors import light_purple, white, lime, orange
+from wisp.framework import WispState
 from .widget_imgui import WidgetImgui
 from .widget_radiance_pipeline_renderer import WidgetNeuralRadianceFieldRenderer
 from .widget_sdf_pipeline_renderer import WidgetNeuralSDFRenderer
 from .widget_cameras import WidgetCameraProperties
-from wisp.framework.state import WispState
 
 
 class WidgetSceneGraph(WidgetImgui):

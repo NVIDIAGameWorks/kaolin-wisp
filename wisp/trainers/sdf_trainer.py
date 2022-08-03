@@ -15,14 +15,14 @@ import argparse
 import glob
 import logging as log
 
-import torch.optim as optim
 
 from wisp.trainers import BaseTrainer
 from torch.utils.data import DataLoader
-from wisp.ops.perf import PerfTimer
+from wisp.utils import PerfTimer
 from wisp.datasets import SDFDataset
-from wisp.ops.geometric import compute_sdf_iou
+from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
+
 
 class SDFTrainer(BaseTrainer):
 

@@ -9,23 +9,30 @@
 from __future__ import annotations
 from wisp.core.channel_fn import *
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from functools import partial
 
 
 @dataclass
 class Channel:
     """ Defines how a Renderbuffer channel should behave in terms of functionalities like blending, normalization,
-        etc.
+        and boundaries.
     """
-    blend_fn: BlendFunction = None                # How to blend information from this channel between 2 RenderBuffers
-    normalize_fn: NormalizeFunction = normalize   # How to normalize the channel information to a scale of [0, 1]
-    min_val: Optional[Any] = None                 # Minimal valid value supported by this channel type
-    max_val: Optional[Any] = None                 # Maximal valid value supported by this channel type
-                                                  # (None indicates the valid values range between -inf to inf)
+
+    blend_fn: BlendFunction = None
+    """" How to blend information from this channel between 2 RenderBuffers """
+
+    normalize_fn: NormalizeFunction = normalize
+    """ How to normalize the channel information to a scale of [0, 1] """
+
+    min_val: Optional[Any] = None
+    """ Minimal valid value supported by this channel type. None indicates the valid values range from -inf. """
+
+    max_val: Optional[Any] = None
+    """ Maximal valid value supported by this channel type . None indicates the valid values range to inf. """
 
 
-def create_default_channel():
+def create_default_channel() -> Channel:
     """ A general channel template, to be used if no information about a channel have been recorded """
     return Channel(
         blend_fn=blend_alpha_composite_over,
@@ -35,9 +42,9 @@ def create_default_channel():
     )
 
 
-def channels_starter_kit():
+def channels_starter_kit() -> Dict[str, Channel]:
     """ Creates a predefined kit of channels commonly useful in the context of Wisp.
-        Users may augment this kit with additional custom channels.
+        Users may augment or replace this kit with additional custom channels.
     """
     return dict(
         rgb=Channel(

@@ -8,8 +8,8 @@
 
 from typing import Dict
 import imgui
+from wisp.framework import WispState
 from .widget_imgui import WidgetImgui
-from wisp.framework.state import WispState
 
 
 class WidgetPropertyEditor(WidgetImgui):
@@ -23,10 +23,12 @@ class WidgetPropertyEditor(WidgetImgui):
         imgui.text(title)
         imgui.next_column()
         imgui.separator()
+        imgui.push_item_width(-1)
         if callable(value):  # Values may be editable widgets, in which case they're callable
             value()
         else:
             imgui.text(str(value))
+        imgui.pop_item_width()
 
     def paint(self, state: WispState, properties: Dict[str, object] = None, *args, **kwargs):
         if properties is None:

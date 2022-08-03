@@ -14,9 +14,9 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from wisp.offline_renderer import OfflineRenderer
-from wisp.framework.state import WispState, BottomLevelRendererState
+from wisp.framework import WispState, BottomLevelRendererState
+from wisp.utils import PerfTimer
 from wisp.datasets import default_collate
-from wisp.ops.perf import PerfTimer 
 
 
 class BaseTrainer(ABC):

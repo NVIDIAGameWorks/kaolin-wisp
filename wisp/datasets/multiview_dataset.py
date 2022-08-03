@@ -6,20 +6,13 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import os
-import sys
 
-import glob
 from typing import Callable
-
-import numpy as np
-import logging as log
-
 import torch
 from torch.utils.data import Dataset
-
-import wisp.ops.image as img_ops
+from wisp.datasets.formats import load_nerf_standard_data, load_rtmv_data
 from wisp.core import Rays
+
 
 class MultiviewDataset(Dataset):
     """This is a static multiview image dataset class.
@@ -96,14 +89,13 @@ class MultiviewDataset(Dataset):
             mip = self.mip
         
         if self.multiview_dataset_format == "standard":
-            depths = []
-            data = img_ops.load_standard_transforms(self.root, split, 
-                    bg_color=self.bg_color, num_workers=self.dataset_num_workers, mip=self.mip)
+            data = load_nerf_standard_data(self.root, split,
+                                            bg_color=self.bg_color, num_workers=self.dataset_num_workers, mip=self.mip)
         elif self.multiview_dataset_format == "rtmv":
             if split == 'train':
-                data = img_ops.load_rtmv_transforms(self.root, split, 
-                                return_pointcloud=True, mip=mip, bg_color=self.bg_color,
-                                normalize=True, num_workers=self.dataset_num_workers)
+                data = load_rtmv_data(self.root, split,
+                                      return_pointcloud=True, mip=mip, bg_color=self.bg_color,
+                                      normalize=True, num_workers=self.dataset_num_workers)
                 self.coords = data["coords"]
                 self.coords_center = data["coords_center"]
                 self.coords_scale = data["coords_scale"]
@@ -111,9 +103,9 @@ class MultiviewDataset(Dataset):
                 if self.coords is None:
                     assert False and "Initialize the dataset first with the training data!"
                 
-                data = img_ops.load_rtmv_transforms(self.root, split, 
-                                return_pointcloud=False, mip=mip, bg_color=self.bg_color,
-                                normalize=False)
+                data = load_rtmv_data(self.root, split,
+                                      return_pointcloud=False, mip=mip, bg_color=self.bg_color,
+                                      normalize=False)
                 
                 data["depths"] = data["depths"] * self.coords_scale
                 data["rays"].origins = (data["rays"].origins - self.coords_center) * self.coords_scale

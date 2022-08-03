@@ -7,12 +7,12 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import imgui
-from wisp.core.colors import light_cyan, light_yellow, light_pink, gray
+from wisp.core.colors import light_cyan, light_yellow, light_pink, light_teal, gray
+from wisp.framework import WispState
+from wisp.renderer.core.renderers import NeuralSDFPackedRenderer
 from .widget_imgui import WidgetImgui
 from .widget_sdf_pipeline import WidgetNeuralSDF
 from .widget_property_editor import WidgetPropertyEditor
-from wisp.framework.state import WispState
-from wisp.renderer.core.bottomlevel.sdf_pipeline_renderer import NeuralSDFPackedRenderer
 
 
 class WidgetNeuralSDFRenderer(WidgetImgui):
@@ -25,6 +25,7 @@ class WidgetNeuralSDFRenderer(WidgetImgui):
         "Octree": light_yellow,
         "Codebook Grid": light_cyan,
         "Triplanar Grid": light_pink,
+        "Hash Grid": light_teal,
         "Unknown": gray
     }
 

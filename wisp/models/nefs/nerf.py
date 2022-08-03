@@ -15,9 +15,8 @@ import time
 import math
 import copy
 
-from wisp.ops.mesh import sample_spc
-from wisp.ops.perf import PerfTimer
-from wisp.ops.debug import PsDebugger
+from wisp.ops.spc import sample_spc
+from wisp.utils import PsDebugger, PerfTimer
 from wisp.ops.geometric import sample_unif_sphere
 
 from wisp.models.nefs import BaseNeuralField

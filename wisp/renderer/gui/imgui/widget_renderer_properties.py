@@ -10,10 +10,8 @@ import imgui
 from .widget_imgui import WidgetImgui
 from .widget_cameras import WidgetCameraProperties
 from wisp.core.colors import black, white, dark_gray
-from wisp.framework.state import WispState
-from wisp.renderer.core.control.first_person import FirstPersonCameraMode
-from wisp.renderer.core.control.trackball import TrackballCameraMode
-from wisp.renderer.core.control.turntable import TurntableCameraMode
+from wisp.framework import WispState
+from wisp.renderer.core.control import FirstPersonCameraMode, TrackballCameraMode, TurntableCameraMode
 
 
 class WidgetRendererProperties(WidgetImgui):

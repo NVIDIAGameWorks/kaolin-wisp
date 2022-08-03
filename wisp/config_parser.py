@@ -11,17 +11,16 @@ import sys
 import argparse
 import pprint
 import yaml
-
 import torch
-
 from wisp.datasets import *
-from wisp.core import Pipeline
+from wisp.models import Pipeline
 from wisp.models.nefs import *
 from wisp.models.grids import *
 from wisp.tracers import *
-from wisp.ops.ray import *
+from wisp.datasets.transforms import *
 
 str2optim = {m.lower(): getattr(torch.optim, m) for m in dir(torch.optim) if m[0].isupper()}
+
 
 def parse_options(return_parser=False):
     """Function used to parse options.

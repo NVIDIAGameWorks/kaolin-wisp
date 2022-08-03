@@ -9,7 +9,7 @@
 import torch
 import imgui
 from .widget_imgui import WidgetImgui
-from wisp.framework.state import WispState
+from wisp.framework import WispState
 import pynvml
 pynvml.nvmlInit()
 

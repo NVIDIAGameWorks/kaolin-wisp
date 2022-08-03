@@ -7,24 +7,12 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
-import numpy as np
-from PIL import Image
-
-import polyscope as ps
-
-from wisp.ops.perf import PerfTimer
-from wisp.ops.debug import PsDebugger
+import kaolin.render.spc as spc_render
 from wisp.core import RenderBuffer
+from wisp.utils import PsDebugger, PerfTimer
 from wisp.tracers import BaseTracer
 
-import kaolin
-import kaolin.ops.spc as spc_ops
-import kaolin.render.spc as spc_render
-import wisp.ops.spc as wisp_spc_ops
-
-DEBUG_FLAG = False
 
 class PackedRFTracer(BaseTracer):
     """Tracer class for sparse (packed) radiance fields.

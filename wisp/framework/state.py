@@ -9,23 +9,28 @@
 
 from __future__ import annotations
 import torch
-from typing import List, Dict, Type, DefaultDict, Tuple
+from typing import List, Dict, Type, DefaultDict, Tuple, TYPE_CHECKING
 from collections import defaultdict
 from dataclasses import dataclass, field
-from wisp.framework.event import watchedfields
-from wisp.core import Pipeline, Channel, channels_starter_kit
 from kaolin.render.camera import Camera
-from wisp.renderer.core.control.camera_controller_mode import CameraControlMode
-from wisp.renderer.core.bottomlevel.bl_renderers import BottomLevelRenderer
-from wisp.core.primitives import PrimitivesPack
+from wisp.framework.event import watchedfields
+from wisp.core import Channel, PrimitivesPack, channels_starter_kit
+if TYPE_CHECKING:  # Prevent circular imports mess due to typed annotations
+    from wisp.models import Pipeline
+    from wisp.renderer.core.control import CameraControlMode
+    from wisp.renderer.core import BottomLevelRenderer
 
 """
-Wisp components share informations and sync through the WispState object and its state fields:
+The WispState object is a shared resource between the various wisp components,
+and is used to keep the various modules decoupled and synced on transient information, current configurations, and
+state of the scene.
+
+Wisp components share information and sync through the WispState subcomponents and their fields:
 1. Wisp Components may write to certain fields directly, which are periodically read by other components.
    For example: The interactive renderer reads the InteractiveRendererState.canvas_dirty to determine when
    the canvas should be redrawn. Other components may request a redraw by setting this flag.
 2. The @watchedfields decorator prompts an event when the state field values changes. 
-   Components may register event handlers to respond on such changes by using wisp.framework.event.watch
+   Components may register event handlers to immediately respond on such changes by using wisp.framework.event.watch
    For example: The interactive renderer listens on the OptimizationState.epoch field to redraw the canvas
    when an epoch ends.
    Note: Iterable fields will not respond to objects being added / removed.
@@ -49,7 +54,7 @@ class InteractiveRendererState:
     """
 
     dt: float = 0.0
-    """ Time elapsed since last renderer clock tick"""
+    """ Time elapsed since last renderer clock tick """
 
     canvas_width: int = 1600
     """ Default canvas width """
@@ -63,21 +68,27 @@ class InteractiveRendererState:
     clear_depth_value: float = 1.0
     """ Clear value for canvas background depth channel """
 
-    selected_canvas_channel: str = 'rgb'
-    """ Currently selected output channels to view on the canvas """
-
     available_canvas_channels: List[str] = field(default_factory=list)
-    """ List of available output channels to view on the canvas """
+    """ List of available output channels to view on the canvas.
+        This field should be set by the app, and should be compatible with the objects expected to be traced.
+    """
+
+    selected_canvas_channel: str = 'rgb'
+    """ Currently selected output channel to view on the canvas.
+        Choices: any of the channels listed in available_canvas_channels. 
+    """
 
     canvas_dirty = False
-    """ Setting this flag forces the renderer to redraw the canvas on the next frame """
+    """ Setting this flag forces the renderer to redraw the canvas on the next frame. """
 
     cam_controller: Type[CameraControlMode] = None
-    """ The current camera controller which manipulates the canvas camera """
+    """ The current camera controller which manipulates the canvas camera.
+        Choices: First Person, Trackball or Turntable. 
+    """
 
     selected_camera: Camera = None
     """ The camera currently used by renderer to view the scene.
-        If None, the renderer will use a default camera.
+        If None, the renderer will create a default camera upon demand.
     """
 
     selected_camera_lens: str = 'perspective'
@@ -94,17 +105,18 @@ class InteractiveRendererState:
 
     antialiasing: str = "msaa_4x"
     """ Antialising method to use for the canvas.
-        Due to the universal nature of the renderer, this setting may not affect BLRenderers, but
-        mostly primitives drawn directly on the canvas with the graphics api (such as, i.e.
-        vectorial layers drawn with OpenGL).
+        Due to the universal nature of the renderer, this setting may not affect object renderers, but
+        mostly primitives drawn directly on the canvas with the graphics api
+        (such as, i.e. vectorial layers drawn with OpenGL).
+        Choices:
         'msaa_4x' - Framebuffer will be generated with 4x multisampling. 
                     More fragments will be generated to eliminate jagged borders, at the cost of additional computation. 
         'none' - No inherent antialising mode will be activated.
     """
 
     reference_grids: List[str] = field(default_factory=list)
-    """ List of world grids to use as reference planes.
-        Valid values are combinations of: 'xy', 'xz', 'yz'
+    """ List of world grids to use as reference planes, for both rendering and some camera controllers.
+        Choices: Any combination of the values: 'xy', 'xz', 'yz'. An empty list will turn off the grid.
     """
 
     device: torch.device = 'cpu'

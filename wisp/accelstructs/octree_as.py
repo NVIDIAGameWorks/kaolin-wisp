@@ -7,22 +7,16 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
-import logging as log
-
 import wisp.ops.mesh as mesh_ops
-
-from wisp.ops.perf import PerfTimer
-from wisp.ops.debug import PsDebugger
-
+from wisp.utils import PsDebugger, PerfTimer
 import wisp.ops.spc as wisp_spc_ops
 import kaolin.ops.spc as spc_ops
 import kaolin.render.spc as spc_render
 
+
 class OctreeAS(object):
-    """Octree accelstruct class implemented using Kaolin SPC.
+    """Octree bottom-level acceleration structure class implemented using Kaolin SPC.
+       Can be used to to quickly query cells occupancy, and trace rays against the volume.
     """
     
     def __init__(self):
@@ -126,8 +120,9 @@ class OctreeAS(object):
         return spc_ops.unbatched_query(self.octree, self.prefix, coords, level, with_parents)
 
     def raytrace(self, rays, level=None, with_exit=False):
-        """Traces rays against the SPC structure.
-            
+        """Traces rays against the SPC structure, returning all intersections along the ray with the SPC points
+        (SPC points are quantized, and can be interpreted as octree cell centers or corners).
+
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
             level (int) : The level of the octree to raytrace. If None, traces the highest level.

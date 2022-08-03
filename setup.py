@@ -17,8 +17,8 @@ import torch
 from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
 
 PACKAGE_NAME = 'wisp'
-DESCRIPTION = 'neural fields research'
-URL = 'https://gitlab-master.nvidia.com/ttakikawa/solr'
+DESCRIPTION = 'Kaolin-Wisp: A PyTorch library for performing research on neural fields'
+URL = 'https://github.com/NVIDIAGameWorks/kaolin-wisp'
 AUTHOR = 'Towaki Takikawa'
 LICENSE = 'NVIDIA Source Code License'
 version = '0.1.0'

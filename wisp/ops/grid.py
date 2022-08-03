@@ -7,10 +7,6 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
-
 from kaolin import _C
 import wisp._C as wisp_C
 import kaolin.ops.spc as spc_ops
