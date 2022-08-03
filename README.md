@@ -215,7 +215,8 @@ against `wisp/options.py` as your source of truth. (Or pass in `-h` for help).
 Our library is named after the atmospheric ghost light, will-o'-the-wisp, 
 which are volumetric ghosts that are harder to model with common standard 
 geometry representations like meshes. We provide a [multiview dataset](https://drive.google.com/file/d/1jKIkqm4XhdeEQwXTqbKlZw-9dO7kJfsZ/view) of the 
-wisp as a reference dataset for a volumetric object.
+wisp as a reference dataset for a volumetric object. 
+We also provide the [blender file and rendering scripts](https://drive.google.com/drive/folders/1Via1TOsnG-3mUkkGteEoRJdEYJEx3wgf?usp=sharing) if you want to generate specific data with this scene, please refer to the [readme.md](https://drive.google.com/file/d/1IrWKjxxrJOlD3C5lDYvejaSXiPtm_XI_/view?usp=sharing) for greater details on how to generate the data. 
 
 ## Thanks
 
