@@ -6,7 +6,7 @@ import groovy.transform.Field
 // (See: https://hub.docker.com/r/pytorch/pytorch/tags)
 def ubuntu_from_kaolin_configs = [
     [
-        'imageTag': 'master-1469-pytorch-torch1.11.0-cuda11.3-cudnn8',
+        'imageTag': 'master-1713-pytorch-torch1.11.0-cuda11.3-cudnn8',
         'archsToTest': 'A100_PCIE_40GB'
     ],
 ]
