@@ -100,7 +100,7 @@ class HashGridInterpolate(torch.autograd.Function):
                 coords.contiguous(), grad_output.contiguous(), 
                 resolutions, [c_[0] for c_ in codebook_shapes], 
                 codebook_bitwidth, feature_dim)
-        return None, None, None, None, *grad_codebook
+        return (None, None, None, None, *grad_codebook)
         
 def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
     """The hashgrid function accleerated with CUDA.
