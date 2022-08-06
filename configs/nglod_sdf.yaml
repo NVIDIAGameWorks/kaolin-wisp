@@ -20,7 +20,7 @@ global:
     exp_name: 'test-nglod-sdf'
 
 optimizer:
-    optimizer: 'adam'
+    optimizer_type: 'adam'
     lr: 0.001
     grid_lr_weight: 1.0
 
@@ -30,7 +30,7 @@ dataset:
     dataset_type: 'sdf'
 
 renderer:
-    tracer: 'PackedSDFTracer'
+    tracer_type: 'PackedSDFTracer'
     num_steps: 128
     render_batch: 0
     step_size: 0.8
@@ -45,7 +45,7 @@ renderer:
     shadow: True
 
 trainer:
-    trainer: 'SDFTrainer'
+    trainer_type: 'SDFTrainer'
     epochs: 10
     batch_size: 512
     model_format: 'full'
@@ -66,7 +66,7 @@ grid:
     num_lods: 6
 
 net:
-    nef: 'NeuralSDF'
+    nef_type: 'NeuralSDF'
     hidden_dim: 128
     num_layers: 1
     out_dim: 1

@@ -28,17 +28,16 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
                  min_dis=None, raymarch_type=None, *args, **kwargs):
         super().__init__(nef, *args, **kwargs)
         self.batch_size = batch_size
-        if min_dis is None:
-            min_dis = 0.0003
         if num_steps is None:
             num_steps = 2
         self.num_steps = num_steps
         self.num_steps_movement = max(num_steps // 4, 1)
         if raymarch_type is None:
             raymarch_type = 'voxel'
+        self.raymarch_type = raymarch_type
+        self.bg_color = 'black'
 
-        self.tracer = PackedRFTracer(num_steps=self.num_steps, min_dis=min_dis, raymarch_type=raymarch_type,
-                                     bg_color='black')
+        self.tracer = PackedRFTracer()
         self.render_res_x = None
         self.render_res_y = None
         self.output_width = None
@@ -62,7 +61,7 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         self.output_width = payload.camera.width
         self.output_height = payload.camera.height
         self.far_clipping = payload.camera.far
-        self.tracer.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
+        self.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
         if payload.interactive_mode:
             self.tracer.num_steps = self.num_steps_movement
         else:
@@ -74,7 +73,9 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
     def render(self, rays: Optional[Rays] = None) -> RenderBuffer:
         rb = RenderBuffer(hit=None)
         for ray_batch in rays.split(self.batch_size):
-            rb += self.tracer(self.nef, ray_batch)
+            # TODO(ttakikawa): Add a way to control the LOD in the GUI
+            rb += self.tracer(self.nef, rays=ray_batch, lod_idx=None, raymarch_type=self.raymarch_type,
+                    num_steps=self.num_steps, bg_color=self.bg_color)
 
         # Rescale renderbuffer to original size
         rb = rb.reshape(self.render_res_y, self.render_res_x, -1)

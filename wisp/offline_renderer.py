@@ -118,6 +118,8 @@ class OfflineRenderer():
         
         self.width, self.height = self.render_res
 
+        self.kwargs = kwargs
+
     def render_lookat(self, 
             pipeline, 
             f            = [0,0,1], 
@@ -180,9 +182,9 @@ class OfflineRenderer():
             if self.render_batch > 0:
                 rb = RenderBuffer(xyz=None, hit=None, normal=None, shadow=None, ao=None, dirs=None)
                 for ray_pack in rays.split(self.render_batch):
-                    rb  += pipeline.tracer(pipeline.nef, ray_pack, lod_idx=lod_idx)
+                    rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
             else:
-                rb = pipeline.tracer(pipeline.nef, rays, lod_idx=lod_idx)
+                rb = pipeline.tracer(pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
 
         ######################
         # Shading Rendering

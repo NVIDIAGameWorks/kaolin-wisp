@@ -57,7 +57,7 @@ def pointlight_shadow_shader(rb: RenderBuffer, rays: Rays, pipeline,
         light_hit = ((shadow_ray_d * rb.normal).sum(-1) > 0.0)
 
         shadow_rays = Rays(origins=shadow_ray_o, dirs=shadow_ray_d, dist_min=0, dist_max=rays.dist_max)
-        rb.shadow = pipeline.tracer(pipeline.nef, shadow_rays).hit
+        rb.shadow = pipeline.tracer(pipeline.nef, rays=shadow_rays).hit
 
         # rb.shadow[~plane_hit] = 0.0
         rb.shadow[~light_hit] = 0.0

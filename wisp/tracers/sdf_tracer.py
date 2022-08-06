@@ -14,18 +14,55 @@ from wisp.ops.differential import finitediff_gradient
 from wisp.tracers import BaseTracer
 
 class SDFTracer(BaseTracer):
+    
+    
+    def set_defaults(self, num_steps=64, step_size=1.0, min_dis=1e-4, **kwargs):
+        """Sets default arguments.
+        """
+        self.raymarch_type = raymarch_type
+        self.num_steps = num_steps
+        self.step_size = step_size
+        self.min_dis = min_dis
+   
+    def get_output_channels(self):
+        """Returns the input channels that are supported by this class.
+        
+        Returns:
+            (set): Set of channel strings.
+        """
+        return set(["depth", "normal", "xyz", "hit"])
 
-    def forward(self, nef, ray_o, ray_d):
-        """PyTorch implementation of sphere tracing."""
+    def get_input_channels(self):
+        """Returns the input channels that are supported by this class.
+        
+        Returns:
+            (set): Set of channel strings.
+        """
+        return set(["sdf"])
+
+    def trace(self, nef, channels, rays, num_steps=64, step_size=1.0, min_dis=1e-4):
+        """Trace the rays against the neural field.
+
+        Args:
+            nef (nn.Module): A neural field that uses a grid class.
+            channels (set): The set of requested channels. The trace method can return channels that 
+                            were not requested since those channels often had to be computed anyways.
+            rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
+            num_steps (int): The number of steps to use for sphere tracing.
+            step_size (float): The multiplier for the sphere tracing steps. 
+                               Use a value <1.0 for conservative tracing.
+            min_dis (float): The termination distance for sphere tracing.
+
+        Returns:
+            (wisp.RenderBuffer): A dataclass which holds the output buffers from the render.
+        """
         timer = PerfTimer(activate=False)
-        supported_channels = nef.get_supported_channels()
-        assert "sdf" in supported_channels and "this tracer requires sdf channels"
 
         # Distanace from ray origin
-        t = torch.zeros(ray_o.shape[0], 1, device=ray_o.device)
+        t = torch.zeros(rays.origins.shape[0], 1, device=rays.origins.device)
 
         # Position in model space
-        x = torch.addcmul(ray_o, ray_d, t)
+        x = torch.addcmul(rays.origins, rays.dirs, t)
 
         cond = torch.ones_like(t).bool()[:,0]
         
@@ -48,7 +85,7 @@ class SDFTracer(BaseTracer):
             # If miss is TRUE, then the corresponding ray has missed entirely.
             hit = torch.zeros_like(d).byte()
             
-            for i in range(self.num_steps):
+            for i in range(num_steps):
                 timer.check("start")
                 # 1. Check if ray hits.
                 #hit = (torch.abs(d) < self._MIN_DIS)[:,0] 
@@ -56,15 +93,15 @@ class SDFTracer(BaseTracer):
                 #hit = hit | (torch.abs((d + dprev) / 2.0) < self._MIN_DIS * 3)[:,0]
                 
                 # 3. Check that the ray has not exit the far clipping plane.
-                #cond = (torch.abs(t) < self.clamp[1])[:,0]
+                #cond = (torch.abs(t) < clamp[1])[:,0]
                 
-                hit = (torch.abs(t) < self.camera_clamp[1])[:,0]
+                hit = (torch.abs(t) < rays.dist_max)[:,0]
                 
                 # 1. not hit surface
-                cond = cond & (torch.abs(d) > self.min_dis)[:,0] 
+                cond = cond & (torch.abs(d) > min_dis)[:,0] 
 
                 # 2. not oscillating
-                cond = cond & (torch.abs((d + dprev) / 2.0) > self.min_dis * 3)[:,0]
+                cond = cond & (torch.abs((d + dprev) / 2.0) > min_dis * 3)[:,0]
                 
                 # 3. not a hit
                 cond = cond & hit
@@ -76,13 +113,13 @@ class SDFTracer(BaseTracer):
                     break
 
                 # Advance the x, by updating with a new t
-                x = torch.where(cond.view(cond.shape[0], 1), torch.addcmul(ray_o, ray_d, t), x)
+                x = torch.where(cond.view(cond.shape[0], 1), torch.addcmul(rays.origins, rays.dirs, t), x)
                 
                 # Store the previous distance
                 dprev = torch.where(cond.unsqueeze(1), d, dprev)
 
                 # Update the distance to surface at x
-                d[cond] = nef(coords=x[cond], channels="sdf") * self.step_size
+                d[cond] = nef(coords=x[cond], channels="sdf") * step_size
 
                 # Update the distance from origin 
                 t = torch.where(cond.view(cond.shape[0], 1), t+d, t)
@@ -99,9 +136,12 @@ class SDFTracer(BaseTracer):
         #  d: the final distance value from
         #  miss: a vector containing bools of whether each ray was a hit or miss
         
-        if hit.any():
-            grad = finitediff_gradient(x[hit], nef.get_forward_function("sdf"))
-            _normal = F.normalize(grad, p=2, dim=-1, eps=1e-5)
-            normal[hit] = _normal
-        
-        return RenderBuffer(x=x, depth=t, hit=hit, normal=normal)
+        if "normal" in channels:
+            if hit.any():
+                grad = finitediff_gradient(x[hit], nef.get_forward_function("sdf"))
+                _normal = F.normalize(grad, p=2, dim=-1, eps=1e-5)
+                normal[hit] = _normal
+        else:
+            normal = None
+
+        return RenderBuffer(xyz=x, depth=t, hit=hit, normal=normal)

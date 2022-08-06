@@ -30,7 +30,7 @@ if __name__ == "__main__":
     optim_cls, optim_params = get_optimizer_from_config(args)
 
     scene_state = WispState()
-    trainer = globals()[args.trainer](pipeline, train_dataset, args.epochs, args.batch_size,
+    trainer = globals()[args.trainer_type](pipeline, train_dataset, args.epochs, args.batch_size,
                                       optim_cls, args.lr, args.weight_decay,
                                       args.grid_lr_weight, optim_params, args.log_dir, device,
                                       exp_name=args.exp_name, info=args_str, extra_args=vars(args),
