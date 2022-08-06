@@ -17,20 +17,53 @@ from wisp.ops.geometric import find_depth_bound
 from wisp.tracers import BaseTracer
 
 class PackedSDFTracer(BaseTracer):
+    """Tracer class for sparse SDFs.
 
-    def forward(self, nef, rays, lod_idx=None):
+    This tracer class expects the use of a feature grid that has a BLAS (i.e. inherits the BLASGrid
+    class).
+    """
+
+    def set_defaults(self, num_steps=64, step_size=1.0, min_dis=1e-4, **kwargs):
+        """Sets default arguments.
+        """
+        self.num_steps = num_steps
+        self.step_size = step_size
+        self.min_dis = min_dis
+    
+    def get_output_channels(self):
+        """Returns the input channels that are supported by this class.
+        
+        Returns:
+            (set): Set of channel strings.
+        """
+        return set(["depth", "normal", "xyz", "hit", "rgb", "alpha"])
+
+    def get_input_channels(self):
+        """Returns the input channels that are supported by this class.
+        
+        Returns:
+            (set): Set of channel strings.
+        """
+        return set(["sdf"])
+
+    def trace(self, nef, channels, rays, lod_idx=None, num_steps=64, step_size=1.0, min_dis=1e-4):
         """Trace the rays against the neural field.
 
         Args:
             nef (nn.Module): A neural field that uses a grid class.
+            channels (set): The set of requested channels. The trace method can return channels that 
+                            were not requested since those channels often had to be computed anyways.
             rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
             lod_idx (int): LOD index to render at. 
+            num_steps (int): The number of steps to use for sphere tracing.
+            step_size (float): The multiplier for the sphere tracing steps. 
+                               Use a value <1.0 for conservative tracing.
+            min_dis (float): The termination distance for sphere tracing.
 
         Returns:
             (wisp.RenderBuffer): A dataclass which holds the output buffers from the render.
         """
-        supported_channels = nef.get_supported_channels()
-        assert "sdf" in supported_channels and "this tracer requires sdf channels"
+        #TODO(ttakikawa): Use a more robust method
         assert nef.grid is not None and "this tracer requires a grid"
         
         if lod_idx is None:
@@ -67,20 +100,20 @@ class PackedSDFTracer(BaseTracer):
         with torch.no_grad():
 
             # Calculate SDF for current set of query points   
-            dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * self.step_size
+            dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
             dist[~mask] = 20
             dist_prev = dist.clone()
             timer.check("first")
 
-            for i in range(self.num_steps):
+            for i in range(num_steps):
                 # Two-stage Ray Marching
                 
                 # Step 1: Use SDF to march
                 t += dist
                 x = torch.where(mask.view(mask.shape[0], 1), torch.addcmul(nug_o, nug_d, t), x)
-                hit = torch.where(mask, torch.abs(dist)[...,0] < self.min_dis * invres, hit)
+                hit = torch.where(mask, torch.abs(dist)[...,0] < min_dis * invres, hit)
                 hit |= torch.where(mask, 
-                                   torch.abs(dist+dist_prev)[...,0] * 0.5 < (self.min_dis*5) * invres, hit)
+                                   torch.abs(dist+dist_prev)[...,0] * 0.5 < (min_dis*5) * invres, hit)
                 mask = torch.where(mask, (t < rays.dist_max)[...,0], mask)
                 mask &= ~hit
                 if not mask.any():
@@ -99,7 +132,7 @@ class PackedSDFTracer(BaseTracer):
                 curr_pidx = torch.where(mask, pidx[curr_idxes.long()].long(), curr_pidx)
                 if not mask.any():
                     break
-                dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * self.step_size
+                dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
             timer.check("step done")
     
         x_buffer = torch.zeros_like(rays.origins)
@@ -113,9 +146,13 @@ class PackedSDFTracer(BaseTracer):
         x_buffer[hit_buffer] = x[hit]
         depth_buffer[hit_buffer] = t[hit]
         
-        grad = finitediff_gradient(x[hit], nef.get_forward_function("sdf"))
-        normal_buffer[hit_buffer] = F.normalize(grad, p=2, dim=-1, eps=1e-5)
-        rgb_buffer[..., :3] = (normal_buffer + 1.0) / 2.0
+        # TODO(ttakikawa): RGB channel should _not_ be the normals. This should be only the case
+        # if some shader object defines this to be the case.
+        if "rgb" in channels or "normal" in channels:
+            grad = finitediff_gradient(x[hit], nef.get_forward_function("sdf"))
+            normal_buffer[hit_buffer] = F.normalize(grad, p=2, dim=-1, eps=1e-5)
+            rgb_buffer[..., :3] = (normal_buffer + 1.0) / 2.0
+        
         alpha_buffer[hit_buffer] = 1.0
         timer.check("populate buffers")
         return RenderBuffer(xyz=x_buffer, depth=depth_buffer, hit=hit_buffer, normal=normal_buffer, rgb=rgb_buffer,

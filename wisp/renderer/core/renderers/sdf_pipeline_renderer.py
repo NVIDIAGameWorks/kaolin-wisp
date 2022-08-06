@@ -35,8 +35,7 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         if raymarch_type is None:
             raymarch_type = 'voxel'
 
-        self.tracer = PackedSDFTracer(num_steps=self.samples_per_ray, min_dis=min_distance,
-                                       raymarch_type=raymarch_type, bg_color='black')
+        self.tracer = PackedSDFTracer()
         self.render_res_x = None
         self.render_res_y = None
         self.output_width = None
@@ -67,7 +66,7 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         return self._last_state.get('num_steps', 0) < self.samples_per_ray
 
     def render(self, rays: Optional[Rays] = None) -> RenderBuffer:
-        rb = self.tracer(self.nef, rays)
+        rb = self.tracer(self.nef, rays=rays)
 
         # Rescale renderbuffer to original size
         rb = rb.reshape(self.render_res_y, self.render_res_x, -1)

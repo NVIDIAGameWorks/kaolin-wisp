@@ -18,23 +18,54 @@ class PackedRFTracer(BaseTracer):
     """Tracer class for sparse (packed) radiance fields.
 
     This tracer class expects the use of a feature grid that has a BLAS (i.e. inherits the BLASGrid
-    class). It also expects a `nef.rgba` method to be implemented. 
+    class).
     """
+    
+    def set_defaults(self, raymarch_type='voxel', num_steps=64, step_size=1.0, bg_color='white', **kwargs):
+        """Sets default arguments.
+        """
+        self.raymarch_type = raymarch_type
+        self.num_steps = num_steps
+        self.step_size = step_size
+        self.bg_color = bg_color
+    
+    def get_output_channels(self):
+        """Returns the input channels that are supported by this class.
+        
+        Returns:
+            (set): Set of channel strings.
+        """
+        return set(["depth", "hit", "rgb", "alpha"])
 
-    def forward(self, nef, rays, lod_idx=None):
+    def get_input_channels(self):
+        """Returns the input channels that are supported by this class.
+        
+        Returns:
+            (set): Set of channel strings.
+        """
+        return set(["rgb", "density"])
+
+    def trace(self, nef, channels, rays, lod_idx=None, raymarch_type='voxel', num_steps=64, step_size=1.0, bg_color='white'):
         """Trace the rays against the neural field.
 
         Args:
             nef (nn.Module): A neural field that uses a grid class.
+            channels (set): The set of requested channels. The trace method can return channels that 
+                            were not requested since those channels often had to be computed anyways.
             rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
             lod_idx (int): LOD index to render at. 
+            raymarch_type (str): The type of raymarching algorithm to use. Currently we support:
+                                 voxel: Finds num_steps # of samples per intersected voxel
+                                 ray: Finds num_steps # of samples per ray, and filters them by intersected samples
+            num_steps (int): The number of steps to use for the sampling.
+            step_size (float): The step size between samples. Currently unused, but will be used for a new
+                               sampling method in the future.
+            bg_color (str): The background color to use. TODO(ttakikawa): Might be able to simplify / remove
 
         Returns:
             (wisp.RenderBuffer): A dataclass which holds the output buffers from the render.
         """
-        supported_channels = nef.get_supported_channels()
-        assert "rgb" in supported_channels and "this tracer requires rgb channels"
-        assert "density" in supported_channels and "this tracer requires density channels"
+        #TODO(ttakikawa): Use a more robust method
         assert nef.grid is not None and "this tracer requires a grid"
 
         timer = PerfTimer(activate=False, show_memory=False)
@@ -48,13 +79,13 @@ class PackedRFTracer(BaseTracer):
         # This however may not actually do anything; the ray sampling behaviours are often single-LOD
         # and is governed by however the underlying feature grid class uses the BLAS to implement the sampling.
         ridx, pidx, samples, depths, deltas, boundary = nef.grid.raymarch(rays, 
-                level=nef.grid.active_lods[lod_idx], num_samples=self.num_steps, raymarch_type=self.raymarch_type)
+                level=nef.grid.active_lods[lod_idx], num_samples=num_steps, raymarch_type=raymarch_type)
 
         timer.check("Raymarch")
 
         # Check for the base case where the BLAS traversal hits nothing
         if ridx.shape[0] == 0:
-            if self.bg_color == 'white':
+            if bg_color == 'white':
                 hit = torch.zeros(N, device=ridx.device).bool()
                 rgb = torch.ones(N, 3, device=ridx.device)
                 alpha = torch.zeros(N, 1, device=ridx.device)
@@ -85,30 +116,32 @@ class PackedRFTracer(BaseTracer):
 
         # Perform volumetric integration
         ray_colors, transmittance = spc_render.exponential_integration(color.reshape(-1, 3), tau, boundary, exclusive=True)
-        ray_depth = spc_render.sum_reduce(depths.reshape(-1, 1) * transmittance, boundary)
-        depth = torch.zeros(N, 1, device=ray_depth.device)
-        depth[ridx_hit.long(), :] = ray_depth
-        timer.check("Integration")
+        
+        if "depth" in channels:
+            ray_depth = spc_render.sum_reduce(depths.reshape(-1, 1) * transmittance, boundary)
+            depth = torch.zeros(N, 1, device=ray_depth.device)
+            depth[ridx_hit.long(), :] = ray_depth
+            timer.check("Integration")
+        else:
+            depth = None
+
         alpha = spc_render.sum_reduce(transmittance, boundary)
         timer.check("Sum Reduce")
-        
+        out_alpha = torch.zeros(N, 1, device=color.device)
+        out_alpha[ridx_hit.long()] = alpha
         hit = torch.zeros(N, device=color.device).bool()
+        hit[ridx_hit.long()] = alpha[...,0] > 0.0
 
         # Populate the background
-        if self.bg_color == 'white':
+        if bg_color == 'white':
             rgb = torch.ones(N, 3, device=color.device)
-            out_alpha = torch.zeros(N, 1, device=color.device)
             bg = torch.ones([ray_colors.shape[0], 3], device=ray_colors.device)
             color = (1.0-alpha) * bg + alpha * ray_colors
         else:
             rgb = torch.zeros(N, 3, device=color.device)
-            out_alpha = torch.zeros(N, 1, device=color.device)
             color = alpha * ray_colors
-        
-        hit[ridx_hit.long()] = alpha[...,0] > 0.0
 
         rgb[ridx_hit.long(), :3] = color
-        out_alpha[ridx_hit.long()] = alpha
         
         timer.check("Composit")
 

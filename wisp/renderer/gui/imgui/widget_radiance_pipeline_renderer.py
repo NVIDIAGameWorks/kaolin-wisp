@@ -59,7 +59,7 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                 # TODO (operel): Update the ## ids below with a unique object name to avoid imgui bug
                 def _num_samples_property():
                     max_value = MAX_SAMPLES
-                    if renderer.tracer.raymarch_type == 'ray':
+                    if renderer.raymarch_type == 'ray':
                         max_value = MAX_SAMPLES_RAY_MODE
                     value = min(renderer.num_steps, max_value)
                     changed, value = imgui.core.slider_int(f"##samples_per_ray", value=value,
@@ -69,7 +69,7 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                 
                 def _num_samples_movement_property():
                     max_value = MAX_SAMPLES
-                    if renderer.tracer.raymarch_type == 'ray':
+                    if renderer.raymarch_type == 'ray':
                         max_value = MAX_SAMPLES_RAY_MODE
                     value = min(renderer.num_steps_movement, max_value)
                     changed, value = imgui.core.slider_int(f"##samples_per_ray_movement", value=value,
@@ -84,14 +84,14 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                         renderer.batch_size = value
 
                 def _marcher_type_property():
-                    selected_marcher_idx = self.marcher_types.index(renderer.tracer.raymarch_type)
+                    selected_marcher_idx = self.marcher_types.index(renderer.raymarch_type)
                     changed, selected_marcher_idx = imgui.combo("##marcher_type",
                                                                 selected_marcher_idx, self.marcher_types)
                     if changed:
                         new_marcher_mode = self.marcher_types[selected_marcher_idx]
                         if new_marcher_mode != 'ray':
-                            renderer.tracer.num_steps = min(MAX_SAMPLES, renderer.tracer.num_steps)
-                        renderer.tracer.raymarch_type = new_marcher_mode
+                            renderer.num_steps = min(MAX_SAMPLES, renderer.num_steps)
+                        renderer.raymarch_type = new_marcher_mode
 
                 properties = {
                     "Ray Samples (static)": _num_samples_property,              # Samples per ray

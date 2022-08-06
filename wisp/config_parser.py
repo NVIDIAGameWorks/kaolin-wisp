@@ -40,7 +40,7 @@ def parse_options(return_parser=False):
     # Global arguments
     ###################
     global_group = parser.add_argument_group('global')
-    global_group.add_argument('--trainer', type=str,
+    global_group.add_argument('--trainer-type', type=str,
                               help='Trainer class to use')
     global_group.add_argument('--exp-name', type=str,
                               help='Experiment name.')
@@ -110,7 +110,7 @@ def parse_options(return_parser=False):
     ###################
     net_group = parser.add_argument_group('net')
     
-    net_group.add_argument('--nef', type=str, default='OverfitSDF', 
+    net_group.add_argument('--nef-type', type=str,
                           help='The neural field class to be used.')
     net_group.add_argument('--layer-type', type=str, default='none',
                             choices=['none', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'])
@@ -178,7 +178,7 @@ def parse_options(return_parser=False):
     # Arguments for optimizer
     ###################
     optim_group = parser.add_argument_group('optimizer')
-    optim_group.add_argument('--optimizer', type=str, default='adam', choices=list(str2optim.keys()), 
+    optim_group.add_argument('--optimizer-type', type=str, default='adam', choices=list(str2optim.keys()), 
                              help='Optimizer to be used.')
     optim_group.add_argument('--lr', type=float, default=0.001, 
                              help='Learning rate.')
@@ -262,7 +262,7 @@ def parse_options(return_parser=False):
                                 help='Camera projection.')
     renderer_group.add_argument('--camera-clamp', nargs=2, type=float, default=[0, 10], 
                                 help='Camera clipping bounds.')
-    renderer_group.add_argument('--tracer', type=str, default='PackedRFTracer', 
+    renderer_group.add_argument('--tracer-type', type=str, default='PackedRFTracer', 
                                 help='The tracer to be used.')
     
     # TODO(ttakikawa): In the future the interface will be such that you either select an absolute step size or 
@@ -376,10 +376,10 @@ def argparse_to_str(parser, args=None):
 def get_optimizer_from_config(args):
     """Utility function to get the optimizer from the parsed config.
     """
-    optim_cls = str2optim[args.optimizer]
-    if args.optimizer == 'adam':
+    optim_cls = str2optim[args.optimizer_type]
+    if args.optimizer_type == 'adam':
         optim_params = {'eps': 1e-15}
-    elif args.optimizer == 'sgd':
+    elif args.optimizer_type == 'sgd':
         optim_params = {'momentum': 0.8}
     else:
         optim_params = {}
@@ -389,8 +389,9 @@ def get_modules_from_config(args):
     """Utility function to get the modules for training from the parsed config.
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    nef = globals()[args.nef](**vars(args))
-    tracer = globals()[args.tracer](**vars(args))
+    nef = globals()[args.nef_type](**vars(args))
+    tracer = globals()[args.tracer_type]()
+    tracer.set_defaults(**vars(args))
     pipeline = Pipeline(nef, tracer)
 
     if args.pretrained:

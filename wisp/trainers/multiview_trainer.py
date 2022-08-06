@@ -70,7 +70,7 @@ class MultiviewTrainer(BaseTrainer):
             lod_idx = None
 
         with torch.cuda.amp.autocast():
-            rb = self.pipeline(rays, lod_idx=lod_idx)
+            rb = self.pipeline(rays=rays, lod_idx=lod_idx, channels=["rgb"])
             timer.check("inference")
 
             # RGB Loss

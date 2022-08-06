@@ -125,7 +125,7 @@ spec:
             stage("NGP-NeRF") {
               sh '''
               cd /wisp
-              python app/main.py --config configs/ngp_nerf.yaml --dataset-path /data/V8
+              python app/main.py --config configs/ngp_nerf.yaml --dataset-path /data/fox --valid-every -1
               '''
             }
         }
