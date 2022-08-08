@@ -12,6 +12,7 @@
 #include <c10/cuda/CUDAGuard.h>
 
 namespace wisp {
+typedef unsigned int uint;
 
 __device__ int32_t 
 hash_index(
