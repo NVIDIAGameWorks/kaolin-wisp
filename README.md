@@ -1,4 +1,5 @@
 # Kaolin Wisp: A PyTorch Library and Engine for Neural Fields Research
+Tested with python 3.7, cuda 11.3, windows 11
 
 <img src="media/demo.jpg" alt="drawing" width="1000"/>
 
