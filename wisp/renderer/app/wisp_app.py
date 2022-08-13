@@ -20,6 +20,7 @@ from glumpy import app, gloo, gl, ext
 import imgui
 from typing import Optional, Type, Callable, Dict, List, Tuple
 from kaolin.render.camera import Camera
+from wisp.core.primitives import PrimitivesPack
 from wisp.framework import WispState, watch
 from wisp.renderer.core import RendererCore
 from wisp.renderer.core.control import CameraControlMode, WispKey, WispMouseButton
@@ -89,13 +90,18 @@ class WispApp(ABC):
         # add a mesh
         self.mesh = PrimitivesPainter()
         a = [[0, 0, 0]]
-        b = [[1, 2, 3]]
+        b = [[10, 20, 30]]
         c = [[1, 0, 0, 1]]
-        start = torch.FloatTensor(a) #(torch.randn(1, 3)
+        start = torch.FloatTensor(a)
         end = torch.FloatTensor(b)      
-        c = torch.FloatTensor(c)   
-        self.mesh.create_line_buffers((start, end, c))
-
+        color = torch.FloatTensor(c)   
+        layers_to_draw = [PrimitivesPack()]
+        #  layers_to_draw[0].add_lines(self, start: torch.Tensor, end: torch.Tensor, color: torch.Tensor) 
+        layers_to_draw[0].add_lines(start, end, color)
+        self.mesh.redraw(layers_to_draw)
+        if (not self.mesh.lines):
+            print(self.mesh.lines)
+            sys.exit()
 
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
@@ -359,6 +365,7 @@ class WispApp(ABC):
         # Regenerate the GL primitives according to up-to-date data layers
         layers_to_draw = self.render_core.active_data_layers()
         self.prim_painter.redraw(layers_to_draw)
+        print(" ___redraw")
 
     @torch.no_grad()
     def render(self):
@@ -410,6 +417,9 @@ class WispApp(ABC):
         for gizmo in self.gizmos.values():
             gizmo.render(camera)
         self.prim_painter.render(camera)
+        # mesh
+        if (self.mesh.lines):
+            self.mesh.render(camera)
         self.canvas_dirty = False
 
     def register_background_task(self, hook: Callable[[], None]) -> None:
