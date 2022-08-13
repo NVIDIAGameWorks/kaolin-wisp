@@ -77,29 +77,24 @@ vertices:  tensor([-0.2966, -0.0021,  0.0888])
 """
 OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\1.obj"
 
+""" Adds a single or batch of line primitives to the pack.
+
+        Args:
+            start (torch.Tensor): A tensor of (B, 3) or (3,) marking the start point of the line(s).
+            end (torch.Tensor): A tensor of (B, 3) or (3,) marking the end point of the line(s).
+            color (torch.Tensor): A tensor of (B, 4) or (4,) marking the RGB color of the line(s).
+"""
 def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
     mesh = obj.import_mesh(f,
              with_materials=True, with_normals=True,
              error_handler=obj.skip_error_handler,
              heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
 
-    batched_vertices = mesh.vertices.unsqueeze(0)
-    batched_faces = mesh.faces.unsqueeze(0)
     vertices = mesh.vertices.cpu()
     faces = mesh.faces.cpu()
     if not len(vertices):
         return []
     """ 
-# sample_points is faster on cuda device
-    batched_vertices = batched_vertices.cuda()
-    faces = mesh.faces.cuda()
-    batched_face_features = batched_face_features.cuda()
-
-    sampled_verts, _, sampled_uvs = kal.ops.mesh.trianglemesh.sample_points(batched_vertices,
-                                                                            faces,
-                                                                            num_samples=num_samples,
-                                                                            face_features=batched_face_features)
-
     uvs_list=[mesh.uvs.cpu()],
     face_uvs_idx_list=[mesh.face_uvs_idx.cpu()],
     uvs = mesh.uvs.cuda().unsqueeze(0)
@@ -111,20 +106,28 @@ def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
     diffuse_color = mesh.materials[0]['map_Kd'] 
     """
     layers_to_draw = [PrimitivesPack()]
-    print("faces: ", faces[0])
-    print("vertices: ", vertices[0])
+    #print("vertices: ", vertices[0])
+    #print("faces: ", faces[0])
+    a = [[0, 0, 0], [10, 20, 3]]
+    b = [[10, 20, 30], [0, 0, 0]]
+    c = [[10, 20, 30, 1], [0, 0, 0, 1]]
+
+    start = torch.FloatTensor()
+    end = torch.FloatTensor()
+    colorT = torch.FloatTensor(color)   
     for i in range(0, len(faces)):
         face = faces[i]
-        for j in range(0, len(face), 2):
-            a = vertices[face[j]]
-            b = vertices[face[j+1]]
-            break
-    print("a: ",  a)
-    #sys.exit()
-    start = torch.FloatTensor(a)
-    end = torch.FloatTensor(b)      
-    colorT = torch.FloatTensor(color)   
-    layers_to_draw[0].add_lines(start, end, colorT)
+        start = vertices[face[0]]
+        end = vertices[face[1]]
+        layers_to_draw[0].add_lines(start, end, colorT)
+        start = vertices[face[1]]
+        end = vertices[face[2]]
+        layers_to_draw[0].add_lines(start, end, colorT)
+        start = vertices[face[2]]
+        end = vertices[face[0]]
+        layers_to_draw[0].add_lines(start, end, colorT)
+
+    #sys.exit()    
     return layers_to_draw
 
 
