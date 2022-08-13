@@ -183,6 +183,11 @@ dataset from the `instant-ngp` repository somewhere. Then, run the training with
 python3 app/main.py --config configs/ngp_nerf.yaml --multiview-dataset-format standard --mip 0 --dataset-path /path/to/fox
 ```
 
+py app/main.py --config configs/ngp_nerf.yaml --multiview-dataset-format standard --mip 0 --dataset-path D:\workspace\DATA\Nerf\nerf_synthetic\materials\transforms_train.json
+py app/main.py --config configs/ngp_nerf.yaml --multiview-dataset-format standard --mip 0 --dataset-path D:\workspace\DATA\nerf\nerf_synthetic\lego
+py app/main_interactive.py --config configs/ngp_nerf_interactive.yaml --dataset-path D:\workspace\DATA\nerf\nerf_synthetic\materials
+
+
 Our code supports any "standard" NGP-format datasets that has been converted with the scripts from the 
 `instant-ngp` library. We pass in the `--multiview-dataset-format` argument to specify the dataset type, which
 in this case is different from the RTMV dataset type used for the other examples. 

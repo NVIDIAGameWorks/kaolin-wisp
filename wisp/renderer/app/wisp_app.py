@@ -42,7 +42,7 @@ def cuda_activate(img):
     mapping.unmap()
 
 
-OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\1.obj"
+OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\obj\1.obj"
 
 
 def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
@@ -406,7 +406,6 @@ class WispApp(ABC):
         # Regenerate the GL primitives according to up-to-date data layers
         layers_to_draw = self.render_core.active_data_layers()
         self.prim_painter.redraw(layers_to_draw)
-        print(" ___redraw")
 
     @torch.no_grad()
     def render(self):
