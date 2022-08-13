@@ -11,6 +11,7 @@
 from __future__ import annotations
 from contextlib import contextmanager
 import sys
+from typing import Optional, Type, Callable, Dict, List, Tuple
 
 from abc import ABC
 import numpy as np
@@ -18,8 +19,10 @@ import torch
 import pycuda
 from glumpy import app, gloo, gl, ext
 import imgui
-from typing import Optional, Type, Callable, Dict, List, Tuple
 from kaolin.render.camera import Camera
+from kaolin.io import utils
+from kaolin.io import obj
+
 from wisp.core.primitives import PrimitivesPack
 from wisp.framework import WispState, watch
 from wisp.renderer.core import RendererCore
@@ -38,7 +41,52 @@ def cuda_activate(img):
     yield mapping.array(0, 0)
     mapping.unmap()
 
-def setMesh(mesh):
+"""
+    Returns:
+        (obj.return_type):
+            nametuple of:
+
+            - **vertices** (torch.Tensor): of shape :math:`(\text{num_vertices}, 3)`.
+            - **faces** (torch.LongTensor):
+              of shape :math:`(\text{num_faces}, \text{face_size})`.
+            - **uvs** (torch.Tensor): of shape :math:`(\text{num_uvs}, 2)`.
+            - **face_uvs_idx** (torch.LongTensor):
+              of shape :math:`(\text{num_faces}, \text{face_size})`.
+            - **materials** (list of dict):
+              a list of materials (see return values of :func:`load_mtl`).
+            - **materials_order** (torch.LongTensor):
+              of shape :math:`(\text{num_same_material_groups}, 2)`.
+              showing the order in which materials are used over **face_uvs_idx**
+              and the first indices in which they start to be used.
+              A material can be used multiple times.
+            - **vertex_normals** (torch.Tensor): of shape :math:`(\text{num_vertices}, 3)`.
+            - **face_normals** (torch.LongTensor):
+              of shape :math:`(\text{num_faces}, \text{face_size})`
+              kaolin.io.utils.NonHomogeneousMeshError: Mesh is non-homogeneous and cannot be
+               imported from D:\workspace\INTEGRATION\kaolin-wisp\data\test\1.obj.User can set heterogeneous_mesh_handler.See kaolin.io.utils for the available option
+
+
+        outputs = obj.import_mesh(os.path.join(SIMPLE_DIR, 'model_heterogeneous.obj'),
+                                               with_materials=with_materials, with_normals=with_normals,
+                                               error_handler=obj.skip_error_handler,
+                                               heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
+        assert torch.equal(outputs.vertices, expected_vertices)
+        assert torch.equal(outputs.faces, expected_faces_heterogeneous)
+        
+
+"""
+OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\1.obj"
+
+def setMesh(mesh, f=OPATH):
+    res = obj.import_mesh(f,
+             with_materials=True, with_normals=True,
+             error_handler=obj.skip_error_handler,
+             heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
+
+    res.vertices
+    print(res.faces[0])
+    print(res.vertices[0])
+    sys.exit
     a = [[0, 0, 0]]
     b = [[10, 20, 30]]
     c = [[1, 0, 0, 1]]
@@ -46,7 +94,6 @@ def setMesh(mesh):
     end = torch.FloatTensor(b)      
     color = torch.FloatTensor(c)   
     layers_to_draw = [PrimitivesPack()]
-
     layers_to_draw[0].add_lines(start, end, color)
     mesh.redraw(layers_to_draw)
 
