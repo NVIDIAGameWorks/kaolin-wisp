@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 from contextlib import contextmanager
+import sys
+
 from abc import ABC
 import numpy as np
 import torch
@@ -83,7 +85,17 @@ class WispApp(ABC):
 
         self.widgets = self.create_widgets()        # Create gui widgets for this app
         self.gizmos = self.create_gizmos()          # Create canvas widgets for this app
-        self.prim_painter = PrimitivesPainter()
+        self.prim_painter = PrimitivesPainter() # grid
+        # add a mesh
+        self.mesh = PrimitivesPainter()
+        a = [[0, 0, 0]]
+        b = [[1, 2, 3]]
+        c = [[1, 0, 0, 1]]
+        start = torch.FloatTensor(a) #(torch.randn(1, 3)
+        end = torch.FloatTensor(b)      
+        c = torch.FloatTensor(c)   
+        self.mesh.create_line_buffers((start, end, c))
+
 
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
