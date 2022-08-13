@@ -41,8 +41,7 @@ def cuda_activate(img):
     yield mapping.array(0, 0)
     mapping.unmap()
 
-OPATH = os.path.normpath(os.path.join(__file__, "data/test/obj/1.obj"))
-
+OPATH = os.path.normpath(os.path.join(__file__, "../../../../data/test/obj/1.obj"))
 
 def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
     mesh = obj.import_mesh(f,
@@ -66,12 +65,6 @@ def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
     diffuse_color = mesh.materials[0]['map_Kd'] 
     """
     layers_to_draw = [PrimitivesPack()]
-    #print("vertices: ", vertices[0])
-    #print("faces: ", faces[0])
-    a = [[0, 0, 0], [10, 20, 3]]
-    b = [[10, 20, 30], [0, 0, 0]]
-    c = [[10, 20, 30, 1], [0, 0, 0, 1]]
-
     start = torch.FloatTensor()
     end = torch.FloatTensor()
     colorT = torch.FloatTensor(color)   
