@@ -72,30 +72,44 @@ def cuda_activate(img):
                                                heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
         assert torch.equal(outputs.vertices, expected_vertices)
         assert torch.equal(outputs.faces, expected_faces_heterogeneous)
-        
-
+faces:  tensor([4443,  434, 4387])
+vertices:  tensor([-0.2966, -0.0021,  0.0888])
 """
 OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\1.obj"
 
-def setMesh(mesh, f=OPATH):
-    res = obj.import_mesh(f,
+def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]]):
+    mesh = obj.import_mesh(f,
              with_materials=True, with_normals=True,
              error_handler=obj.skip_error_handler,
              heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
 
-    res.vertices
-    print(res.faces[0])
-    print(res.vertices[0])
-    sys.exit
-    a = [[0, 0, 0]]
-    b = [[10, 20, 30]]
-    c = [[1, 0, 0, 1]]
+    vertices = mesh.vertices.cpu()
+    faces = mesh.faces.cpu()
+    if not len(vertices):
+        return []
+    """ 
+    uvs_list=[mesh.uvs.cpu()],
+    face_uvs_idx_list=[mesh.face_uvs_idx.cpu()],
+    uvs = mesh.uvs.cuda().unsqueeze(0)
+    face_uvs_idx = mesh.face_uvs_idx.cuda()
+    face_uvs = kal.ops.mesh.index_vertices_by_faces(uvs, face_uvs_idx).detach()
+    face_uvs.requires_grad = False
+    texture_map = torch.ones((1, 3, texture_res, texture_res), dtype=torch.float, device='cuda',
+                            requires_grad=True)
+    """
+    print("faces: ", faces[0])
+    print("vertices: ", vertices[0])
+    face = faces[0]
+    a = vertices[face[0]] #[[0, 0, 0]]
+    b = vertices[face[1]] #[[10, 20, 30]]
+    print("a: ",  a)
+    #sys.exit()
     start = torch.FloatTensor(a)
     end = torch.FloatTensor(b)      
-    color = torch.FloatTensor(c)   
+    colorT = torch.FloatTensor(color)   
     layers_to_draw = [PrimitivesPack()]
-    layers_to_draw[0].add_lines(start, end, color)
-    mesh.redraw(layers_to_draw)
+    layers_to_draw[0].add_lines(start, end, colorT)
+    return layers_to_draw
 
 
 class WispApp(ABC):
@@ -148,7 +162,7 @@ class WispApp(ABC):
         self.prim_painter = PrimitivesPainter() # grid
         # add a mesh
         self.mesh = PrimitivesPainter()
-        setMesh(self.mesh)
+        self.mesh.redraw(getObjLayers())
 
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
