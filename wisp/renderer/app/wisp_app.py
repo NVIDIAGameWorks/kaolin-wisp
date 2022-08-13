@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 from contextlib import contextmanager
-import sys
+import os, sys
 from typing import Optional, Type, Callable, Dict, List, Tuple
 
 from abc import ABC
@@ -41,8 +41,7 @@ def cuda_activate(img):
     yield mapping.array(0, 0)
     mapping.unmap()
 
-
-OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\obj\1.obj"
+OPATH = os.path.join(os.path.normpath(__file__, "data/test/obj/1.obj"))
 
 
 def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
