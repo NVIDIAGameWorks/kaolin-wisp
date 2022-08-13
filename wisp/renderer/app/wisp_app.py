@@ -38,6 +38,18 @@ def cuda_activate(img):
     yield mapping.array(0, 0)
     mapping.unmap()
 
+def setMesh(mesh):
+    a = [[0, 0, 0]]
+    b = [[10, 20, 30]]
+    c = [[1, 0, 0, 1]]
+    start = torch.FloatTensor(a)
+    end = torch.FloatTensor(b)      
+    color = torch.FloatTensor(c)   
+    layers_to_draw = [PrimitivesPack()]
+
+    layers_to_draw[0].add_lines(start, end, color)
+    mesh.redraw(layers_to_draw)
+
 
 class WispApp(ABC):
 
@@ -89,19 +101,7 @@ class WispApp(ABC):
         self.prim_painter = PrimitivesPainter() # grid
         # add a mesh
         self.mesh = PrimitivesPainter()
-        a = [[0, 0, 0]]
-        b = [[10, 20, 30]]
-        c = [[1, 0, 0, 1]]
-        start = torch.FloatTensor(a)
-        end = torch.FloatTensor(b)      
-        color = torch.FloatTensor(c)   
-        layers_to_draw = [PrimitivesPack()]
-        #  layers_to_draw[0].add_lines(self, start: torch.Tensor, end: torch.Tensor, color: torch.Tensor) 
-        layers_to_draw[0].add_lines(start, end, color)
-        self.mesh.redraw(layers_to_draw)
-        if (not self.mesh.lines):
-            print(self.mesh.lines)
-            sys.exit()
+        setMesh(self.mesh)
 
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
