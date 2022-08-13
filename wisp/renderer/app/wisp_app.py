@@ -77,17 +77,29 @@ vertices:  tensor([-0.2966, -0.0021,  0.0888])
 """
 OPATH = r"D:\workspace\INTEGRATION\kaolin-wisp\data\test\1.obj"
 
-def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]]):
+def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
     mesh = obj.import_mesh(f,
              with_materials=True, with_normals=True,
              error_handler=obj.skip_error_handler,
              heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
 
+    batched_vertices = mesh.vertices.unsqueeze(0)
+    batched_faces = mesh.faces.unsqueeze(0)
     vertices = mesh.vertices.cpu()
     faces = mesh.faces.cpu()
     if not len(vertices):
         return []
     """ 
+# sample_points is faster on cuda device
+    batched_vertices = batched_vertices.cuda()
+    faces = mesh.faces.cuda()
+    batched_face_features = batched_face_features.cuda()
+
+    sampled_verts, _, sampled_uvs = kal.ops.mesh.trianglemesh.sample_points(batched_vertices,
+                                                                            faces,
+                                                                            num_samples=num_samples,
+                                                                            face_features=batched_face_features)
+
     uvs_list=[mesh.uvs.cpu()],
     face_uvs_idx_list=[mesh.face_uvs_idx.cpu()],
     uvs = mesh.uvs.cuda().unsqueeze(0)
@@ -96,18 +108,22 @@ def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]]):
     face_uvs.requires_grad = False
     texture_map = torch.ones((1, 3, texture_res, texture_res), dtype=torch.float, device='cuda',
                             requires_grad=True)
+    diffuse_color = mesh.materials[0]['map_Kd'] 
     """
+    layers_to_draw = [PrimitivesPack()]
     print("faces: ", faces[0])
     print("vertices: ", vertices[0])
-    face = faces[0]
-    a = vertices[face[0]] #[[0, 0, 0]]
-    b = vertices[face[1]] #[[10, 20, 30]]
+    for i in range(0, len(faces)):
+        face = faces[i]
+        for j in range(0, len(face), 2):
+            a = vertices[face[j]]
+            b = vertices[face[j+1]]
+            break
     print("a: ",  a)
     #sys.exit()
     start = torch.FloatTensor(a)
     end = torch.FloatTensor(b)      
     colorT = torch.FloatTensor(color)   
-    layers_to_draw = [PrimitivesPack()]
     layers_to_draw[0].add_lines(start, end, colorT)
     return layers_to_draw
 
