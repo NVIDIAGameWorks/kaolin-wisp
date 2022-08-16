@@ -19,7 +19,7 @@ RUN apt-get -y update \
 RUN pip install -r requirements.txt
 RUN python setup.py develop
 
-RUN if [[ -z "${INSTALL_RENDERER}" ]]; then \
+RUN if [ -z "${INSTALL_RENDERER}" ]; then \
         git clone --recursive https://github.com/inducer/pycuda && \
         cd ./pycuda && \
         python configure.py --cuda-root=/usr/local/cuda/ --cuda-enable-gl && \
