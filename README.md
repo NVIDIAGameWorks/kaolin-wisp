@@ -73,7 +73,7 @@ You should first install PyTorch by following the [official instructions](https:
 
 ### 3. Install Kaolin
 
-You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html).
+You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html). **WARNING:** The minimum required version of Kaolin is `1.12.0`. If you have any issues specifically with Camera classes not existing, make sure you have an up-to-date version of Kaolin. 
 
 ### 4. Install the rest of the dependencies
 
