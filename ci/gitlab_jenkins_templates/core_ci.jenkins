@@ -27,7 +27,7 @@ node {
     // To enable master branch we have to accept all the push requests
     // and prune them here.
     sh "echo ${gitlabActionType}"
-    if (gitlabActionType == "MERGE" || gitlabSourceBranch == "master") {
+    if (gitlabActionType == "MERGE" || gitlabSourceBranch == "main") {
         gitlabCommitStatus("launch all builds") {
             jobMap = [:]
             // Jenkins doesn't parse the commit hash from the webhook.
