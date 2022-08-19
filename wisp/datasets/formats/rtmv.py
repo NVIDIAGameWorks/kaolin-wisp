@@ -10,11 +10,11 @@ import copy
 import os
 import glob
 import time
-import futureproof
 import json
 from tqdm import tqdm
 import numpy as np
 import torch
+from torch.multiprocessing import Pool, cpu_count
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
 from wisp.ops.image import load_exr
@@ -81,18 +81,26 @@ def transform_rtmv_camera(camera, mip):
     return camera
 
 
-def _parallel_load_rtmv_data(task_basename, exr_args, camera_args):
+def _parallel_load_rtmv_data(args):
     """ A wrapper function to allow rtmv load faster with multiprocessing.
         All internal logic must therefore occur on the cpu.
     """
-    image, alpha, depth = load_exr(**exr_args)
-    camera = load_rtmv_camera(camera_args['path'])
-    transformed_camera = transform_rtmv_camera(copy.deepcopy(camera), mip=camera_args['mip'])
-    return dict(task_basename=task_basename, image=image, alpha=alpha, depth=depth, camera=transformed_camera.cpu())
+    torch.set_num_threads(1)
+    with torch.no_grad():
+        image, alpha, depth = load_exr(**args['exr_args'])
+        camera = load_rtmv_camera(args['camera_args']['path'])
+        transformed_camera = transform_rtmv_camera(copy.deepcopy(camera), mip=args['camera_args']['mip'])
+        return dict(
+            task_basename=args['task_basename'],
+            image=image,
+            alpha=alpha,
+            depth=depth,
+            camera=transformed_camera.cpu()
+        )
 
 
 def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=False, bg_color='white',
-                   num_workers=-1):
+                   num_workers=0):
     """Load the RTMV data and applies dataset specific transforms required for compatibility with the framework.
 
     Args:
@@ -120,7 +128,7 @@ def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=Fals
     elif split == 'test':
         subset_idxs = np.arange(eval_split_idx, len(json_files))
     else:
-        assert False and "Unimplemented split, check the split"
+        raise RuntimeError("Unimplemented split, check the split")
 
     images = []
     alphas = []
@@ -131,62 +139,63 @@ def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=Fals
 
     json_files = [json_files[i] for i in subset_idxs]
     assert (len(json_files) > 0 and "No JSON files found")
-
-    if num_workers > -1:
+    if num_workers > 0:
         # threading loading images
 
+        p = Pool(num_workers)
         try:
-            executor = futureproof.ProcessPoolExecutor(max_workers=num_workers)
-
-            timeall = time.time()
-            with futureproof.TaskManager(executor) as tm:
-                for img_index, json_file in enumerate(json_files):
-                    basename = os.path.splitext(os.path.basename(json_file))[0]
-                    exr_path = os.path.join(root, basename + ".exr")
-                    json_path = os.path.join(root, basename + ".json")
-
-                    load_exr_kwargs = dict(path=exr_path, use_depth=True, mip=mip, srgb=True, bg_color=bg_color)
-                    load_camera_kwargs = dict(path=json_path, mip=mip)
-
-                    tm.submit(_parallel_load_rtmv_data, task_basename=basename, exr_args=load_exr_kwargs,
-                              camera_args=load_camera_kwargs)
-
-                for task in tqdm(tm.as_completed(), desc='loading data'):
-                    images.append(task.result["image"])
-                    alphas.append(task.result["alpha"])
-                    depths.append(task.result["depth"])
-                    cameras[task.result['task_basename']] = task.result["camera"]
+            basenames = (os.path.splitext(os.path.basename(json_file))[0] for json_file in json_files)
+            iterator = p.imap(_parallel_load_rtmv_data, [
+                dict(
+                    task_basename=basename,
+                    exr_args=dict(
+                        path=os.path.join(root, basename + '.exr'),
+                        use_depth=True,
+                        mip=mip,
+                        srgb=True,
+                        bg_color=bg_color),
+                    camera_args=dict(
+                        path=os.path.join(root, basename + '.json'),
+                        mip=mip)) for basename in basenames])
+            for _ in tqdm(range(len(json_files)), desc='loading data'):
+                result = next(iterator)
+                images.append(result["image"])
+                alphas.append(result["alpha"])
+                depths.append(result["depth"])
+                cameras[result['task_basename']] = result["camera"]
         finally:
-            if executor is not None:
-                executor.join()
-
+            p.close()
+            p.join()
     else:
         for img_index, json_file in tqdm(enumerate(json_files), desc='loading data'):
-            basename = os.path.splitext(os.path.basename(json_file))[0]
-            exr_path = os.path.join(root, basename + ".exr")
-            image, alpha, depth = load_exr(exr_path, use_depth=True, mip=mip, srgb=True, bg_color=bg_color)
-            json_path = os.path.join(root, basename + ".json")
-            camera = load_rtmv_camera(path=json_path)
-            transformed_camera = transform_rtmv_camera(copy.deepcopy(camera), mip=mip)
+            with torch.no_grad():
+                basename = os.path.splitext(os.path.basename(json_file))[0]
+                exr_path = os.path.join(root, basename + ".exr")
+                image, alpha, depth = load_exr(exr_path, use_depth=True, mip=mip, srgb=True, bg_color=bg_color)
+                json_path = os.path.join(root, basename + ".json")
+                camera = load_rtmv_camera(path=json_path)
+                transformed_camera = transform_rtmv_camera(copy.deepcopy(camera), mip=mip)
 
-            images.append(image)
-            alphas.append(alpha)
-            depths.append(depth)
-            cameras[basename] = transformed_camera
+                images.append(image)
+                alphas.append(alpha)
+                depths.append(depth)
+                cameras[basename] = transformed_camera
 
     for idx in cameras:
         camera = cameras[idx]
-        ray_grid = generate_centered_pixel_coords(camera.width, camera.height, camera.width, camera.height,
+        ray_grid = generate_centered_pixel_coords(camera.width, camera.height,
+                                                  camera.width, camera.height,
                                                   device='cuda')
-        _rays = generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width,
-                                                                                       3).to('cpu')
+        _rays = generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(
+            camera.height, camera.width, 3).to('cpu')
         rays.append(_rays.to(dtype=torch.float32))
 
     # Normalize
     if normalize:
 
         coords, _ = create_pointcloud_from_images(images, alphas, rays, depths)
-        normalized_coords, coords_center, coords_scale = normalize_pointcloud(coords, return_scale=True)
+        normalized_coords, coords_center, coords_scale = normalize_pointcloud(
+            coords, return_scale=True)
 
         depths = torch.stack(depths)
         rays = Rays.stack(rays)
@@ -209,8 +218,18 @@ def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=Fals
     depths = torch.stack(depths)
     rays = Rays.stack(rays)
 
-    output = {"imgs": images, "masks": alphas, "rays": rays, "depths": depths, "cameras": cameras}
+    output = {
+        "imgs": images,
+        "masks": alphas,
+        "rays": rays,
+        "depths": depths,
+        "cameras": cameras
+    }
     if return_pointcloud:
-        output.update({"coords": coords, "coords_center": coords_center, "coords_scale": coords_scale})
+        output.update({
+            "coords": coords,
+            "coords_center": coords_center,
+            "coords_scale": coords_scale
+        })
 
     return output

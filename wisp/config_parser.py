@@ -21,6 +21,8 @@ from wisp.datasets.transforms import *
 
 str2optim = {m.lower(): getattr(torch.optim, m) for m in dir(torch.optim) if m[0].isupper()}
 
+def register_class(cls, name):
+    globals()[name] = cls
 
 def parse_options(return_parser=False):
     """Function used to parse options.

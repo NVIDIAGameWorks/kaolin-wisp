@@ -24,7 +24,7 @@ Please apply using this link (use "Other" and specify Kaolin Wisp): https://www.
 If you find the NVIDIA Kaolin Wisp library useful for your research, please cite:
 ```
 @misc{KaolinWispLibrary,
-      author = {Towaki Takikawa and Or Perel and Clement Fuji Tsang and Charles Loop and Joey Litalien and Jonathan Tremblay and Maria Shugrina and Sanja Fidler},
+      author = {Towaki Takikawa and Or Perel and Clement Fuji Tsang and Charles Loop and Joey Litalien and Jonathan Tremblay and Sanja Fidler and Maria Shugrina},
       title = {Kaolin Wisp: A PyTorch Library and Engine for Neural Fields Research},
       year = {2022},
       howpublished={\url{https://github.com/NVIDIAGameWorks/kaolin-wisp}}

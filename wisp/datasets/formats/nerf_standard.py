@@ -9,7 +9,6 @@
 import os
 import glob
 import time
-import futureproof
 import cv2
 import skimage
 import imageio
@@ -19,6 +18,7 @@ import skimage.metrics
 import logging as log
 import numpy as np
 import torch
+from torch.multiprocessing import Pool
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
 from wisp.ops.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
@@ -61,14 +61,15 @@ def _load_standard_imgs(frame, root, mip=None):
         # log.info(f"File name {fpath} doesn't exist. Ignoring.")
         return None
 
-def _parallel_load_standard_imgs(task_basename, args):
+def _parallel_load_standard_imgs(args):
     """Internal function for multiprocessing.
     """
+    torch.set_num_threads(1)
     result = _load_standard_imgs(args['frame'], args['root'], mip=args['mip'])
     if result is None:
-        return dict(task_basename=task_basename, basename=None, img=None, pose=None)
+        return dict(basename=None, img=None, pose=None)
     else:
-        return dict(task_basename=task_basename, basename=result['basename'], img=result['img'], pose=result['pose'])
+        return dict(basename=result['basename'], img=result['img'], pose=result['pose'])
 
 def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-1, mip=None):
     """Standard loading function.
@@ -99,7 +100,6 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
     Returns:
         (dict of torch.FloatTensors): Different channels of information from NeRF.
     """
-
     transforms = sorted(glob.glob(os.path.join(root, "*.json")))
 
     transform_dict = {}
@@ -121,10 +121,10 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
                 if _split in fname:
                     transform_dict[_split] = transforms[i]
     else:
-        assert False and "Unsupported number of splits, there should be ['test', 'train', 'val']"
+        raise RuntimeError("Unsupported number of splits, there should be ['test', 'train', 'val']")
 
     if split not in transform_dict:
-        assert False and f"Split type ['{split}'] unsupported in the dataset provided"
+        raise RuntimeError(f"Split type ['{split}'] unsupported in the dataset provided")
 
     for key in transform_dict:
         with open(transform_dict[key], 'r') as f:
@@ -134,31 +134,27 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
     poses = []
     basenames = []
 
-    if num_workers > -1:
+    if num_workers > 0:
         # threading loading images
 
+        p = Pool(num_workers)
         try:
-            executor = futureproof.ProcessPoolExecutor(max_workers=num_workers)
-
-            timeall = time.time()
-            with futureproof.TaskManager(executor) as tm:
-                for i, frame in enumerate(transform_dict[split]['frames']):
-                    _args = dict(frame=frame, root=root, mip=mip)
-                    tm.submit(_parallel_load_standard_imgs, task_basename=i, args=_args)
-                for task in tqdm(tm.as_completed(), desc='loading data'):
-                    basename = task.result['basename']
-                    img = task.result['img']
-                    pose = task.result['pose']
-                    if basename is not None:
-                        basenames.append(basename)
-                    if img is not None:
-                        imgs.append(img)
-                    if pose is not None:
-                        poses.append(pose)
+            iterator = p.imap(_parallel_load_standard_imgs,
+                [dict(frame=frame, root=root, mip=mip) for frame in transform_dict[split]['frames']])
+            for _ in tqdm(range(len(transform_dict[split]['frames']))):
+                result = next(iterator)
+                basename = result['basename']
+                img = result['img']
+                pose = result['pose']
+                if basename is not None:
+                    basenames.append(basename)
+                if img is not None:
+                    imgs.append(img)
+                if pose is not None:
+                    poses.append(pose)
         finally:
-            if executor is not None:
-                executor.join()
-
+            p.close()
+            p.join()
     else:
         for frame in tqdm(transform_dict[split]['frames'], desc='loading data'):
             _data = _load_standard_imgs(frame, root, mip=mip)
