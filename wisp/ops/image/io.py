@@ -187,7 +187,7 @@ def load_exr(path, use_depth=False, mip=None, srgb=False, bg_color='white',
 
     alpha = mask_depth
 
-    return img.cpu(), alpha.cpu(), depth.cpu()
+    return img, alpha, depth
 
 
 def hwc_to_chw(img):
