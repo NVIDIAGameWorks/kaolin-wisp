@@ -76,12 +76,12 @@ class OctreeGrid(BLASGrid):
         
         self.blas = OctreeAS()
 
-    def init_from_mesh(self, mesh_path, level=None, sample_tex=False):
+    def init_from_mesh(self, mesh_path, level=None, sample_tex=False, num_samples=100000000):
         """Builds the grid from a path to the mesh.
         """
         if level is None:
             level = self.max_lod
-        self.blas.init_from_mesh(mesh_path, level, sample_tex=sample_tex)
+        self.blas.init_from_mesh(mesh_path, level, sample_tex=sample_tex, num_samples=num_samples)
         self._init()
 
     def init_from_pointcloud(self, pointcloud, level=None):
