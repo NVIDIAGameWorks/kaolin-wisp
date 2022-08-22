@@ -8,13 +8,11 @@
 
 from __future__ import annotations
 from typing import Callable, Dict, List
-from wisp.renderer.gui.imgui.widget_renderer_properties import WidgetRendererProperties
-from wisp.renderer.gui.imgui.widget_gpu_stats import WidgetGPUStats
-from wisp.renderer.gui.imgui.widget_scene_graph import WidgetSceneGraph
-from wisp.renderer.gui.imgui.widget_optimization import WidgetOptimization
-from wisp.renderer.gui.imgui.widget_imgui import WidgetImgui
+from wisp.renderer.gui import WidgetImgui
+from wisp.renderer.gui import WidgetRendererProperties, WidgetGPUStats, WidgetSceneGraph, WidgetOptimization
 from wisp.renderer.gizmos.gizmo import Gizmo
 from wisp.renderer.app.wisp_app import WispApp
+from wisp.renderer.core.api import request_redraw
 from wisp.framework import WispState, watch
 from wisp.datasets import MultiviewDataset, SDFDataset
 
@@ -33,8 +31,8 @@ class OptimizationApp(WispApp):
 
     def init_wisp_state(self, wisp_state: WispState) -> None:
         """ A hook for applications to initialize specific fields inside the wisp state object.
-            This function is called before the entire renderer is constructed, hence initialized renderer fields can
-            be defined to affect the behaviour of the renderer.
+        This function is called at the very beginning of WispApp initialization, hence the initialized fields can
+        be customized to affect the behaviour of the renderer.
         """
         # Channels available to view over the canvas
         wisp_state.renderer.available_canvas_channels = ["RGB", "Depth"]
@@ -59,7 +57,7 @@ class OptimizationApp(WispApp):
         #             wisp_state.renderer.clear_color_value = (0.0, 0.0, 0.0)
 
     def create_widgets(self) -> List[WidgetImgui]:
-        """ Define the list of widgets the gui will display, in order. """
+        """ Returns the list of widgets the gui will display, in order. """
         return [WidgetGPUStats(),            # Current FPS, memory occupancy, GPU Model
                 WidgetOptimization(),        # Live status of optimization, epochs / iterations count, loss curve
                 WidgetRendererProperties(),  # Canvas dims, user camera controller & definitions
@@ -111,7 +109,7 @@ class OptimizationApp(WispApp):
         """ A custom event used by the optimization renderer.
             When an epoch ends, this handler is invoked to force a redraw() and render() of the canvas if needed.
         """
-        self.canvas_dirty = True
+        request_redraw(self.wisp_state)
 
         # Force render if target FPS is 0 (renderer only responds to specific events) or too much time have elapsed
         if self.is_time_to_render() or self.wisp_state.renderer.target_fps == 0:

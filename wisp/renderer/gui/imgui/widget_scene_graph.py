@@ -13,6 +13,7 @@ from .widget_imgui import WidgetImgui
 from .widget_radiance_pipeline_renderer import WidgetNeuralRadianceFieldRenderer
 from .widget_sdf_pipeline_renderer import WidgetNeuralSDFRenderer
 from .widget_cameras import WidgetCameraProperties
+from wisp.renderer.core.api import request_redraw
 
 
 class WidgetSceneGraph(WidgetImgui):
@@ -62,7 +63,7 @@ class WidgetSceneGraph(WidgetImgui):
         visibility_toggled, is_checked = imgui.checkbox(f"##{obj_id}", is_checked)
         visible_objects[obj_id] = is_checked
         if visibility_toggled:
-            state.renderer.canvas_dirty = True
+            request_redraw(state)
 
     @staticmethod
     def paint_all_objects_checkbox(state):
@@ -72,7 +73,7 @@ class WidgetSceneGraph(WidgetImgui):
         if visibility_toggled:
             for obj_id in state.graph.bl_renderers.keys():
                 visible_objects[obj_id] = is_checked
-            state.renderer.canvas_dirty = True
+            request_redraw(state)
 
     @staticmethod
     def paint_all_cameras_checkbox(state):
@@ -82,7 +83,7 @@ class WidgetSceneGraph(WidgetImgui):
         if visibility_toggled:
             for cam_id in state.graph.cameras.keys():
                 visible_objects[cam_id] = is_checked
-            state.renderer.canvas_dirty = True
+            request_redraw(state)
 
     def paint(self, state: WispState, *args, **kwargs):
         expanded, _ = imgui.collapsing_header("Scene Objects", visible=True, flags=imgui.TREE_NODE_DEFAULT_OPEN)
@@ -122,7 +123,7 @@ class WidgetSceneGraph(WidgetImgui):
                                     _, is_selected = imgui.checkbox(f"{layer}", is_prev_selected)
                                     toggled_obj_data_layers[layer] = is_selected
                                     if is_prev_selected != is_selected:
-                                        state.renderer.canvas_dirty = True
+                                        request_redraw(state)
                                 imgui.tree_pop()
                             imgui.tree_pop()
                     imgui.tree_pop()
