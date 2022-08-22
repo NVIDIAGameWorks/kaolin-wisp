@@ -24,7 +24,7 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         subclasses which use the PackedRFTracer and don't implement a dedicated renderer.
     """
 
-    def __init__(self, nef: NeuralRadianceField, batch_size=2**14, num_steps=None,
+    def __init__(self, nef: NeuralRadianceField, tracer_type=None, batch_size=2**14, num_steps=None,
                  min_dis=None, raymarch_type=None, *args, **kwargs):
         super().__init__(nef, *args, **kwargs)
         self.batch_size = batch_size
@@ -37,7 +37,7 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         self.raymarch_type = raymarch_type
         self.bg_color = 'black'
 
-        self.tracer = PackedRFTracer()
+        self.tracer = tracer_type() if tracer_type is not None else PackedRFTracer()
         self.render_res_x = None
         self.render_res_y = None
         self.output_width = None
