@@ -25,8 +25,9 @@ optimizer:
     grid_lr_weight: 1.0
 
 dataset:
-    num_samples: 500000
+    num_samples: 500000      # Number of samples held in dataset during training
     dataset_type: 'sdf'
+    num_samples_on_mesh: 100000000  # Number of samples generated on mesh surface to initialize the occupancy grid
 
 renderer:
     tracer_type: 'PackedSDFTracer'
