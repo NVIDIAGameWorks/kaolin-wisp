@@ -32,28 +32,50 @@ def register_neural_field_type(neural_field_type: Type[BaseNeuralField],
 
 
 def _neural_field_to_renderer_cls(pipeline: Pipeline) -> Type[RayTracedRenderer]:
-    tracer_name = type(pipeline.tracer).__name__
+    tracer_type = type(pipeline.tracer)
 
-    # Start by looking for a renderer compatible with the pipeline tracer and nef classes
-    type_queue = deque([type(pipeline.nef)])
-
+    # Start by iterating the current tracer type - look for renderers compatible with the current nef type
+    # or any of its parents (the hierarchy of nefs take precedence over the hierarchy of tracers).
     renderer_cls = None
-    while type_queue:
-        # Query nef + tracer combo
-        field_type = type_queue.popleft()
-        field_name = field_type.__name__
-        supported_tracers = _REGISTERED_RENDERABLE_NEURAL_FIELDS.get(field_name)
-        renderer_cls = supported_tracers.get(tracer_name) if supported_tracers is not None else None
+    while tracer_type:
+        tracer_name = tracer_type.__name__
 
-        # Current nef + tracer pair doesn't match any registered renderer
+        # Look for a renderer compatible with the current tracer type and nef classes
+        type_queue = deque([type(pipeline.nef)])
+
+        renderer_cls = None
+        while type_queue:
+            # Query nef + tracer combo
+            field_type = type_queue.popleft()
+            field_name = field_type.__name__
+            supported_tracers = _REGISTERED_RENDERABLE_NEURAL_FIELDS.get(field_name)
+            renderer_cls = supported_tracers.get(tracer_name) if supported_tracers is not None else None
+
+            # Current nef + tracer pair doesn't match any registered renderer
+            if renderer_cls is not None:
+                break
+            else:   # Try querying all parent(nef) + tracer combos for compatibility
+                bases = field_type.__bases__
+                if len(bases) > 0:
+                    type_queue.append(*bases)
+
         if renderer_cls is not None:
-            break
-        else:   # Try querying all parent(nef) + tracer combos for compatibility
-            type_queue.append(*field_type.__bases__)
+            break   # Found a renderer class
+        else:
+            # Didn't find a renderer class - repeat the process with the parent class of the tracer
+            tracer_base_types = tracer_type.__bases__
+            if len(tracer_base_types) > 0:
+                # Does tracer have a single parent class which inherits from BaseTracer?
+                # If so, keep looking
+                tracer_base_types = [base for base in tracer_type.__bases__ if issubclass(base, BaseTracer)]
+                tracer_type = tracer_base_types[0] if len(tracer_base_types) == 1 else None
+            else:
+                # Reached end of tracers hierarchy or it is too ambiguous, quit and fail gracefully
+                tracer_type = None
 
-    if renderer_cls is None:
+    if tracer_type is None:
         raise ValueError(f'Renderer factory encountered an unknown neural pipeline: '
-                         f'Neural Field {type(pipeline.nef).__name__} with tracer {tracer_name}. '
+                         f'Neural Field {type(pipeline.nef).__name__} with tracer {type(pipeline.tracer).__name__}. '
                          'Please register the factory to reflect what kind of renderer should be created for this '
                          'type of neural field/tracer.')
     return renderer_cls

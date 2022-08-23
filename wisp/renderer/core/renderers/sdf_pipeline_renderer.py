@@ -25,7 +25,8 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         subclasses which use the PackedSDFTracer and don't implement a dedicated renderer.
     """
 
-    def __init__(self, nef: NeuralSDF, samples_per_ray=None, min_distance=None, raymarch_type=None, *args, **kwargs):
+    def __init__(self, nef: NeuralSDF, tracer_type=None,
+                 samples_per_ray=None, min_distance=None, raymarch_type=None, *args, **kwargs):
         super().__init__(nef, *args, **kwargs)
         if min_distance is None:
             min_distance = 0.0003
@@ -35,7 +36,7 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         if raymarch_type is None:
             raymarch_type = 'voxel'
 
-        self.tracer = PackedSDFTracer()
+        self.tracer = tracer_type() if tracer_type is not None else PackedSDFTracer()
         self.render_res_x = None
         self.render_res_y = None
         self.output_width = None

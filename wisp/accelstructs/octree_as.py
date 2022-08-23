@@ -22,7 +22,7 @@ class OctreeAS(object):
     def __init__(self):
         self.initialized = False
 
-    def init_from_mesh(self, mesh_path, level, sample_tex=False):
+    def init_from_mesh(self, mesh_path, level, sample_tex=False, num_samples=100000000):
         """Builds the grid from a path to the mesh.
 
         Only supports OBJ for now.
@@ -31,6 +31,7 @@ class OctreeAS(object):
             mesh_path (str): Path to the OBJ file.
             level (int): The depth of the octree.
             sample_tex (bool): If True, will also sample textures and store it in the accelstruct.
+            num_samples (int): The number of samples to be generated on the mesh surface.
 
         Returns:
             (void): Will initialize the OctreeAS object.
@@ -48,7 +49,7 @@ class OctreeAS(object):
 
         # Note: This function is not deterministic since it relies on sampling.
         #       Eventually this will be replaced by 3D rasterization.
-        octree = wisp_spc_ops.mesh_to_octree(self.V, self.F, level)
+        octree = wisp_spc_ops.mesh_to_octree(self.V, self.F, level, num_samples)
         self.init(octree)
     
     def init_from_pointcloud(self, pointcloud, level):

@@ -111,6 +111,7 @@ class RayTracedRenderer(BottomLevelRenderer):
 
         # Allow the constructor to override the tracer's args with **kwargs specified manually
         tracer_args.update(**kwargs)
+        tracer_args['tracer_type'] = type(pipeline.tracer)
         return cls(nef=pipeline.nef, *args, **tracer_args)
 
     @classmethod
