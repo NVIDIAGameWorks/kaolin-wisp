@@ -161,8 +161,8 @@ class SceneGraphState:
     """
     neural_pipelines: Dict[str, Pipeline] = field(default_factory=dict)
     """ Wisp objects are represented by neural pipelines which pair a BaseNeuralField and a BaseTracer.
-        The full pipeline 
-        A BottomLevelRenderer knows how to invoke the rendering nerf and obtain a Renderbuffer of the object. 
+        A BottomLevelRenderer knows how to invoke the pipeline to render the nef and obtain a 
+        Renderbuffer of the object. 
     """
 
     bl_renderers: Dict[str, BottomLevelRendererState] = field(default_factory=dict)

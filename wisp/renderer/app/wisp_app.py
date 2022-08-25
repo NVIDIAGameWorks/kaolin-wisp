@@ -35,7 +35,7 @@ from wisp.renderer.gui import WidgetRendererProperties, WidgetGPUStats, WidgetSc
 @contextmanager
 def cuda_activate(img):
     """Context manager simplifying use of pycuda.gl.RegisteredImage.
-        Boilerplate code based in part on pytorch-glumpy.
+    Boilerplate code based in part on pytorch-glumpy.
     """
     mapping = img.map()
     yield mapping.array(0, 0)
@@ -85,6 +85,50 @@ def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
 
 
 class WispApp(ABC):
+    """ WispApp is a base app implementation which takes care of the entire lifecycle of the rendering loop:
+    this is the infinite queue of events which includes: handling of IO and OS events, rendering frames and running
+    backgrounds tasks, i.e. optimizations.
+
+    The app is initiated by calling the following functions:
+    - register_background_task(): Registers a task to run alternately with the render() function per
+      frame. Background tasks can be, i.e, functions that run a single optimization step for some neural object.
+    - run(): Initiates the rendering loop. This method blocks the calling thread until the window is closed.
+
+    Future custom interactive apps can subclass this base app, and inherit methods to customize the behaviour
+    of the app:
+    - init_wisp_state(): A hook for initializing the fields of the shared state object.
+        The interactive renderer configuration, scene graph and user custom fields can be initialized here.
+    - update_render_state(): A hook for updating the fields of the shared state object at the beginning of each
+      frame.
+    - create_widgets(): Controls which gui components the app uses
+    - create_gizmos(): Controls which transient canvas drawable components will be used (OpenGL based).
+    - default_user_mode(): The default camera controller mode (first person, trackball, turntable).
+    - register_event_handlers(): Registers which methods are invoked in response to app events / wisp state changes.
+
+    The rendering loop alternates between the following calls:
+    - on_idle, which invokes user background tasks, registered via register_background_task before calling run().
+    - on_draw, which invokes render() when it's time to draw a new frame
+
+    Internally, the app uses the RendererCore object to manage the drawing of all objects in the scene graph.
+    The app may request the RendererCore to switch into "interactive mode" to ensure the FPS remains interactive
+    (this is done at the expense of rendering quality).
+    Interactive mode is automatically initiated, i.e, during user interactions.
+
+    The render() logic is composed by the following sub-functions:
+    - update_render_state() - Updates the fields of the shared state object at the beginning of each frame.
+    - render_gui() - Renders the imgui components over the canvas, fromm scratch (imgui uses immediate mode gui).
+    - redraw() - A "heavier" function which forces the render-core to refresh its internal state.
+      Newly created objects may get added to the scene graph, and obsolete objects may get removed.
+      Vector-primitives data layers may regenerate here.
+    - render_canvas() - Invokes the render-core to obtain a RenderBuffer of the rendered scene objects.
+      The lion share of draw logic occurs within this call, in particular the drawing of neural objects.
+    - _blit_to_gl_renderbuffer - Copies the RenderBuffer results to the screen buffer.
+    - Gizmos are finally drawn directly to the screen framebuffer (as common OpenGL draw calls), these objects
+      are considered transient in the sense that they don't belong to the scene graph.
+    - Timer tick events may also get taken care of during the rendering loop (i.e: adjust velocity of user camera).
+    Users should rarely override these functions, unless they're sure about what they're doing.
+    Customizing the app behaviour should always be preferred via the initialization hooks.
+    """
 
     # Period of time between user interactions before resetting back to full resolution mode
     COOLDOWN_BETWEEN_RESOLUTION_CHANGES = 0.35  # In seconds
@@ -107,7 +151,7 @@ class WispApp(ABC):
         self.canvas_dirty = False
 
         # Note: Normally pycuda.gl.autoinit should be invoked here after the window is created,
-        # but wisp already initializes it when the library first loads. See wisp.__init__.py
+        # but wisp already initializes it when the library first loads. See wisp.app.cuda_guard.py
 
         # Initialize applicative renderer, which independently paints images for the main canvas
         render_core = RendererCore(self.wisp_state)
@@ -127,7 +171,7 @@ class WispApp(ABC):
         self.depth_cuda_buffer: Optional[pycuda.gl.RegisteredImage] = None
         self.canvas_program: Optional[gloo.Program] = None              # GL program used to paint a single billboard
 
-        self.user_mode: CameraControlMode = None
+        self.user_mode: CameraControlMode = None    # Camera controller object (first person, trackball or turntable)
 
         self.widgets = self.create_widgets()        # Create gui widgets for this app
         self.gizmos = self.create_gizmos()          # Create canvas widgets for this app
@@ -139,23 +183,28 @@ class WispApp(ABC):
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
 
-        self.redraw()
+        self.redraw()   # Refresh RendererCore
 
     def init_wisp_state(self, wisp_state: WispState) -> None:
         """ A hook for applications to initialize specific fields inside the wisp state object.
-            This function is called before the entire renderer is constructed, hence initialized fields can
-            be defined to affect the behaviour of the renderer.
+        This function is called at the very beginning of WispApp initialization, hence the initialized fields can
+        be customized to affect the behaviour of the renderer.
         """
         # Channels available to view over the canvas
         wisp_state.renderer.available_canvas_channels = ["RGB"]
         wisp_state.renderer.selected_canvas_channel = "RGB"
 
     def create_widgets(self) -> List[WidgetImgui]:
-        """ Override to define which widgets are used by the wisp app. """
+        """ Returns which widgets the gui will display, in order.
+        Override to define which gui widgets are used by the wisp app.
+        """
         return [WidgetGPUStats(), WidgetRendererProperties(), WidgetSceneGraph()]
 
     def create_gizmos(self) -> Dict[str, Gizmo]:
-        """ Override to define which gizmos are used by the wisp app. """
+        """ Override to define which gizmos are painted on the canvas by the wisp app.
+        Gizmos are transient rasterized objects rendered by OpenGL on top of the canvas.
+        For example: world grid, axes painter.
+        """
         gizmos = dict()
         planes = self.wisp_state.renderer.reference_grids
         axes = set(''.join(planes))
@@ -171,7 +220,9 @@ class WispApp(ABC):
         return gizmos
 
     def default_user_mode(self) -> str:
-        """ Override to determine the default camera control mode """
+        """ Override to determine the default camera control mode.
+        Possible choices: 'First Person View', 'Turntable', 'Trackball'
+        """
         return "Turntable"
 
     def register_event_handlers(self) -> None:
@@ -210,7 +261,9 @@ class WispApp(ABC):
         self.canvas_dirty = True    # Request canvas redraw
 
     def run(self):
-        """ Initiate events message queue """
+        """ Initiate events message queue, which triggers the rendering loop.
+        This call will block the thread until the app window is closed.
+        """
         app.run()   # App clock should always run as frequently as possible (background tasks should not be limited)
 
     def _create_window(self, width, height, window_name):
@@ -297,6 +350,9 @@ class WispApp(ABC):
         self._is_reposition_imgui_menu = False
 
     def render_gui(self, state):
+        """ Render the entire gui window per frame (imgui works in immediate mode).
+            Internally, the Widgets take care of rendering the actual content.
+        """
         imgui.new_frame()
         if imgui.begin_main_menu_bar():
             main_menu_height = imgui.get_window_height()
@@ -332,6 +388,10 @@ class WispApp(ABC):
         imgui.render()
 
     def render_canvas(self, render_core, time_delta, force_render):
+        """ Invoke the render-core to render all neural fields and blend into a single Renderbuffer.
+        The rgb and depth channels passed on to the app.
+        """
+        # The render core returns a RenderBuffer
         renderbuffer = render_core.render(time_delta, force_render)
         buffer_attachment = renderbuffer.image().rgba
         buffer_attachment = buffer_attachment.flip([0])  # Flip y axis
@@ -383,6 +443,7 @@ class WispApp(ABC):
         wisp_state.renderer.cam_controller = type(self.user_mode)
 
     def change_user_mode(self, user_mode: str):
+        """ Changes the camera controller mode """
         if user_mode == 'Trackball':
             self.wisp_state.renderer.cam_controller = TrackballCameraMode
         elif user_mode == 'First Person View':
@@ -392,6 +453,12 @@ class WispApp(ABC):
 
     @torch.no_grad()
     def redraw(self):
+        """ Asks the render core to redraw the scene:
+        - The scene graph will be refreshed (new objects added will create their renderers if needed)
+        - Data layers will regenerate according to up-to-date state.
+        render() may internally invoke redraw() when the canvas is tagged as "dirty".
+        A render() call is required to display changes caused by redraw() on the canvas.
+        """
         # Let the renderer redraw the data layers if needed
         self.render_core.redraw()
 
@@ -401,6 +468,7 @@ class WispApp(ABC):
 
     @torch.no_grad()
     def render(self):
+        """ Renders a single frame. """
         dt = self.render_clock.tick()  # Tick render clock: dt is now the exact time elapsed since last render
 
         # Populate the scene state with the most recent information about the interactive renderer.
@@ -414,6 +482,7 @@ class WispApp(ABC):
         # imgui renders first
         self.render_gui(self.wisp_state)
 
+        # The app was asked to redraw the scene, inform the render core
         if self.canvas_dirty:
             self.redraw()
 
@@ -421,6 +490,7 @@ class WispApp(ABC):
         # of the user which involve the time elapsed (i.e: velocity, acceleration of movements).
         self.user_mode.handle_timer_tick(dt)
 
+        # Toggle interactive mode on or off if needed to maintain interactive FPS rate
         if self.user_mode.is_interacting() or self._is_imgui_hovered:
             self.render_core.set_low_resolution()
         else:
@@ -438,7 +508,7 @@ class WispApp(ABC):
         # output is rendered on a Renderbuffer object, backed by torch tensors
         img, depth_img = self.render_canvas(self.render_core, dt, self.canvas_dirty)
 
-        # glumpy code injected within the pyimgui render loop to blit the rendercore output to the actual canvas
+        # glumpy code injected within the pyimgui render loop to blit the renderer core output to the actual canvas
         # The torch buffers are copied by pycuda to CUDA buffers, connected as shared resources as 2d GL textures
         self._blit_to_gl_renderbuffer(img, depth_img, self.canvas_program, self.cuda_buffer,
                                       self.depth_cuda_buffer, self.height)
@@ -455,12 +525,18 @@ class WispApp(ABC):
         self.canvas_dirty = False
 
     def register_background_task(self, hook: Callable[[], None]) -> None:
-        def _run_hook(dt: float):
-            if not self.wisp_state.renderer.background_tasks_paused:
-                hook()
-        self.window.on_idle = _run_hook
+        """ Register a new callable function to run in conjunction with the rendering loop.
+            The app will alternate between on_idle calls, invoking the background task, and on_draw
+            calls, invoking the rendering itself, both occurring on the same thread.
+        """
+        if hook is not None:
+            def _run_hook(dt: float):
+                if not self.wisp_state.renderer.background_tasks_paused:
+                    hook()
+            self.window.on_idle = _run_hook
 
     def on_draw(self, dt=None):
+        """ glumpy's event to draw the next frame. Invokes the render() function if needed. """
         # dt arg comes from the app clock, the renderer clock is maintained separately from the background tasks
         # Interactive mode on, or interaction have just started
         is_interacting = self.wisp_state.renderer.interactive_mode or self.user_mode.is_interacting()
@@ -475,6 +551,9 @@ class WispApp(ABC):
         return False
 
     def on_resize(self, width, height):
+        """ Invoked when the window is first created, or resized.
+        A resize causes internal textures and buffers to regenerate according the window size.
+        """
         self.width = width
         self.height = height
 
@@ -529,30 +608,41 @@ class WispApp(ABC):
 
     @property
     def width(self):
+        """ Returns the canvas width """
         return self.wisp_state.renderer.canvas_width
 
     @width.setter
     def width(self, value: int):
+        """ Sets the canvas width """
         self.wisp_state.renderer.canvas_width = value
 
     @property
     def height(self):
+        """ Returns the canvas height """
         return self.wisp_state.renderer.canvas_height
 
     @height.setter
     def height(self, value: int):
+        """ Sets the canvas height """
         self.wisp_state.renderer.canvas_height = value
 
     @property
     def channel_depth(self):
+        """ Returns the number of channels the screenbuffer uses for the color attachment """
         return 4  # Assume the framebuffer keeps RGBA
 
     @property
     def canvas_dirty(self):
+        """ Returns if the canvas is dirty,
+        that is, the app requires a redraw() to stay in sync with external changes
+        """
         return self.wisp_state.renderer.canvas_dirty
 
     @canvas_dirty.setter
     def canvas_dirty(self, value: bool):
+        """ Marks the canvas as dirty,
+        implying the app requires a redraw() to stay in sync with external changes
+        """
         self.wisp_state.renderer.canvas_dirty = value
 
     def _update_imgui_keys(self, symbol):
@@ -627,6 +717,8 @@ class WispApp(ABC):
             self.user_mode.handle_key_release(symbol, modifiers)
 
     def dump_framebuffer(self, path='./framebuffer'):
+        # Dumps debug images of the GL screen framebuffer.
+        # This framebuffer should reflect the exact content of the window.
         framebuffer = np.zeros((self.width, self.height * 3), dtype=np.uint8)
         gl.glReadPixels(0, 0, self.width, self.height,
                         gl.GL_RGB, gl.GL_UNSIGNED_BYTE, framebuffer)
