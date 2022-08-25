@@ -223,8 +223,19 @@ class RendererCore:
         elif camera.lens_type == 'ortho':
             rays = generate_ortho_rays(camera, ray_grid)
         else:
-            raise ValueError(f'RenderCore failed to raygen on unknown camera lens type: {camera.lens_type}')
+            raise ValueError(f'RendererCore failed to raygen on unknown camera lens type: {camera.lens_type}')
         return rays
+
+    def _create_empty_rb(self, height, width, dtype=torch.float32) -> RenderBuffer:
+        clear_color = self.state.renderer.clear_color_value
+        clear_depth = self.state.renderer.clear_depth_value
+
+        return RenderBuffer(
+            rgb=torch.tensor(clear_color, dtype=dtype, device=self.device).repeat(height, width, 1),
+            alpha=torch.zeros((height, width, 1), dtype=dtype, device=self.device),
+            depth=torch.full((height, width, 1), fill_value=clear_depth, dtype=dtype, device=self.device),
+            hit=None
+        )
 
     def _render(self, payload: FramePayload, force_render: bool) -> RenderBuffer:
         camera = payload.camera
@@ -241,16 +252,9 @@ class RendererCore:
         renderers_in_view = renderer_to_hit_rays.keys()
 
         rb_dtype = torch.float32
-        clear_color = self.state.renderer.clear_color_value
         clear_depth = self.state.renderer.clear_depth_value
 
-        out_rb = RenderBuffer(
-            rgb=torch.tensor(clear_color, dtype=rb_dtype, device=self.device).repeat(camera.height, camera.width, 1),
-            alpha=torch.zeros((camera.height, camera.width, 1), dtype=rb_dtype, device=self.device),
-            depth=torch.full((camera.height, camera.width, 1), fill_value=clear_depth,
-                             dtype=rb_dtype, device=self.device),
-            hit=None
-        )
+        out_rb = self._create_empty_rb(height=camera.height, width=camera.width, dtype=rb_dtype)
         for renderer in renderers_in_view:
             if isinstance(renderer, RayTracedRenderer):
                 in_rays = rays.to(device=renderer.device, dtype=renderer.dtype)
@@ -352,8 +356,13 @@ class RendererCore:
     def map_output_channels_to_rgba(self, rb: RenderBuffer):
         selected_output_channel = self.state.renderer.selected_canvas_channel.lower()
         rb_channel = rb.get_channel(selected_output_channel)
-        assert rb_channel is not None, \
-            f'Unknown channel type configured to view over the canvas: {selected_output_channel}'
+
+        if rb_channel is None:
+            # Unknown channel type configured to view over the canvas.
+            # That can happen if, i.e. no object have traced a RenderBuffer with this channel.
+            # Instead of failing, create an empty rb
+            height, width = rb.rgb.shape[:2]
+            return self._create_empty_rb(height=height, width=width, dtype=rb.rgb.dtype)
 
         # Normalize channel to [0, 1]
         channels_kit = self.state.graph.channels
