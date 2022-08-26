@@ -133,11 +133,7 @@ class WispApp(ABC):
 
         self.widgets = self.create_widgets()        # Create gui widgets for this app
         self.gizmos = self.create_gizmos()          # Create canvas widgets for this app
-        self.prim_painter = PrimitivesPainter() # grid
-        # add a mesh
-        self.mesh = PrimitivesPainter()
-        self.mesh.redraw(getObjLayers())
-
+        self.prim_painter = PrimitivesPainter() 
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
 
