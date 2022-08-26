@@ -20,6 +20,8 @@ from wisp.gfx.datalayers import Datalayers
 
 @dataclass
 class FramePayload:
+    """This is a dataclass which holds metadata for the current frame.
+    """
     camera: Camera
     visible_objects: Set[str]
     interactive_mode: bool
@@ -27,7 +29,7 @@ class FramePayload:
     render_res_y: int
     time_delta: float   # In seconds
     clear_color: Tuple[float, float, float]
-
+    channels: Set[str] # Channels requested for the render.
 
 class BottomLevelRenderer(ABC):
 

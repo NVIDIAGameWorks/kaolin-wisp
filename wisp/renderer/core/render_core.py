@@ -56,7 +56,7 @@ class RendererCore:
                 fov=30 * np.pi / 180,  # In radians
                 x0=0.0, y0=0.0,
                 width=800, height=800,
-                near=1e-2, far=1e2,
+                near=1e-2, far=20,
                 dtype=torch.float64,
                 device=self.device
             )
@@ -186,17 +186,42 @@ class RendererCore:
 
     @torch.no_grad()
     def render(self, time_delta=None, force_render=False) -> RenderBuffer:
-        payload = self._pre_render(time_delta)
-        rb = self._render(payload, force_render)
+        """Render a frame.
+
+        Args:
+            time_delta (float): The time delta from the previous frame, used to control renderer parameters
+                                based on the amount of detected lag. 
+            force_render (bool): If True, will always output a fresh new RenderBuffer. 
+                                 Otherwise the RenderBuffer can be a stale copy of the the previous frame
+                                 if no updates are detected.
+
+        Returns: 
+            (wisp.core.RenderBuffer): The rendered buffer.
+        """
+        payload = self._prepare_payload(time_delta)
+        rb = self.render_payload(payload, force_render)
         output_rb = self._post_render(payload, rb)
         return output_rb
 
-    def _pre_render(self, time_delta=None) -> FramePayload:
+    def _prepare_payload(self, time_delta=None) -> FramePayload:
+        """This function will prepare the FramePayload for the current frame.
+
+        The FramePayload contains metadata for the current frame, from which the RenderBuffer will be 
+        generated from. 
+
+        Args:
+            time_delta (float): The time delta from the previous frame, used to control renderer parameters
+                                based on the amount of detected lag. 
+
+        Returns:
+            (wisp.renderer.core.api.FramePayload): The metadata for the frame.
+        """
         # Adjust resolution of all renderers to maintain FPS
         camera = self.camera
         clear_color = self.state.renderer.clear_color_value
         res_x, res_y = self.res_x, self.res_y
 
+        # If the FPS is slow, downscale the resolution for the render.
         is_fps_lagging = time_delta is not None and \
                          self.target_fps is not None and \
                          self.target_fps > 0 and \
@@ -206,10 +231,15 @@ class RendererCore:
                res_x //= 2
                res_y //= 2
 
+        # TODO(ttakikawa): Leaving a note here to think about whether this should be the case...
+        # The renderer always needs depth, alpha, and rgb
+        required_channels = {"rgb", "depth", "alpha"}
         visible_objects = set([k for k,v in self.state.graph.visible_objects.items() if v])
         payload = FramePayload(camera=camera, interactive_mode=self.interactive_mode,
                                render_res_x=res_x, render_res_y=res_y, time_delta=time_delta,
-                               visible_objects=visible_objects, clear_color=clear_color)
+                               visible_objects=visible_objects, clear_color=clear_color,
+                               
+                               channels={self.state.renderer.selected_canvas_channel}.union(required_channels))
         for renderer_id, renderer in self._renderers.items():
             if renderer_id in payload.visible_objects:
                 renderer.pre_render(payload)
@@ -237,7 +267,18 @@ class RendererCore:
             hit=None
         )
 
-    def _render(self, payload: FramePayload, force_render: bool) -> RenderBuffer:
+    def render_payload(self, payload: FramePayload, force_render: bool) -> RenderBuffer:
+        """Renders a RenderBuffer using a FramePayload which contains metadata.
+
+        Args:
+            payload (wisp.renderer.core.api.FramePayload): Metadata for the frame to be renderered.
+            force_render (bool): If True, will always output a fresh new RenderBuffer. 
+                                 Otherwise the RenderBuffer can be a stale copy of the the previous frame
+                                 if no updates are detected.
+        
+        Returns:
+            (wisp.core.RenderBuffer): The rendered buffer.
+        """
         camera = payload.camera
         res_x, res_y = payload.render_res_x, payload.render_res_y
 
@@ -265,6 +306,7 @@ class RendererCore:
 
             rb = rb.to(device=self.device)
             rb.rgb = rb.rgb.to(dtype=rb_dtype)
+            
             rb.alpha = rb.alpha.to(dtype=rb_dtype)
             rb.depth = rb.depth.to(dtype=rb_dtype)
 

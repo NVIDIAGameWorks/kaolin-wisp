@@ -42,6 +42,7 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         self.output_width = None
         self.output_height = None
         self.far_clipping = None
+        self.channels = None
         self._last_state = dict()
 
         self._data_layers = self.regenerate_data_layers()
@@ -62,19 +63,25 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         self.far_clipping = payload.camera.far
         self.tracer.num_steps = self.samples_per_ray
         self.tracer.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
+        self.channels = payload.channels
 
     def needs_refresh(self, payload: FramePayload, *args, **kwargs) -> bool:
-        return self._last_state.get('num_steps', 0) < self.samples_per_ray
+        return self._last_state.get('num_steps', 0) < self.samples_per_ray or \
+               self._last_state.get('channels') != self.channels
 
     def render(self, rays: Optional[Rays] = None) -> RenderBuffer:
-        rb = self.tracer(self.nef, rays=rays)
+        rb = self.tracer(self.nef, channels=self.channels, rays=rays)
 
         # Rescale renderbuffer to original size
         rb = rb.reshape(self.render_res_y, self.render_res_x, -1)
         if self.render_res_x != self.output_width or self.render_res_y != self.output_height:
             rb = rb.scale(size=(self.output_height, self.output_width))
         return rb
-    
+
+    def post_render(self) -> None:
+        self._last_state['num_steps'] = self.tracer.num_steps
+        self._last_state['channels'] = self.channels
+
     @property
     def device(self) -> torch.device:
         return next(self.nef.parameters()).device
