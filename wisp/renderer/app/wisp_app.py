@@ -10,20 +10,14 @@
 
 from __future__ import annotations
 from contextlib import contextmanager
-import os, sys
-from typing import Optional, Type, Callable, Dict, List, Tuple
-
 from abc import ABC
 import numpy as np
 import torch
 import pycuda
 from glumpy import app, gloo, gl, ext
 import imgui
+from typing import Optional, Type, Callable, Dict, List, Tuple
 from kaolin.render.camera import Camera
-from kaolin.io import utils
-from kaolin.io import obj
-
-from wisp.core.primitives import PrimitivesPack
 from wisp.framework import WispState, watch
 from wisp.renderer.core import RendererCore
 from wisp.renderer.core.control import CameraControlMode, WispKey, WispMouseButton
@@ -134,6 +128,7 @@ class WispApp(ABC):
         self.widgets = self.create_widgets()        # Create gui widgets for this app
         self.gizmos = self.create_gizmos()          # Create canvas widgets for this app
         self.prim_painter = PrimitivesPainter()
+
         self.register_event_handlers()
         self.change_user_mode(self.default_user_mode())
 
@@ -473,9 +468,6 @@ class WispApp(ABC):
         for gizmo in self.gizmos.values():
             gizmo.render(camera)
         self.prim_painter.render(camera)
-        # mesh
-        if (self.mesh.lines):
-            self.mesh.render(camera)
         self.canvas_dirty = False
 
     def register_background_task(self, hook: Callable[[], None]) -> None:
@@ -697,3 +689,4 @@ class WispApp(ABC):
         WispKey.register_symbol(WispKey.DOWN, app.window.key.DOWN)
 
         # TODO: Take care of remaining mappings, and verify the event handlers of glumpy were not overriden
+    

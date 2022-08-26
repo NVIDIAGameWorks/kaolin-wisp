@@ -1,3 +1,4 @@
+#Tested with python 3.7, cuda 11.3, windows 11
 appdirs==1.4.4
 cgen==2020.1
 Cheetah==2.4.4
