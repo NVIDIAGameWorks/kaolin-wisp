@@ -14,39 +14,40 @@ from wisp.ops.differential import finitediff_gradient
 from wisp.tracers import BaseTracer
 
 class SDFTracer(BaseTracer):
-    
-    
-    def set_defaults(self, num_steps=64, step_size=1.0, min_dis=1e-4, **kwargs):
-        """Sets default arguments.
-        """
+
+    def __init__(self,  num_steps=64, step_size=1.0, min_dis=1e-4, raymarch_type='voxel', **kwargs):
+        """Set the default trace() arguments. """
+        super().__init__(**kwargs)
         self.raymarch_type = raymarch_type
         self.num_steps = num_steps
         self.step_size = step_size
         self.min_dis = min_dis
    
-    def get_output_channels(self):
-        """Returns the input channels that are supported by this class.
+    def get_supported_channels(self):
+        """Returns the set of channel names this tracer may output.
         
         Returns:
             (set): Set of channel strings.
         """
-        return set(["depth", "normal", "xyz", "hit"])
+        return {"depth", "normal", "xyz", "hit"}
 
-    def get_input_channels(self):
-        """Returns the input channels that are supported by this class.
+    def get_required_nef_channels(self):
+        """Returns the channels required by neural fields to be compatible with this tracer.
         
         Returns:
             (set): Set of channel strings.
         """
-        return set(["sdf"])
+        return {"sdf"}
 
-    def trace(self, nef, channels, rays, num_steps=64, step_size=1.0, min_dis=1e-4):
+    def trace(self, nef, channels, extra_channels, rays, num_steps=64, step_size=1.0, min_dis=1e-4):
         """Trace the rays against the neural field.
 
         Args:
             nef (nn.Module): A neural field that uses a grid class.
             channels (set): The set of requested channels. The trace method can return channels that 
                             were not requested since those channels often had to be computed anyways.
+            extra_channels (set): If there are any extra channels requested, this tracer will by default
+                                  query those extra channels at surface intersection points.
             rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
             num_steps (int): The number of steps to use for sphere tracing.
             step_size (float): The multiplier for the sphere tracing steps. 
@@ -136,6 +137,13 @@ class SDFTracer(BaseTracer):
         #  d: the final distance value from
         #  miss: a vector containing bools of whether each ray was a hit or miss
         
+        extra_outputs = {}
+        for channel in extra_channels:
+            feats = nef(coords=x[hit], lod_idx=lod_idx, channels=channel)
+            extra_buffer = torch.zeros(*x.shape[:-1], feats.shape[-1], device=feats.device)
+            extra_buffer[hit] = feats
+            extra_outputs[channel] = extra_buffer
+
         if "normal" in channels:
             if hit.any():
                 grad = finitediff_gradient(x[hit], nef.get_forward_function("sdf"))
@@ -144,4 +152,4 @@ class SDFTracer(BaseTracer):
         else:
             normal = None
 
-        return RenderBuffer(xyz=x, depth=t, hit=hit, normal=normal)
+        return RenderBuffer(xyz=x, depth=t, hit=hit, normal=normal, **extra_outputs)

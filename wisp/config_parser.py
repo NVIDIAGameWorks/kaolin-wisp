@@ -394,8 +394,7 @@ def get_modules_from_config(args):
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     nef = globals()[args.nef_type](**vars(args))
-    tracer = globals()[args.tracer_type]()
-    tracer.set_defaults(**vars(args))
+    tracer = globals()[args.tracer_type](**vars(args))
     pipeline = Pipeline(nef, tracer)
 
     if args.pretrained:
