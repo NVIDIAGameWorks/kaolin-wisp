@@ -41,48 +41,6 @@ def cuda_activate(img):
     yield mapping.array(0, 0)
     mapping.unmap()
 
-OPATH = os.path.normpath(os.path.join(__file__, "../../../../data/test/obj/1.obj"))
-
-def getObjLayers(f=OPATH, color = [[1, 0, 0, 1]], scale=10):
-    mesh = obj.import_mesh(f,
-             with_materials=True, with_normals=True,
-             error_handler=obj.skip_error_handler,
-             heterogeneous_mesh_handler=utils.heterogeneous_mesh_handler_naive_homogenize)
-
-    vertices = mesh.vertices.cpu()
-    faces = mesh.faces.cpu()
-    if not len(vertices):
-        return []
-    """ 
-    uvs_list=[mesh.uvs.cpu()],
-    face_uvs_idx_list=[mesh.face_uvs_idx.cpu()],
-    uvs = mesh.uvs.cuda().unsqueeze(0)
-    face_uvs_idx = mesh.face_uvs_idx.cuda()
-    face_uvs = kal.ops.mesh.index_vertices_by_faces(uvs, face_uvs_idx).detach()
-    face_uvs.requires_grad = False
-    texture_map = torch.ones((1, 3, texture_res, texture_res), dtype=torch.float, device='cuda',
-                            requires_grad=True)
-    diffuse_color = mesh.materials[0]['map_Kd'] 
-    """
-    layers_to_draw = [PrimitivesPack()]
-    start = torch.FloatTensor()
-    end = torch.FloatTensor()
-    colorT = torch.FloatTensor(color)   
-    for i in range(0, len(faces)):
-        face = faces[i]
-        start = vertices[face[0]]
-        end = vertices[face[1]]
-        layers_to_draw[0].add_lines(start, end, colorT)
-        start = vertices[face[1]]
-        end = vertices[face[2]]
-        layers_to_draw[0].add_lines(start, end, colorT)
-        start = vertices[face[2]]
-        end = vertices[face[0]]
-        layers_to_draw[0].add_lines(start, end, colorT)
-
-    #sys.exit()    
-    return layers_to_draw
-
 
 class WispApp(ABC):
     """ WispApp is a base app implementation which takes care of the entire lifecycle of the rendering loop:
