@@ -60,29 +60,43 @@ Have a feature request? Leave a GitHub issue!
 
 The easiest way to get started is to create a virtual Python 3.8 Anaconda environment:
 ```
-sudo apt-get update
-sudo apt-get install libopenexr-dev 
 conda create -n wisp python=3.8
 conda activate wisp
 pip install --upgrade pip
 ```
 
-### 2. Install PyTorch
+### 2. Install OpenEXR
+
+On Ubuntu:
+
+```
+sudo apt-get update
+sudo apt-get install libopenexr-dev 
+```
+
+On Windows:
+
+```
+pip install pipwin
+pipwin install openexr
+```
+
+### 3. Install PyTorch
 
 You should first install PyTorch by following the [official instructions](https://pytorch.org/). The code has been tested with `1.9.1` to `1.12.0` on Ubuntu 20.04. 
 
-### 3. Install Kaolin
+### 4. Install Kaolin
 
 You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html). **WARNING:** The minimum required version of Kaolin is `1.12.0`. If you have any issues specifically with Camera classes not existing, make sure you have an up-to-date version of Kaolin. 
 
-### 4. Install the rest of the dependencies
+### 5. Install the rest of the dependencies
 
 Install the rest of the dependencies from [requirements](requirements.txt):
 ```
 pip install -r requirements.txt
 ```
 
-### 5. Installing the interactive renderer (optional)
+### 6. Installing the interactive renderer (optional)
 
 If you wish to use the interactive renderer and training visualizer, you will need additional dependencies. 
 Note that you need to have OpenGL available on your system.
@@ -98,7 +112,7 @@ cd ..
 pip install -r requirements_app.txt
 ```
 
-### 6. Installing Wisp
+### 7. Installing Wisp
 
 To install wisp, simply execute:
 ```
