@@ -13,29 +13,20 @@ import inspect
 
 class BaseTracer(nn.Module, ABC):
     """Virtual base class for tracer"""
-    output_channels = None
-    input_channels = None
     
-    def __init__(self):
-        """Initializes the class.
-        """
-        super().__init__()
-
-    def set_defaults(self):
-        """Sets the default arguments for trace. 
+    def __init__(self, **kwargs):
+        """Initializes the tracer class and sets the default arguments for trace.
 
         This should be overrided and called if you want to pass custom defaults into the renderer.
         If overrided, it should keep the arguments to `self.trace` in `self.` class variables.
         Then, if these variables exist and no function arguments are passed into forward,
         it will override them as the default.
-
-        TODO(ttakikawa): This is hacky.
         """
-        pass
+        super().__init__()
 
     @abstractmethod
-    def get_output_channels(self):
-        """Returns the output channels that are supported by this class.
+    def get_supported_channels(self):
+        """Returns the set of channel names this tracer may output.
 
         Implement the function to return the supported channels, e.g.       
         return set(["depth", "rgb"])
@@ -46,10 +37,10 @@ class BaseTracer(nn.Module, ABC):
         pass
 
     @abstractmethod
-    def get_input_channels(self):
-        """Returns the input channels that are supported by this class.
+    def get_required_nef_channels(self):
+        """Returns the channels required by neural fields to be compatible with this tracer.
         
-        Implement the function to return the supported channels, e.g.       
+        Implement the function to return the required channels, e.g.
         return set(["rgb", "density"])
 
         Returns:
@@ -59,7 +50,7 @@ class BaseTracer(nn.Module, ABC):
 
 
     @abstractmethod
-    def trace(self, nef, channels, *args, **kwargs):
+    def trace(self, nef, channels, extra_channels, *args, **kwargs):
         """Apply the forward map on the nef. 
 
         This is the function to implement to implement a custom
@@ -70,6 +61,8 @@ class BaseTracer(nn.Module, ABC):
             nef (nn.Module): A neural field that uses a grid class.
             channels (set): The set of requested channels. The trace method can return channels that 
                             were not requested since those channels often had to be computed anyways.
+            extra_channels (set): Requested extra channels, which are not first class channels supported by
+                the tracer but will still be able to handle with some fallback options.
 
         Returns:
             (wisp.RenderBuffer): A dataclass which holds the output buffers from the tracer.
@@ -80,31 +73,39 @@ class BaseTracer(nn.Module, ABC):
         """Queries the tracer with channels.
 
         Args:
-            channels (str or list of str or set of str): Requested channels. See return value for details.
+            channels (str or list of str or set of str): Requested channels.
             kwargs: Any keyword argument passed in will be passed into the respective forward functions.
 
         Returns:
             (wisp.RenderBuffer): A dataclass which holds the output buffers from the tracer.
         """
         nef_channels = nef.get_supported_channels()
-        unsupported_inputs = self.get_input_channels() - nef_channels
+        unsupported_inputs = self.get_required_nef_channels() - nef_channels
         if unsupported_inputs:
-            raise Exception(f"The neural field class {type(nef)} does not support the required channels {unsupported_inputs}.")
-        
+            raise Exception(f"The neural field class {type(nef)} does not output the required channels {unsupported_inputs}.")
+
         if channels is None:
-            requested_channels = self.get_output_channels()
+            requested_channels = self.get_supported_channels()
         elif isinstance(channels, str):
             requested_channels = set([channels])
         else:
             requested_channels = set(channels)
-        unsupported_outputs = requested_channels - self.get_output_channels()
+        extra_channels = requested_channels - self.get_supported_channels()
+        unsupported_outputs = extra_channels - nef_channels
         if unsupported_outputs:
-            raise Exception(f"Channels {unsupported_outputs} are not supported in {type(self)}")
+            raise Exception(f"Channels {unsupported_outputs} are not supported in the tracer {type(self)} or neural field {type(nef)}.")
+    
+        if extra_channels is None:
+            requested_extra_channels = set()
+        elif isinstance(extra_channels, str):
+            requested_extra_channels = set([extra_channels])
+        else:
+            requested_extra_channels = set(extra_channels)
 
         argspec = inspect.getfullargspec(self.trace)
 
-        # Skip first element (self), second element (nef) and third element (channel)
-        required_args = argspec.args[:-len(argspec.defaults)][3:] 
+        # Skip self, nef, channel, extra_channels
+        required_args = argspec.args[:-len(argspec.defaults)][4:] 
         optional_args = argspec.args[-len(argspec.defaults):]
         
         input_args = {}
@@ -123,4 +124,4 @@ class BaseTracer(nn.Module, ABC):
                 if default_arg is not None:
                     input_args[_arg] = default_arg
 
-        return self.trace(nef, requested_channels, **input_args)
+        return self.trace(nef, requested_channels, requested_extra_channels, **input_args)

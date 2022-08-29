@@ -38,7 +38,7 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
     def get_pipeline_widget(self, pipeline_name):
         if self.pipeline_widget is None:
             if pipeline_name in self.names_to_widgets:
-                self.names_to_widgets[pipeline_name]()   
+                self.pipeline_widget = self.names_to_widgets[pipeline_name]()   
         return self.pipeline_widget
 
     def paint(self, state: WispState, renderer: NeuralRadianceFieldPackedRenderer = None, *args, **kwargs):
