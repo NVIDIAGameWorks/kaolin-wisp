@@ -25,34 +25,34 @@ class WidgetNeuralRadianceField(WidgetImgui):
 
     def __init__(self):
         super().__init__()
-        self.accel_widget = None
+        self.grid_widget = None
         self.properties_widget = WidgetPropertyEditor()
 
-    def get_acceleration_structure_widget(self, acceleration_structure_name):
-        if self.accel_widget is None:
-            if acceleration_structure_name in self.names_to_widgets:
-                self.accel_widets = self.names_to_widgets[acceleration_structure_name]()
-        return self.accel_widget
+    def get_grid_widget(self, grid_name):
+        if self.grid_widget is None:
+            if grid_name in self.names_to_widgets:
+                self.grid_widget = self.names_to_widgets[grid_name]()
+        return self.grid_widget
 
-    def paint(self, state: WispState, pipeline: NeuralRadianceField = None, *args, **kwargs):
-        if pipeline is not None:
-            if pipeline.grid is not None:
+    def paint(self, state: WispState, nef: NeuralRadianceField = None, *args, **kwargs):
+        if nef is not None:
+            if nef.grid is not None:
                 # TODO (operel): Separate this into acceleration / features previously ("Acceleration Structure")
                 if imgui.tree_node("Grid Details", imgui.TREE_NODE_DEFAULT_OPEN):
 
-                    acceleration_structure = pipeline.grid
-                    acceleration_structure_name = type(acceleration_structure).__name__
-                    accel_widget = self.get_acceleration_structure_widget(acceleration_structure_name)
-                    imgui.text(f"Type: {acceleration_structure_name}")
-                    if accel_widget is not None:
-                        accel_widget.paint(state, acceleration_structure)
+                    grid = nef.grid
+                    grid_name = type(grid).__name__
+                    grid_widget = self.get_grid_widget(grid_name)
+                    imgui.text(f"Type: {grid_name}")
+                    if grid_widget is not None:
+                        grid_widget.paint(state, grid)
                     imgui.tree_pop()
 
             properties = {}
-            if pipeline.pos_embed_dim is not None:
-                properties["Positional enc. dims"] = pipeline.pos_embed_dim
-            if pipeline.pos_embed_dim is not None:
-                properties["View direction enc. dims"] = pipeline.view_embed_dim
+            if nef.pos_embed_dim is not None:
+                properties["Positional enc. dims"] = nef.pos_embed_dim
+            if nef.pos_embed_dim is not None:
+                properties["View direction enc. dims"] = nef.view_embed_dim
             if len(properties) > 0:
                 if imgui.tree_node("Decoder", imgui.TREE_NODE_DEFAULT_OPEN):
                     self.properties_widget.paint(state, properties=properties)
