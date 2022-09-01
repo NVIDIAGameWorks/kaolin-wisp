@@ -689,3 +689,4 @@ class WispApp(ABC):
         WispKey.register_symbol(WispKey.DOWN, app.window.key.DOWN)
 
         # TODO: Take care of remaining mappings, and verify the event handlers of glumpy were not overriden
+    

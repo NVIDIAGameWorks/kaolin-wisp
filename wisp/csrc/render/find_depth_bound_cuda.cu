@@ -11,6 +11,7 @@
 #include <ATen/ATen.h>
 
 namespace wisp {
+typedef unsigned int uint;
 
 __global__ void
 find_depth_bound_cuda_kernel(
