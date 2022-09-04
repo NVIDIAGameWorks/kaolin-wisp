@@ -1,0 +1,65 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
+
+
+global:
+    exp_name: 'funny-nerf-experiment'
+
+optimizer:
+    optimizer_type: 'rmsprop'
+    lr: 0.001
+
+dataset:
+    dataset_type: 'multiview'
+    multiview_dataset_format: 'standard'
+    num_rays_sampled_per_img: 4096
+    mip: 2
+    bg_color: 'black'
+
+renderer:
+    tracer_type: 'PackedRFTracer'
+    num_steps: 512
+    raymarch_type: ray
+    render_batch: 4000
+    camera_origin:
+        - -3.0
+        - 0.65
+        - -3.0
+    shading_mode: 'rb'
+    render_res:
+        - 1024
+        - 1024
+
+trainer:
+    trainer_type: 'MultiviewTrainer'
+    epochs: 50
+    batch_size: 1
+    model_format: 'full'
+    valid_every: -1
+    save_every: -1
+    render_every: -1
+
+grid:
+    grid_type: 'HashGrid'
+    interpolation_type: 'linear'
+    multiscale_type: 'cat'
+    feature_dim: 2
+    feature_std: 0.01
+    num_lods: 16
+    tree_type: 'geometric'
+    max_grid_res: 2048
+    codebook_bitwidth: 19
+
+net:
+    nef_type: 'FunnyNeuralField'
+    hidden_dim: 128
+    num_layers: 1
+    out_dim: 4
+
+embedder:
+    embedder_type: 'positional'

@@ -184,7 +184,7 @@ class NeuralSDF(BaseNeuralField):
         """Computes the RGB + SDF for some samples.
 
         Args:
-            coords (torch.FloatTensor): packed tensor of shape [batch, num_samples, 3]
+            coords (torch.FloatTensor): tensor of shape [batch, num_samples, 3]
             pidx (torch.LongTensor): SPC point_hierarchy indices of shape [batch].
                                      Unused in the current implementation.
             lod_idx (int): index into active_lods. If None, will use the maximum LOD.

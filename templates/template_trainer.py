@@ -26,24 +26,22 @@ class TemplateTrainer(BaseTrainer):
     """
 
     def pre_epoch(self, epoch):
-        """Override pre_epoch to support pruning.
-        """
+        """For example, Override pre_epoch to support feature grid pruning at the beginning of epoch. """
         super().pre_epoch(epoch)   
         
         if self.extra_args["prune_every"] > -1 and epoch > 0 and epoch % self.extra_args["prune_every"] == 0:
+
             self.pipeline.nef.prune()
             self.init_optimizer()
 
     def init_log_dict(self):
-        """Custom log dict.
-        """
+        """Custom log dict. """
         self.log_dict['total_loss'] = 0
         self.log_dict['total_iter_count'] = 0
         self.log_dict['rgb_loss'] = 0.0
 
     def step(self, epoch, n_iter, data):
-        """Implement the optimization over image-space loss.
-        """
+        """Implement the optimization over image-space loss. """
         self.scene_state.optimization.iteration = n_iter
 
         timer = PerfTimer(activate=False, show_memory=False)
