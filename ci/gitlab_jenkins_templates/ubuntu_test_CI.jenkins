@@ -28,6 +28,8 @@ spec:
     volumeMounts:
       - mountPath: /data
         name: pvc-mount
+  imagePullSecrets:
+  - name: gitlabregcred2
   nodeSelector:
     kubernetes.io/os: linux
     nvidia.com/gpu_type: ${arch}
