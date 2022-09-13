@@ -70,6 +70,6 @@ def default_collate(batch):
                 # The sequence type may not support `__init__(iterable)` (e.g., `range`).
                 return [default_collate(samples) for samples in transposed]
     elif isinstance(elem, Rays):
-        return Rays.cat(batch)
+        return Rays.stack(batch)
 
     raise TypeError(default_collate_err_msg_format.format(elem_type))

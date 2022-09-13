@@ -187,7 +187,7 @@ def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=Fals
                                                   camera.width, camera.height,
                                                   device='cuda')
         _rays = generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(
-            camera.height, camera.width, 3).to('cpu')
+            camera.height, camera.width).to('cpu')
         rays.append(_rays.to(dtype=torch.float32))
 
     # Normalize

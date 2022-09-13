@@ -100,11 +100,11 @@ class SDFDataset(Dataset):
                 self.pts_.append(mesh_ops.sample_near_surface(grid.blas.V.cuda(), 
                                                    grid.blas.F.cuda(), 
                                                    self.pts_[0].shape[0], 
-                                                   variance=1.0/(2**level)).cpu())
+                                                   variance=1.0 / (2 ** level)).cpu())
             elif mode == "trace":
                 self.pts_.append(mesh_ops.sample_surface(grid.blas.V.cuda(),
-                                               grid.blas.F.cuda(),
-                                               self.pts_[0].shape[0])[0].cpu())
+                                 grid.blas.F.cuda(),
+                                 self.pts_[0].shape[0])[0].cpu())
             else:
                 raise Exception(f"Sampling mode {mode} not implemented")
 
@@ -138,14 +138,15 @@ class SDFDataset(Dataset):
 
             self.nrm = None
             if self.get_normals:
-                self.pts, self.nrm = mesh_ops.sample_surface(self.V, self.F, self.num_samples*len(self.sample_mode))
+                self.pts, self.nrm = mesh_ops.sample_surface(self.V, self.F,
+                                                             self.num_samples * len(self.sample_mode))
                 self.nrm = self.nrm.cpu()
             else:
                 self.pts = mesh_ops.point_sample(self.V, self.F, self.sample_mode, self.num_samples)
 
             if self.sample_tex:
                 self.rgb, _, self.d = mesh_ops.closest_tex(self.V.cuda(), self.F.cuda(), 
-                                               self.texv, self.texf, self.mats, self.pts)
+                                                           self.texv, self.texf, self.mats, self.pts)
                 self.rgb = self.rgb.cpu()
             else:
                 self.d = mesh_ops.compute_sdf(self.V.cuda(), self.F.cuda(), self.pts.cuda())   

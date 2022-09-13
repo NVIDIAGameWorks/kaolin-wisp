@@ -7,11 +7,16 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 def setup_cuda_context():
-    """ Carefully load CUDA based frameworks to avoid interference.
-        Interactive apps should invoke this function as early as possible.
+    """Carefully load CUDA based frameworks to avoid interference.
+       Interactive apps should invoke this function as early as possible.
     """
     import os
+    import sys
     if not os.environ.get('WISP_HEADLESS') == '1':
+        # glump.app.Window is using argparse
+        # We remove sys.argv temporarily to avoid conflict with Wisp's argparse
+        argv = sys.argv
+        sys.argv = [argv[0]]
         window = None
         try:
             # !!! Should be called when interactive wisp loads, before any torch ops take place !!!
@@ -46,3 +51,5 @@ def setup_cuda_context():
         finally:
             if window is not None:
                 window.close()
+            # restore sys.argv for Wisp argparse
+            sys.argv = argv

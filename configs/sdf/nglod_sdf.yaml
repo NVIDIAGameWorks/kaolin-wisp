@@ -16,7 +16,7 @@
 # 13:37 script runtime as reported on tensorboard
 # 41.6 IOU at final evaluation
 
-global:
+logging:
     exp_name: 'test-nglod-sdf'
 
 optimizer:
@@ -27,7 +27,6 @@ optimizer:
 dataset:
     num_samples: 500000      # Number of samples held in dataset during training
     samples_per_voxel: 32
-    dataset_type: 'sdf'
     num_samples_on_mesh: 100000000  # Number of samples generated on mesh surface to initialize the occupancy grid
 
 renderer:
@@ -46,7 +45,6 @@ renderer:
     shadow: True
 
 trainer:
-    trainer_type: 'SDFTrainer'
     epochs: 10
     batch_size: 512
     model_format: 'full'
