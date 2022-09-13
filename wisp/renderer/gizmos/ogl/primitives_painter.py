@@ -14,7 +14,7 @@ import numpy as np
 from glumpy import gloo, gl
 from kaolin.render.camera import Camera
 
-from wisp.core.primitives import PrimitivesPack
+from wisp.core import PrimitivesPack, ObjectTransform
 from wisp.renderer.gizmos.gizmo import Gizmo
 
 # TODO (operel): release GL resources when instance is destroyed (and issue a warning if not taken care of explicitly)
@@ -36,6 +36,7 @@ class PrimitivesPainter(Gizmo):
 
     def create_gl_program(self):
         vertex = """
+                    uniform mat4   u_model;
                     uniform mat4   u_viewprojection;
                     attribute vec3 position;
                     attribute vec4 color;
@@ -43,7 +44,7 @@ class PrimitivesPainter(Gizmo):
                     void main()
                     {
                         v_color = color;
-                        gl_Position = u_viewprojection * vec4(position, 1.0f);
+                        gl_Position =  u_viewprojection * u_model * vec4(position, 1.0f);
                     } """
 
         fragment = """
@@ -59,14 +60,17 @@ class PrimitivesPainter(Gizmo):
 
     def clear(self):
         for line in self.lines:
-            vertex_buffer, index_buffer, _ = line
+            vertex_buffer, index_buffer, _, _ = line
             vertex_buffer.delete()
             index_buffer.delete()
+        for point in self.points:
+            vertex_buffer, _, _ = point
+            vertex_buffer.delete()
 
         self.lines = []
         self.points = []
 
-    def create_points_buffers(self, points, point_size):
+    def create_points_buffers(self, points):
         # TODO (operel): gpu copy is better..
         pos, color = points
         count = len(pos)
@@ -94,42 +98,46 @@ class PrimitivesPainter(Gizmo):
         self.clear()
 
         # Sort primitives by gl state changes - this reduces the amount of draw calls
-        draw_calls = dict(
-            lines=dict(
-                line_width=defaultdict(PrimitivesPack)
-            ),
-            points=dict(
-                point_size=defaultdict(PrimitivesPack)
-            ),
+        draw_calls = defaultdict(lambda: dict(
+                lines=dict(
+                    line_width=defaultdict(PrimitivesPack)
+                ),
+                points=dict(
+                    point_size=defaultdict(PrimitivesPack)
+                ),
+            )
         )
 
         for pack in primitives:
+            transform = pack.transform if pack.transform is not None else ObjectTransform()
             if (len(pack._lines_start)):
-                draw_calls['lines']['line_width'][pack.line_width].append(pack)
-    
-                for _line_width, pack in draw_calls['lines']['line_width'].items():
-                    lines = pack.lines
-                    vertex_buffer, index_buffer = self.create_line_buffers(lines)
-                    self.lines.append((vertex_buffer, index_buffer, pack.line_width))
+                draw_calls[transform]['lines']['line_width'][pack.line_width].append(pack)
             elif (len(pack._points_pos)):
-                draw_calls['points']['point_size'][pack.point_size].append(pack)
+                draw_calls[transform]['points']['point_size'][pack.point_size].append(pack)
 
-                for point_size, pack in draw_calls['points']['point_size'].items():
-                    points = pack.points
-                    vertex_buffer = self.create_points_buffers(points, point_size)
-                    self.points.append((vertex_buffer, point_size))
+        for transform, grouped_calls in draw_calls.items():
+            for _line_width, pack in grouped_calls['lines']['line_width'].items():
+                lines = pack.lines
+                vertex_buffer, index_buffer = self.create_line_buffers(lines)
+                self.lines.append((vertex_buffer, index_buffer, pack.line_width, transform))
+            for point_size, pack in grouped_calls['points']['point_size'].items():
+                points = pack.points
+                vertex_buffer = self.create_points_buffers(points)
+                self.points.append((vertex_buffer, point_size, transform))
 
     def render(self, camera: Camera):
         for line_entry in self.lines:
-            vertex_buffer, index_buffer, line_width = line_entry
+            vertex_buffer, index_buffer, line_width, transform = line_entry
             gl.glLineWidth(line_width)
+            self.canvas_program["u_model"] = transform.model_matrix().cpu().numpy().T
             self.canvas_program["u_viewprojection"] = camera.view_projection_matrix()[0].cpu().numpy().T
             self.canvas_program.bind(vertex_buffer)
             self.canvas_program.draw(gl.GL_LINES, index_buffer)
     
         for point_entry in self.points:
-            vertex_buffer, point_size = point_entry
+            vertex_buffer, point_size, transform = point_entry
             gl.glPointSize(point_size)
+            self.canvas_program["u_model"] = transform.model_matrix().cpu().numpy().T
             self.canvas_program["u_viewprojection"] = camera.view_projection_matrix()[0].cpu().numpy().T
             self.canvas_program.bind(vertex_buffer)
             self.canvas_program.draw(gl.GL_POINTS)

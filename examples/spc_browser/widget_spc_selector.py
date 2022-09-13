@@ -35,7 +35,8 @@ class WidgetSPCSelector(WidgetImgui):
 
         neural_field = SPCField(
             octree=octree,
-            features_dict=features
+            features_dict=features,
+            device=device
         )
         tracer = PackedSPCTracer()
         return Pipeline(neural_field, tracer)
@@ -70,7 +71,7 @@ class WidgetSPCSelector(WidgetImgui):
                 # which forcees the render core to refresh the scene graph and load the new object
                 device = state.renderer.device
                 spc_pipeline = self.create_pipeline(available_files[selected_file_idx], device=device)
-                add_to_scene_graph(state, name=new_file_name, pipeline=spc_pipeline)
+                add_to_scene_graph(state, name=new_file_name, obj=spc_pipeline)
 
                 # Remove old object from scene graph, if it exists
                 if old_file_name != new_file_name and old_file_name in state.graph.neural_pipelines:
