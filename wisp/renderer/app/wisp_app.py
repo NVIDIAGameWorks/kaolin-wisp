@@ -440,7 +440,7 @@ class WispApp(ABC):
         self.user_mode.handle_timer_tick(dt)
 
         # Toggle interactive mode on or off if needed to maintain interactive FPS rate
-        if self.user_mode.is_interacting() or self._is_imgui_hovered:
+        if self.user_mode.is_interacting():
             self.render_core.set_low_resolution()
         else:
             # Allow a fraction of a second before turning full resolution on.
