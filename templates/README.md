@@ -7,7 +7,7 @@ Other field types (i.e. **Neural Signed Distance Functions**) can also be derive
 
 ## Template Files
 
-<img src="../../media/nef.jpg" alt="Wisp's Neural Field" width="750"/>
+<img src="../media/nef.jpg" alt="Wisp's Neural Field" width="750"/>
 
 `template_neural_field` is a one-stop for defining new neural fields. 
 In wisp, a **neural field** (**nef**) is as a combination of a feature grid structure, a decoder, and an optional input embedding.
@@ -16,14 +16,14 @@ The input to forward functions is provided by `BaseTracer` implementation.
 For example, a `PackedRFTracer`, which traces radiance fields, passes the input coordinates and ray direction.
 Consequentially, Neural field implementations should be mindful of which tracers they're compatible with.
 
-<img src="../../media/trainer.jpg" alt="Wisp's Trainer" width="750"/>
+<img src="../media/trainer.jpg" alt="Wisp's Trainer" width="750"/>
 
 `template_trainer` orchestrates the optimization process, from data load to loss calculation and metrics logging.
 `BaseTrainer` functions can be overrided to take control of lifecycle events such as `pre_epoch()`, a single training `step()`, and
 invocation of `validation()`. The trainer typically holds a `Pipeline` object, which pairs the neural field currently being optimized,
 and a compatible `BaseTracer`. `Pipeline` contains all components required to differentiably render a neural field.
 
-<img src="../../media/wisp_app.jpg" alt="WispApp" width="750"/>
+<img src="../media/wisp_app.jpg" alt="WispApp" width="750"/>
 
 `template_app` is an exemplary implementation of an interactive app.
 The app controls which gui widgets are created and how visual properties of the canvas are customized. 
@@ -34,7 +34,7 @@ The scene graph can also be manipulated here.
 Wisp components. The configurations are parsed by the `config_parser`, and passed directly to built 
 components.
 
-<img src="../../media/wisp_main.jpg" alt="Main Script" width="750"/>
+<img src="../media/wisp_main.jpg" alt="Main Script" width="750"/>
 
 `template_main` is a simple main script for tying the entire **templates** example together.
 It registers newly added user files to ensure `config_parser` knows how to load them.
@@ -49,6 +49,6 @@ share this state. The app loop is finally run here to initiate the interactive a
 Advanced users may customize other building blocks such as Tracers, Datasets and BottomLevelRenderers,
 currently not provided in the form of templates.
 
-<img src="../../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
+<img src="../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
 
 **Come up with useful components? We welcome you to submit a PR!**
