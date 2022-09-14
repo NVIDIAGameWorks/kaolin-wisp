@@ -8,6 +8,8 @@ We call these _neural fields_ but really they can be any differentiable and para
 
 ## Building your own Neural Field 
 
+<img src="../../media/nef.jpg" alt="Wisp's Neural Field" width="750"/>
+
 The intent of the building blocks is to make it easier for users to create their own neural fields models. Users are free to pick and choose whatever modules they find useful from these modules, especially if the intent is to integrate these building blocks in to your own existing pipelines.
 
 If you wish to interface with the rest of the `wisp` framework, however, you will need to create your own `NeuralField` class which inherits from `BaseNeuralField`. Compatibility between various different kinds of `NeuralField` models and the rest of the pipeline like the `tracer`, `renderer`, `trainer` is maintained by registering forward functions.
@@ -48,3 +50,4 @@ rgb, semantics = nef(coords=coords, ray_d=ray_d, channels=["rgb", "semantics"])
 channel_dict = nef(coords=coords, ray_d=ray_d, channels=set("rgb"))
 rgb = channel_dict["rgb"]
 ```
+

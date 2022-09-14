@@ -27,3 +27,11 @@ This is the main folder for the wisp library. The folders can be divided up into
 `tracers` contains classes that can be used as **forward maps**, which are functions which map neural fields onto another domain. Currently this mostly contains mechanisms of tracing rays against neural fields.
 
 `trainers` contains classes that are designed per tasks to actually train, log, save different workloads.
+
+## The Full Monty
+
+The architecture figure describes how the major Wisp components relate to each other:
+
+<img src="../../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
+
+See also further descriptions accompanying the [Templates](../templates/) folder.
