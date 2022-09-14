@@ -133,8 +133,8 @@ class NeuralRadianceField(BaseNeuralField):
         """Compute color and density [particles / vol] for the provided coordinates.
 
         Args:
-            coords (torch.FloatTensor): packed tensor of shape [batch, num_samples, 3]
-            ray_d (torch.FloatTensor): packed tensor of shape [batch, 3]
+            coords (torch.FloatTensor): tensor of shape [batch, num_samples, 3]
+            ray_d (torch.FloatTensor): tensor of shape [batch, 3]
             pidx (torch.LongTensor): SPC point_hierarchy indices of shape [batch].
                                      Unused in the current implementation.
             lod_idx (int): index into active_lods. If None, will use the maximum LOD.

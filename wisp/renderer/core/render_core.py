@@ -234,12 +234,12 @@ class RendererCore:
         # TODO(ttakikawa): Leaving a note here to think about whether this should be the case...
         # The renderer always needs depth, alpha, and rgb
         required_channels = {"rgb", "depth", "alpha"}
+        selected_canvas_channel = self.state.renderer.selected_canvas_channel.lower()
         visible_objects = set([k for k,v in self.state.graph.visible_objects.items() if v])
         payload = FramePayload(camera=camera, interactive_mode=self.interactive_mode,
                                render_res_x=res_x, render_res_y=res_y, time_delta=time_delta,
                                visible_objects=visible_objects, clear_color=clear_color,
-                               
-                               channels={self.state.renderer.selected_canvas_channel}.union(required_channels))
+                               channels={selected_canvas_channel}.union(required_channels))
         for renderer_id, renderer in self._renderers.items():
             if renderer_id in payload.visible_objects:
                 renderer.pre_render(payload)
