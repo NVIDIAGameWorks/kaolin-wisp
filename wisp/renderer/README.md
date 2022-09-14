@@ -2,7 +2,7 @@
 
 This folder contains the logic for Wisp's interactive visualizer.
 
-<img src="../../media/wisp_renderer.jpg" alt="Wisp's Renderer" width="750"/>
+<img src="../../media/wisp_renderer.jpg" alt="Wisp's Renderer" width="1000"/>
 
 ## For Beginners
 
@@ -30,7 +30,7 @@ to reflect recent modifications.
 
 Neural field objects are represented in the form of `Pipeline` objects (a combination of a **Neural Field** and a **Tracer**).
 
-<img src="../../media/pipeline.jpg" alt="Wisp's Pipeline" width="750"/>
+<img src="../../media/pipeline.jpg" alt="Wisp's Pipeline" width="1000"/>
 
 ## Additional Public API
 
@@ -90,4 +90,4 @@ See the full diagram below.
 
 The Renderer Core is responsible for all drawing logic unrelated to the `gui` or a specific graphics api (i.e. `gizmos` assume OpenGL implementations and are handled separately).
 
-<img src="../../media/renderer_core.jpg" alt="RendererCore" width="750"/>
+<img src="../../media/renderer_core.jpg" alt="RendererCore" width="1000"/>
