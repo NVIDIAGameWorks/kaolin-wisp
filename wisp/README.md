@@ -32,6 +32,6 @@ This is the main folder for the wisp library. The folders can be divided up into
 
 The architecture figure describes how the major Wisp components relate to each other:
 
-<img src="../../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
+<img src="../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
 
 See also further descriptions accompanying the [Templates](../templates/) folder.
