@@ -6,6 +6,6 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-
+from .helper_classes import DotDict
 from .debug import PsDebugger
 from .perf import PerfTimer, print_gpu_memory
