@@ -136,10 +136,12 @@ class PackedRFTracer(BaseTracer):
                         pidx=pidx,
                         lod_idx=lod_idx,
                         channels=channel)
-            feats_C = int(round(feats.numel() / tau.numel()))
-            ray_feats, transmittance = spc_render.exponential_integration(feats.reshape(-1, feats_C), tau, boundary, exclusive=True)
+            num_channels = feats.shape[-1]
+            ray_feats, transmittance = spc_render.exponential_integration(
+                feats.view(-1, num_channels), tau, boundary, exclusive=True
+            )
             composited_feats = alpha * ray_feats
-            out_feats = torch.zeros(N, feats_C, device=feats.device)
+            out_feats = torch.zeros(N, num_channels, device=feats.device)
             out_feats[ridx_hit.long()] = composited_feats
             extra_outputs[channel] = out_feats
 

@@ -5,13 +5,15 @@
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
+import unittest
+
 from wisp.datasets import RandomViewDataset
 from wisp.models.nefs import NeuralRadianceField
 from wisp.tracers import PackedRFTracer
 from wisp.models import Pipeline
 
 
-class Test:
+class Test(unittest.TestCase):
     def test_extra_channels(self):
         device = "cuda:0"
         nef = NeuralRadianceField(grid_type="HashGrid", multiscale_type="cat")

@@ -84,18 +84,15 @@ class RandomViewDataset(Dataset):
         look_at: Tuple = (0, 0, 0),
         num_rays: int = -1,  # number of rays. If -1, return all rays
         transform: Callable = None,
-        device: Union[torch.device, str] = "cpu",
         **kwargs,
     ):
         self.n_size = n_size
-        self.cam = Camera.from_args(
-            eye=torch.tensor([4.0, 4.0, 4.0]),
-            at=torch.tensor([0.0, 0.0, 0.0]),
-            up=torch.tensor([0.0, 1.0, 0.0]),
-            fov=fov,
-            width=viewport_width,
-            height=viewport_height,
-            device="cpu",
+        self.cam = DotDict(
+            dict(
+                fov=fov,
+                width=viewport_width,
+                height=viewport_height,
+            )
         )
         self.view_radius_range = view_radius_range
         self.view_theta_range = view_theta_range
@@ -105,9 +102,6 @@ class RandomViewDataset(Dataset):
         self.look_at = look_at
 
         self.num_rays = num_rays
-        if isinstance(device, str):
-            device = torch.device(device)
-        self.device = device
         self.transform = transform
 
     def __len__(self):
@@ -116,6 +110,7 @@ class RandomViewDataset(Dataset):
 
     def __getitem__(self, idx: int):
         """Returns a ray."""
+        # TODO (cchoy): uniform sphere sampling (http://corysimon.github.io/articles/uniformdistn-on-sphere/)
         radius = random.uniform(*self.view_radius_range)
         theta = random.uniform(*self.view_theta_range)
         phi = random.uniform(*self.view_phi_range)
@@ -123,7 +118,7 @@ class RandomViewDataset(Dataset):
             eye=spherical_eye(radius, theta, phi),
             at=torch.tensor([0.0, 0.0, 0.0]),
             up=torch.tensor([0.0, 1.0, 0.0]),
-            fov=self.cam.fov().item(),
+            fov=self.cam.fov,
             width=self.cam.width,
             height=self.cam.height,
             device="cpu",
@@ -139,10 +134,6 @@ class RandomViewDataset(Dataset):
 
         if self.transform is not None:
             out = self.transform(out)
-
-        if self.device.type != 'cpu':
-            out.rays = out.rays.to(self.device)
-            out.cam = out.cam.to(self.device)
 
         return out
 
