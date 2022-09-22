@@ -118,4 +118,4 @@ def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
     batch, num_samples, dim = coords.shape
     feats = HashGridInterpolate.apply(coords.reshape(-1, dim).contiguous(), resolutions, 
             codebook_bitwidth, lod_idx, *[_c for _c in codebook])
-    return feats.reshape(batch, num_samples, -1)
+    return feats.reshape(batch, num_samples, codebook[0].shape[1] * len(resolutions))

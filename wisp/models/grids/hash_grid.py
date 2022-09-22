@@ -79,7 +79,7 @@ class HashGrid(BLASGrid):
         """Builds the multiscale hash grid with an octree sampling pattern.
         """
         octree_lods = [base_lod + x for x in range(num_lods)]
-        resolutions = [2**lod for lod in octree_lods]
+        resolutions = [2 ** lod for lod in octree_lods]
         self.init_from_resolutions(resolutions)
 
     def init_from_geometric(self, min_width, max_width, num_lods):
@@ -104,11 +104,11 @@ class HashGrid(BLASGrid):
 
         log.info(f"Active Resolutions: {self.resolutions}")
         
-        self.codebook_size = 2**self.codebook_bitwidth
+        self.codebook_size = 2 ** self.codebook_bitwidth
 
         self.codebook = nn.ParameterList([])
         for res in resolutions:
-            num_pts = res**3
+            num_pts = res ** 3
             fts = torch.zeros(min(self.codebook_size, num_pts), self.feature_dim)
             fts += torch.randn_like(fts) * self.feature_std
             self.codebook.append(nn.Parameter(fts))
@@ -133,12 +133,13 @@ class HashGrid(BLASGrid):
 
         batch, num_samples, _ = coords.shape
         
-        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth, lod_idx, self.codebook)
+        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth,
+                                  lod_idx, self.codebook)
 
         if self.multiscale_type == 'cat':
-            return feats.reshape(batch, num_samples, self.feature_dim)
+            return feats
         elif self.multiscale_type == 'sum':
-            return feats.reshape(batch, num_samples, len(self.resolutions), self.feature_dim).sum(-2)
+            return feats.reshape(batch, num_samples, len(self.resolutions), feats.shape[-1] // len(self.resolutions)).sum(-2)
         else:
             raise NotImplementedError
 

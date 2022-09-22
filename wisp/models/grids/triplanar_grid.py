@@ -173,7 +173,7 @@ class TriplanarGrid(BLASGrid):
         feats = torch.cat(feats, dim=-1)
 
         if self.multiscale_type == 'sum':
-            feats = feats.reshape(batch, num_samples, lod_idx + 1, -1).sum(-2)
+            feats = feats.reshape(batch, num_samples, lod_idx + 1, feats.shape[-1] // (lod_idx + 1)).sum(-2)
         
         return feats
 
@@ -183,7 +183,7 @@ class TriplanarGrid(BLASGrid):
         This is a more low level interface for optimization.
 
         Inputs:
-            x     : float tensor of shape [batch, num_samples, 3]
+            coords     : float tensor of shape [batch, num_samples, 3]
             feats : float tensor of shape [num_feats, feat_dim]
             pidx  : long tensor of shape [batch]
             lod   : int specifying the lod
@@ -193,9 +193,9 @@ class TriplanarGrid(BLASGrid):
         batch, num_samples = coords.shape[:2]
 
         if self.interpolation_type == 'linear':
-            fs = feats(coords).reshape(batch, num_samples, -1)
+            fs = feats(coords).reshape(batch, num_samples, 3 * feats.fdim)
         else:
-            assert(False, "Interpolation mode not right... check typos!")
+            raise ValueError(f"Interpolation mode '{self.interpolation_type}' is not supported")
         
         return fs
     
@@ -213,4 +213,3 @@ class TriplanarGrid(BLASGrid):
         Important detail: this is just used as an AABB tracer.
         """
         return self.blas.raytrace(rays, level=0, with_exit=with_exit)
-
