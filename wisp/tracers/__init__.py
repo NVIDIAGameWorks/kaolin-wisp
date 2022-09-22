@@ -10,3 +10,4 @@ from .base_tracer import BaseTracer
 from .packed_rf_tracer import PackedRFTracer
 from .packed_sdf_tracer import PackedSDFTracer
 from .sdf_tracer import SDFTracer
+from .packed_spc_tracer import PackedSPCTracer

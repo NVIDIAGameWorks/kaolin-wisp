@@ -8,3 +8,4 @@
 
 from .radiance_pipeline_renderer import NeuralRadianceFieldPackedRenderer
 from .sdf_pipeline_renderer import NeuralSDFPackedRenderer
+from .spc_pipeline_renderer import SPCRenderer

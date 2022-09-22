@@ -46,6 +46,7 @@ class BottomLevelRenderer(ABC):
         pass
 
     def needs_refresh(self, payload: FramePayload, *args, **kwargs) -> bool:
+        """ Override to optimize cases when the neural field does not require rendering from scratch. """
         return True
 
     @abstractmethod
@@ -143,6 +144,10 @@ class RayTracedRenderer(BottomLevelRenderer):
 
     def post_render(self) -> None:
         pass
+
+    @property
+    def device(self) -> torch.device:
+        return self.nef.device
 
 
 class RasterizedRenderer(BottomLevelRenderer):
