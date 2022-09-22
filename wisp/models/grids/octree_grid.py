@@ -135,7 +135,7 @@ class OctreeGrid(BLASGrid):
         # Build the trinket structure
         if self.interpolation_type in ['linear']:
             self.points_dual, self.pyramid_dual, self.trinkets, self.parents = \
-                    wisp_spc_ops.make_trilinear_spc(self.blas.points, self.blas.pyramid)
+                wisp_spc_ops.make_trilinear_spc(self.blas.points, self.blas.pyramid)
             log.info("Built dual octree and trinkets")
         
         # Build the pyramid of features
@@ -197,12 +197,9 @@ class OctreeGrid(BLASGrid):
         lod = self.active_lods[lod_idx]
 
         if self.interpolation_type == 'linear':
-            fs = spc_ops.unbatched_interpolate_trilinear(coords, 
-                                               pidx.int(),
-                                               self.blas.points,
-                                               self.trinkets.int(),
-                                               feats.half(), 
-                                               lod).float()
+            fs = spc_ops.unbatched_interpolate_trilinear(
+                coords, pidx.int(), self.blas.points, self.trinkets.int(),
+                feats.half(), lod).float()
         elif self.interpolation_type == 'closest':
             fs = self._index_features(feats, pidx.long()-self.blas.pyramid[1, lod])[...,None,:]
             fs = fs.expand(batch, num_samples, feats.shape[-1])
@@ -249,14 +246,17 @@ class OctreeGrid(BLASGrid):
             # This might look unoptimal since it assumes that samples are _not_ in the same voxel.
             # This is the correct assumption here, because the point samples are from the base_lod,
             # not the highest LOD.
-            pidx = self.blas.query(coords.reshape(-1, 3), self.active_lods[lod_idx], with_parents=True)[...,self.base_lod:]
+            pidx = self.blas.query(
+                coords.reshape(-1, 3), self.active_lods[lod_idx], with_parents=True
+            )[...,self.base_lod:]
             pidx = pidx.reshape(-1, coords.shape[1], num_feats)
             pidx = torch.split(pidx, 1, dim=-1)
             
             # list of [batch, num_samples, 1]
 
             for i in range(num_feats):
-                feat = self._interpolate(coords.reshape(-1, 1, 3), self.features[i], pidx[i].reshape(-1), i)[:,0]
+                feat = self._interpolate(
+                    coords.reshape(-1, 1, 3), self.features[i], pidx[i].reshape(-1), i)[:,0]
                 feats.append(feat)
             
             feats = torch.cat(feats, dim=-1)
@@ -270,15 +270,15 @@ class OctreeGrid(BLASGrid):
             
             timer.check("aggregate")
             
-            return feats.reshape(batch, num_samples, -1)
+            return feats.reshape(batch, num_samples, self.feature_dim)
 
     def raymarch(self, rays, level=None, num_samples=64, raymarch_type='voxel'):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays,
-                                  level=self.base_lod, num_samples=num_samples, raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, level=self.base_lod, num_samples=num_samples,
+                                  raymarch_type=raymarch_type)
 
 class CodebookOctreeGrid(OctreeGrid):
     """This is a multiresolution feature grid where the octree stores indices into a fixed size codebook.
@@ -345,7 +345,9 @@ class CodebookOctreeGrid(OctreeGrid):
             logits = feats[idx.long()]
             y_soft = F.softmax(logits, dim=-1)
             index = y_soft.max(-1, keepdim=True)[1]
-            y_hard = torch.zeros_like(logits, memory_format=torch.legacy_contiguous_format).scatter_(-1, index, 1.0)
+            y_hard = torch.zeros_like(
+                logits, memory_format=torch.legacy_contiguous_format
+            ).scatter_(-1, index, 1.0)
             keys = y_hard - y_soft.detach() + y_soft
             return (self.dictionary[lod_idx][None, None] * keys[..., None]).sum(-2)
             

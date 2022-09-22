@@ -179,16 +179,12 @@ class OctreeAS(object):
             
             timer.check("raytrace")
 
-            if ridx.shape[0] == 0:
-                return ridx, pidx, None, None, None, None
-
             depth_samples = wisp_spc_ops.sample_from_depth_intervals(depth, num_samples)[...,None]
             deltas = depth_samples[...,0].diff(dim=-1, prepend=depth[...,0:1]).reshape(-1, 1)
             timer.check("sample depth")
 
             samples = torch.addcmul(rays.origins.index_select(0, ridx)[:,None], 
                                     rays.dirs.index_select(0, ridx)[:,None], depth_samples)
-            
             timer.check("generate samples coords")
             
             boundary = wisp_spc_ops.expand_pack_boundary(spc_render.mark_first_hit(ridx.int()), num_samples)
@@ -228,6 +224,6 @@ class OctreeAS(object):
 
             samples = samples[mask][:,None]
         else:
-            assert False and "raymarch type wrong"
+            raise TypeError(f"raymarch type {raymarch_type} is wrong")
 
         return ridx, pidx, samples, depth_samples, deltas, boundary

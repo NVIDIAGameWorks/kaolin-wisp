@@ -204,8 +204,8 @@ class TriplanarGrid(BLASGrid):
 
         Important detail: this is just used as an AABB tracer.
         """
-        return self.blas.raymarch(rays, 
-                level=0, num_samples=num_samples, raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, level=0, num_samples=num_samples,
+                                  raymarch_type=raymarch_type)
     
     def raytrace(self, rays, level=None, with_exit=False):
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.
