@@ -169,10 +169,10 @@ class NeuralRadianceField(BaseNeuralField):
         timer.check("rf_rgba_decode")
 
         # Colors are values [0, 1] floats
-        colors = torch.sigmoid(rgba[...,:3]).reshape(batch, num_samples, -1)
+        colors = torch.sigmoid(rgba[...,:3]).reshape(batch, num_samples, 3)
 
         # Density is [particles / meter], so need to be multiplied by distance
-        density = torch.relu(rgba[...,3:4]).reshape(batch, num_samples, -1)
+        density = torch.relu(rgba[...,3:4]).reshape(batch, num_samples, 1)
         timer.check("rf_rgba_activation")
         
         return dict(rgb=colors, density=density)

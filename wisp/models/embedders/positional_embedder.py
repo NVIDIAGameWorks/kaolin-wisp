@@ -55,7 +55,8 @@ class PositionalEmbedder(nn.Module):
             (torch.FloatTensor): Embeddings of shape [N, input_dim + out_dim] or [N, out_dim].
         """
         N = coords.shape[0]
-        winded = (coords[:,None] * self.bands[None,:,None]).reshape(N, -1)
+        winded = (coords[:,None] * self.bands[None,:,None]).reshape(
+            N, coords.shape[1] * self.num_freq)
         encoded = torch.cat([torch.sin(winded), torch.cos(winded)], dim=-1)
         if self.include_input:
             encoded = torch.cat([coords, encoded], dim=-1)

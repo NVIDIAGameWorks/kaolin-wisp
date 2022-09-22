@@ -163,5 +163,5 @@ class PackedSDFTracer(BaseTracer):
         
         alpha_buffer[hit_buffer] = 1.0
         timer.check("populate buffers")
-        return RenderBuffer(xyz=x_buffer, depth=depth_buffer, hit=hit_buffer, normal=normal_buffer, rgb=rgb_buffer,
-                            alpha=alpha_buffer, **extra_outputs)
+        return RenderBuffer(xyz=x_buffer, depth=depth_buffer, hit=hit_buffer, normal=normal_buffer,
+                            rgb=rgb_buffer, alpha=alpha_buffer, **extra_outputs)

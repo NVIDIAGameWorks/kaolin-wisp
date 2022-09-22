@@ -136,7 +136,7 @@ class HashGrid(BLASGrid):
         feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth, lod_idx, self.codebook)
 
         if self.multiscale_type == 'cat':
-            return feats.reshape(batch, num_samples, -1)
+            return feats.reshape(batch, num_samples, self.feature_dim)
         elif self.multiscale_type == 'sum':
             return feats.reshape(batch, num_samples, len(self.resolutions), self.feature_dim).sum(-2)
         else:
@@ -147,5 +147,5 @@ class HashGrid(BLASGrid):
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays,
-                                  level=self.blas_level, num_samples=num_samples, raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, level=self.blas_level, num_samples=num_samples,
+                                  raymarch_type=raymarch_type)

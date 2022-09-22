@@ -65,7 +65,7 @@ class SDFTracer(BaseTracer):
         # Position in model space
         x = torch.addcmul(rays.origins, rays.dirs, t)
 
-        cond = torch.ones_like(t).bool()[:,0]
+        cond = torch.ones_like(t).bool()[:, 0]
         
         normal = torch.zeros_like(x)
         # This function is in fact differentiable, but we treat it as if it's not, because
