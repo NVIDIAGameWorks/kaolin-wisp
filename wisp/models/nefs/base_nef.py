@@ -27,10 +27,7 @@ class BaseNeuralField(nn.Module):
         interpolation_type : str = 'linear',
         multiscale_type    : str = 'none',
 
-        as_type            : str = 'octree',
-        raymarch_type      : str = 'voxel',
-
-        decoder_type       : str = 'none',
+        #decoder_type       : str = 'none',
         embedder_type      : str = 'none', 
         activation_type    : str = 'relu',
         layer_type         : str = 'none',
@@ -39,8 +36,6 @@ class BaseNeuralField(nn.Module):
         num_lods         : int   = 1, 
 
         # grid args
-        sample_tex       : bool  = False,
-        dilate           : int   = None,
         feature_dim      : int   = 16,
 
         # decoder args
@@ -55,18 +50,18 @@ class BaseNeuralField(nn.Module):
 
         self.grid_type = grid_type
         self.interpolation_type = interpolation_type
-        self.raymarch_type = raymarch_type
+        #self.raymarch_type = raymarch_type
         self.embedder_type = embedder_type
         self.activation_type = activation_type
         self.layer_type = layer_type
-        self.decoder_type = decoder_type
+        #self.decoder_type = decoder_type
         self.multiscale_type = multiscale_type
 
         self.base_lod = base_lod
         self.num_lods = num_lods
 
-        self.sample_tex = sample_tex
-        self.dilate = dilate
+        #self.sample_tex = sample_tex
+        #self.dilate = dilate
         self.feature_dim = feature_dim
         
         self.hidden_dim = hidden_dim

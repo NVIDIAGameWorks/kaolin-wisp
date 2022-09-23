@@ -119,7 +119,7 @@ class MultiviewTrainer(BaseTrainer):
             for idx, (img, ray_o, ray_d) in tqdm(enumerate(zip(imgs, ray_os, ray_ds))):
                 
                 rays = Rays(ray_o, ray_d, dist_min=rays.dist_min, dist_max=rays.dist_max)
-                rays = rays.reshape(-1, 3)
+                rays = rays.reshape(-1)
                 rays = rays.to('cuda')
                 rb = self.renderer.render(self.pipeline, rays, lod_idx=lod_idx)
                 rb = rb.reshape(*img.shape[:2], -1)
