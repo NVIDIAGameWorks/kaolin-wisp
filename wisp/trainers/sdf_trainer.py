@@ -128,9 +128,9 @@ class SDFTrainer(BaseTrainer):
             
         # Same as training since we're overfitting
         metric_name = None
-        if self.train_dataset.initialization_mode == "mesh":
+        if self.dataset.initialization_mode == "mesh":
             metric_name = "volumetric_iou"
-        elif self.train_dataset.intiialization_mode == "grid":
+        elif self.dataset.initialization_mode == "grid":
             metric_name = "narrowband_iou"
         else:
             raise NotImplementedError
