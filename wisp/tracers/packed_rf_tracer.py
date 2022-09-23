@@ -94,7 +94,7 @@ class PackedRFTracer(BaseTracer):
         color, density = nef(coords=samples, ray_d=hit_ray_d, pidx=pidx, lod_idx=lod_idx,
                              channels=["rgb", "density"])
 
-        timer.check("RGBA")        
+        timer.check("RGBA")
         del ridx, rays
 
         # Compute optical thickness
@@ -126,7 +126,7 @@ class PackedRFTracer(BaseTracer):
             color = alpha * ray_colors
 
         rgb[ridx_hit.long()] = color
-        
+
         timer.check("Composit")
 
         extra_outputs = {}
@@ -136,12 +136,13 @@ class PackedRFTracer(BaseTracer):
                         pidx=pidx,
                         lod_idx=lod_idx,
                         channels=channel)
-            ray_feats, transmittance = spc_render.exponential_integration(feats.reshape(-1, 3), tau, boundary, exclusive=True)
+            num_channels = feats.shape[-1]
+            ray_feats, transmittance = spc_render.exponential_integration(
+                feats.view(-1, num_channels), tau, boundary, exclusive=True
+            )
             composited_feats = alpha * ray_feats
-            out_feats = torch.zeros(N, feats.shape[-1], device=feats.device)
+            out_feats = torch.zeros(N, num_channels, device=feats.device)
             out_feats[ridx_hit.long()] = composited_feats
-            # TODO(ttakikawa): Right now the extra_channels are assumed to be dim 3. Think about how we can make this more generic...
-            assert(out_feats.shape[-1] == 3)
             extra_outputs[channel] = out_feats
 
         return RenderBuffer(depth=depth, hit=hit, rgb=rgb, alpha=out_alpha, **extra_outputs)

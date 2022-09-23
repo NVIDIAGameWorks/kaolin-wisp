@@ -8,4 +8,5 @@
 
 from .sdf_dataset import SDFDataset
 from .multiview_dataset import MultiviewDataset
+from .random_view_dataset import RandomViewDataset
 from .utils import default_collate
