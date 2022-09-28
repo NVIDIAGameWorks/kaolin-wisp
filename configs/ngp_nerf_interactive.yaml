@@ -6,10 +6,10 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'triplanar_nerf.yaml'
+parent: 'ngp_nerf.yaml'
 
-logging:
-    exp_name: 'triplanar-nerf-interactive'
+global:
+    exp_name: 'test-ngp-nerf-interactive'
 
 dataset:
     bg_color: 'black'

@@ -98,11 +98,6 @@ class Rays:
         Returns:
             (Rays): A single ray pack with the stacked ray packs
         """
-        if dim < 0:
-            dim -= 1
-        if dim > rays_list[0].ndim - 1 or dim < -rays_list[0].ndim:
-            raise IndexError("Dimension out of range (expected to be in range of "
-                             f"[{-rays_list[0].ndim}, {rays_list[0].ndim-1}, but got {dim})")
         return Rays(
             origins=torch.stack([rays.origins for rays in rays_list], dim=dim),
             dirs=torch.stack([rays.dirs for rays in rays_list], dim=dim),
@@ -149,10 +144,10 @@ class Rays:
         Returns:
             (Rays): The reshaped Rays struct
         """
-        return Rays(origins=self.origins.reshape(*dims, 3),
-                    dirs=self.dirs.reshape(*dims, 3),
-                    dist_min=self.dist_min,
-                    dist_max=self.dist_max)
+        return Rays(origins=self.origins.reshape(*dims),
+                   dirs=self.dirs.reshape(*dims),
+                   dist_min=self.dist_min,
+                   dist_max=self.dist_max)
 
     def squeeze(self, dim: int) -> Rays:
         """ Squeezes the tensors of the rays struct.
@@ -163,11 +158,6 @@ class Rays:
         Returns:
             (Rays): The squeezed Rays struct
         """
-        if dim < 0:
-            dim -= 1
-        if dim > self.ndim - 1 or dim < -self.ndim:
-            raise IndexError("Dimension out of range (expected to be in range of "
-                             f"[{-rays_list[0].ndim}, {rays_list[0].ndim-1}, but got {dim})")
         return Rays(origins=self.origins.squeeze(dim),
                    dirs=self.dirs.squeeze(dim),
                    dist_min=self.dist_min,
@@ -181,9 +171,9 @@ class Rays:
             (Rays): The contiguous Rays struct
         """
         return Rays(origins=self.origins.contiguous(),
-                    dirs=self.dirs.contiguous(),
-                    dist_min=self.dist_min,
-                    dist_max=self.dist_max)
+                   dirs=self.dirs.contiguous(),
+                   dist_min=self.dist_min,
+                   dist_max=self.dist_max)
 
     def to(self, *args, **kwargs) -> Rays:
         """ Shifts the rays struct to a different device / dtype.

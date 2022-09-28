@@ -29,19 +29,22 @@ pip install pipwin
 pipwin install openexr
 ```
 
-### 3. Install Kaolin and dependencies
+### 3. Install PyTorch
 
-Follow all the [instructions](https://kaolin.readthedocs.io/en/latest/notes/installation.html) to install Pytorch / CUDA and Kaolin.
-**WARNING:** The minimum required version of Kaolin is `0.12.0`. If you have any issues specifically with Camera classes not existing, make sure you have an up-to-date version of Kaolin.
+You should first install PyTorch by following the [official instructions](https://pytorch.org/). The code has been tested with `1.9.1` to `1.12.0` on Ubuntu 20.04. 
 
-### 4. Install the rest of the dependencies
+### 4. Install Kaolin
+
+You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html). **WARNING:** The minimum required version of Kaolin is `0.12.0`. If you have any issues specifically with Camera classes not existing, make sure you have an up-to-date version of Kaolin. 
+
+### 5. Install the rest of the dependencies
 
 Install the rest of the dependencies from [requirements](requirements.txt):
 ```
 pip install -r requirements.txt
 ```
 
-### 5. Installing the interactive renderer (optional)
+### 6. Installing the interactive renderer (optional)
 
 If you wish to use the interactive renderer and training visualizer, you will need additional dependencies. 
 Note that you need to have OpenGL available on your system.
@@ -57,7 +60,7 @@ cd ..
 pip install -r requirements_app.txt
 ```
 
-### 6. Installing Wisp
+### 7. Installing Wisp
 
 To install wisp, simply execute:
 ```
@@ -121,12 +124,12 @@ docker run --rm -it --gpus=all --net=host --ipc=host -e DISPLAY=$DISPLAY wisp
 2. Extracted the data somewhere
 3. You can train a NeRF using [NGLOD](https://nv-tlabs.github.io/nglod/) with:
 ```
-WISP_HEADLESS=1 python3 app/main_nerf.py --config configs/nerf/nglod_nerf.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
+WISP_HEADLESS=1 python3 app/main.py --config configs/nglod_nerf.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
 ```
 
 4. To run training with the interactive renderering engine, run:
 ```
-WISP_HEADLESS=0 python3 app/main_nerf.py --config configs/nerf/nglod_nerf_interactive.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
+WISP_HEADLESS=0 python3 app/main_interactive.py --config configs/nglod_nerf_interactive.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
 ```
 
 See `README.md` for an elaborate explanation about running wisp.

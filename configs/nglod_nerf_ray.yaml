@@ -7,25 +7,28 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 # On Towaki's machine with a RTX8000 on the V8, this code takes:
-# 8 seconds per epoch
-# 7:21 script runtime as reported on tensorboard
-# 26.17 PSNR at the final validation
+# 2 seconds per epoch
+# 1:31 script runtime as reported on tensorboard
+# 26.85 PSNR at the final validation
 
-logging:
-    exp_name: 'test-vqad-nerf'
+global:
+    exp_name: 'test-nglod-nerf-ray'
 
 optimizer:
     optimizer_type: 'rmsprop'
     lr: 0.001
 
 dataset:
-    num_rays_sampled_per_img: 4096
+    dataset_type: 'multiview'
     multiview_dataset_format: 'rtmv'
+    num_rays_sampled_per_img: 4096
     mip: 2
     bg_color: 'white'
 
 renderer:
-    num_steps: 16
+    tracer_type: 'PackedRFTracer'
+    num_steps: 512
+    raymarch_type: 'ray'
     render_batch: 4000
     camera_origin:
         - -3.0
@@ -37,6 +40,7 @@ renderer:
         - 1024
 
 trainer:
+    trainer_type: 'MultiviewTrainer'
     epochs: 50
     batch_size: 1
     model_format: 'full'
@@ -45,16 +49,16 @@ trainer:
     render_every: 10
 
 grid:
-    grid_type: 'CodebookOctreeGrid'
+    grid_type: 'OctreeGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'
     feature_dim: 5
     feature_std: 0.01
     base_lod: 5
     num_lods: 4
-    codebook_bitwidth: 4
 
 net:
+    nef_type: 'NeuralRadianceField'
     hidden_dim: 128
     num_layers: 1
     out_dim: 4

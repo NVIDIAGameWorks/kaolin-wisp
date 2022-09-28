@@ -139,8 +139,8 @@ class OctreeAS(object):
             level = self.max_level
 
         ridx, pidx, depth = spc_render.unbatched_raytrace(
-            self.octree, self.points, self.pyramid, self.prefix,
-            rays.origins, rays.dirs, level, return_depth=True, with_exit=with_exit)
+                self.octree, self.points, self.pyramid, self.prefix,
+                rays.origins, rays.dirs, level, return_depth=True, with_exit=with_exit)
         return ridx, pidx, depth
 
     def raymarch(self, rays, level=None, num_samples=64, raymarch_type='voxel'):
