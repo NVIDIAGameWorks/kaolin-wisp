@@ -69,7 +69,7 @@ class MultiviewDataset(Dataset):
         self.num_imgs = self.data["imgs"].shape[0]
 
         self.data["imgs"] = self.data["imgs"].reshape(self.num_imgs, -1, 3)
-        self.data["rays"] = self.data["rays"].reshape(self.num_imgs, -1)
+        self.data["rays"] = self.data["rays"].reshape(self.num_imgs, -1, 3)
         if "depths" in self.data:
             self.data["depths"] = self.data["depths"].reshape(self.num_imgs, -1, 1)
         if "masks" in self.data:
@@ -136,11 +136,9 @@ class MultiviewDataset(Dataset):
         ray_idx = torch.randperm(self.data["imgs"].shape[1])[:batch_size]
 
         out = {}
-        out['rays'] = Rays(
-            origins=self.data["rays"].origins[idx, ray_idx],
-            dirs=self.data["rays"].dirs[idx, ray_idx],
-            dist_min=self.data["rays"].dist_min,
-            dist_max=self.data["rays"].dist_max)
+        out['rays'] = Rays(origins=self.data["rays"].origins[idx, ray_idx],
+                dirs=self.data["rays"].dirs[idx, ray_idx],
+                dist_min=self.data["rays"].dist_min, dist_max=self.data["rays"].dist_max)
         out['imgs'] = self.data["imgs"][idx, ray_idx]
         
         return out

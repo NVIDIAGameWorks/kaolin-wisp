@@ -8,7 +8,7 @@
 
 parent: 'nglod_nerf.yaml'
 
-logging:
+global:
     exp_name: 'test-nglod-nerf-interactive'
 
 renderer:

@@ -255,10 +255,9 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
         cameras[basenames[i]] = camera
         ray_grid = generate_centered_pixel_coords(camera.width, camera.height,
                                                   camera.width, camera.height, device='cuda')
-        rays.append(
-            generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(
-                camera.height, camera.width).to('cpu')
-        )
+        rays.append \
+            (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width, 3).to
+                ('cpu'))
 
     rays = Rays.stack(rays).to(dtype=torch.float)
 

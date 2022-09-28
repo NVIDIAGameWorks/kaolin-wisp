@@ -53,23 +53,10 @@ spec:
       // Train NeRF with octree
       try {
         timeout(time: 260, unit: 'SECONDS') {
-            stage("NGLOD-NeRF V8") {
+            stage("NGLOD-NeRF") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/main_multiview.py --config configs/nerf/nglod_nerf.yaml --dataset-path /data/V8
-              '''
-            }
-        }
-      } catch(e) {
-        build_passed = false
-        echo e.toString()
-      }
-      try {
-        timeout(time: 260, unit: 'SECONDS') {
-            stage("NGLOD-NeRF Fox") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/main_multiview.py --config configs/nerf/nglod_nerf.yaml --dataset-path /data/fox --multiview-dataset-format=standard --valid-every=-1
+              python app/main.py --config configs/nglod_nerf.yaml --dataset-path /data/V8
               '''
             }
         }
@@ -83,7 +70,7 @@ spec:
             stage("NGLOD-SDF") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/main_sdf.py --config configs/sdf/nglod_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
+              python app/main.py --config configs/nglod_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
               '''
             }
         }
@@ -97,7 +84,7 @@ spec:
             stage("Triplanar-NeRF") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/main_multiview.py --config configs/nerf/triplanar_nerf.yaml --dataset-path /data/V8
+              python app/main.py --config configs/triplanar_nerf.yaml --dataset-path /data/V8
               '''
             }
         }
@@ -111,7 +98,7 @@ spec:
             stage("Triplanar-SDF") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/main_sdf.py --config configs/sdf/triplanar_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
+              python app/main.py --config configs/triplanar_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
               '''
             }
         }
@@ -125,7 +112,7 @@ spec:
             stage("VQAD-NeRF") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/main_multiview.py --config configs/nerf/vqad_nerf.yaml --dataset-path /data/V8
+              python app/main.py --config configs/vqad_nerf.yaml --dataset-path /data/V8
               '''
             }
         }
@@ -140,7 +127,7 @@ spec:
             stage("NGP-NeRF") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/main_multiview.py --config configs/nerf/ngp_nerf.yaml --dataset-path /data/fox --valid-every -1
+              python app/main.py --config configs/ngp_nerf.yaml --dataset-path /data/fox --valid-every -1
               '''
             }
         }

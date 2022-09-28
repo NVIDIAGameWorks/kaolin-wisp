@@ -6,10 +6,13 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'triplanar_sdf.yaml'
+parent: 'triplanar_nerf.yaml'
 
-logging:
-    exp_name: 'triplanar-sdf-interactive'
+global:
+    exp_name: 'triplanar-nerf-interactive'
+
+dataset:
+    bg_color: 'black'
 
 trainer:
     save_every: -1
