@@ -102,13 +102,13 @@ for the options that are already passed in.
 
 To run the training task interactively using the renderer engine, run:
 ```
-WISP_HEADLESS=0 python3 app/main_interactive.py --config configs/nglod_nerf_interactive.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
+WISP_HEADLESS=0 python3 app/main_nerf.py --config configs/nerf/nglod_nerf_interactive.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
 ```
 
 Every config file that we ship has a `*_interactive.yaml` counterpart that can be used for better settings
 (in terms of user experience)
 for the interactive training app. The later examples we show can all be run interactively with
-`WISP_HEADLESS=1 python3 app/main_interactive.py` and the corresponding configs.
+`WISP_HEADLESS=1 python3 app/main_nerf.py` and the corresponding configs.
 
 ### Using `wisp` in headless mode
 
@@ -128,7 +128,7 @@ an OBJ file of the Spot cow.
 
 Then, run the SDF training with:
 ```
-python3 app/main.py --config configs/nglod_sdf.yaml --dataset-path /path/to/spot.obj
+python3 app/main_sdf.py --config configs/sdf/nglod_sdf.yaml --dataset-path /path/to/spot.obj
 ```
 
 Currently the SDF sampler we have shipped with our code can be quite slow for larger meshes. We plan to
@@ -140,7 +140,7 @@ Lastly, we also show an example of training a forward-facing scene: the `fox` sc
 To train a version of the [Instant-NGP](https://nvlabs.github.io/instant-ngp/), first download the `fox` 
 dataset from the `instant-ngp` repository somewhere. Then, run the training with:
 ```
-python3 app/main.py --config configs/ngp_nerf.yaml --multiview-dataset-format standard --mip 0 --dataset-path /path/to/fox
+python3 app/main_nerf.py --config configs/nerf/ngp_nerf.yaml --multiview-dataset-format standard --mip 0 --dataset-path /path/to/fox
 ```
 
 Our code supports any "standard" NGP-format datasets that has been converted with the scripts from the 
