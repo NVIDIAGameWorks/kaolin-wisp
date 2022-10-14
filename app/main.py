@@ -15,6 +15,12 @@ if __name__ == "__main__":
         get_optimizer_from_config
     from wisp.framework import WispState
 
+    # Register any newly added user classes before running the config parser
+    # Registration ensures the config parser knows about these classes and is able to dynamically create them.
+    from wisp.config_parser import register_class
+    from wisp.models.nefs.nerf_2mlp import SeparatedDecoderNeuralRadianceField
+    register_class(SeparatedDecoderNeuralRadianceField, 'SeparatedDecoderNeuralRadianceField')
+
     # Usual boilerplate
     parser = parse_options(return_parser=True)
     app_utils.add_log_level_flag(parser)
