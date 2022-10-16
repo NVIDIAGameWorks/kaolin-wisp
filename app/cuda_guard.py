@@ -28,11 +28,6 @@ def setup_cuda_context():
             # Let glumpy use glfw to create an invisible window
             window = app.Window(width=10, height=10, title='dummy', visible=False)
 
-            # pycuda initializes the default context with "cuGLCtxCreate", but this call will fail if a GL context
-            # is not currently set. Therefore import is invoked only after glfw obtains a GL context.
-            # See: https://documen.tician.de/pycuda/gl.html#module-pycuda.gl.autoinit
-            import pycuda.gl.autoinit
-
             # Next tell torch to initialize the primary cuda context
             import torch
             torch.cuda.init()
@@ -40,6 +35,11 @@ def setup_cuda_context():
             # pycuda should not create a new context, but retain the torch one
             import pycuda.driver as cuda
             pycuda_context = cuda.Device(0).retain_primary_context()
+
+            # pycuda initializes the default context with "cuGLCtxCreate", but this call will fail if a GL context
+            # is not currently set. Therefore import is invoked only after glfw obtains a GL context.
+            # See: https://documen.tician.de/pycuda/gl.html#module-pycuda.gl.autoinit
+            import pycuda.gl.autoinit
 
         except (ModuleNotFoundError, ImportError) as e:
             print(e)
