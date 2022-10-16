@@ -41,7 +41,8 @@ def setup_cuda_context():
             import pycuda.driver as cuda
             pycuda_context = cuda.Device(0).retain_primary_context()
 
-        except (ModuleNotFoundError, ImportError):
+        except (ModuleNotFoundError, ImportError) as e:
+            print(e)
             pass  # Don't fail if interactive mode is disabled (e.g: glumpy or pycuda are unavailable)
         finally:
             if window is not None:
