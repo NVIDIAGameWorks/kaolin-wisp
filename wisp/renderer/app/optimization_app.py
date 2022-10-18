@@ -35,7 +35,7 @@ class OptimizationApp(WispApp):
         be customized to affect the behaviour of the renderer.
         """
         # Channels available to view over the canvas
-        wisp_state.renderer.available_canvas_channels = ["rgb", "depth"]
+        wisp_state.renderer.available_canvas_channels = ["rgb", "depth", "alpha"]
         wisp_state.renderer.selected_canvas_channel = "rgb"
 
         # For this app, we'll use only a world grid which resides in the 'xz' plane.
