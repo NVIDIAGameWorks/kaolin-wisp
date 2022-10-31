@@ -14,7 +14,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from kaolin.render.camera import Camera
 from wisp.framework.event import watchedfields
-from wisp.core import Channel, PrimitivesPack, channels_starter_kit
+from wisp.core import Channel, PrimitivesPack, ObjectTransform, channels_starter_kit
 if TYPE_CHECKING:  # Prevent circular imports mess due to typed annotations
     from wisp.models import Pipeline
     from wisp.renderer.core.control import CameraControlMode
@@ -139,6 +139,12 @@ class BottomLevelRendererState:
 
     data_layers: Dict[str, PrimitivesPack] = field(default_factory=dict)  # layer id -> prims
     toggled_data_layers: Dict[str, bool] = field(default_factory=dict)    # layer id -> bool
+
+    transform: ObjectTransform = ObjectTransform()
+    """ The object transform maintains the 4x4 model matrix, which describes the object transformation from
+        local object coordinates to world space.
+        Manipulating the transform results in moving, scaling and orienting the object.
+    """
 
     ### Lifecycle fields ###
 
