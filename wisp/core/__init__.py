@@ -12,3 +12,4 @@ from .channels import *
 from .channel_fn import *
 from .colors import *
 from .render_buffer import RenderBuffer
+from .transforms import ObjectTransform

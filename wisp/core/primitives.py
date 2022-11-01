@@ -9,6 +9,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import List, Tuple, Optional
+from wisp.core.transforms import ObjectTransform
 import torch
 
 
@@ -23,12 +24,15 @@ class PrimitivesPack:
     _lines_color: List[torch.Tensor] = field(default_factory=list)
     _points_pos: List[torch.Tensor] = field(default_factory=list)
     _points_color: List[torch.Tensor] = field(default_factory=list)
+    transform: ObjectTransform = None
 
     line_width = 1.0
     point_size = 1.0
 
     def append(self, other: PrimitivesPack) -> None:
-        """ Appends primitives from other to self, changes the dtype and device if needed """
+        """ Appends primitives from other to self, changes the dtype and device if needed.
+            The transform is assumed to be coherent between the two packs and is not handled by this function.
+        """
         def _append_field(field_name):
             # Get field attribute by name
             _self_field = getattr(self, field_name)
@@ -38,6 +42,8 @@ class PrimitivesPack:
             _self_field.extend(_other_field)    # Concat the lists of tensors
 
         for f in fields(self):
+            if f.name == 'transform':
+                continue
             _append_field(f.name)
 
     def add_lines(self, start: torch.Tensor, end: torch.Tensor, color: torch.Tensor) -> None:
@@ -86,7 +92,12 @@ class PrimitivesPack:
         for f in fields(self):
             self_attr = getattr(self, f.name)
             other_attr = getattr(other, f.name)
-            if isinstance(self_attr, float):
+            if self_attr is None or other_attr is None:
+                if self_attr != other_attr:
+                    return False
+                else:
+                    continue
+            if isinstance(self_attr, float) or isinstance(self_attr, ObjectTransform):
                 bools.append(self_attr == other_attr)
             else:
                 bools.append(all(torch.equal(s, o) for s, o in zip(self_attr, other_attr)))
