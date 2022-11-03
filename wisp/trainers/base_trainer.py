@@ -137,10 +137,11 @@ class BaseTrainer(ABC):
         self.log_dict = {}
         self.init_dataloader()
         
+        self.log_fname = f'{datetime.now().strftime("%Y%m%d-%H%M%S")}'
         self.log_dir = os.path.join(
             log_dir,
             self.exp_name,
-            f'{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+            self.log_fname    
         )
         self.writer = SummaryWriter(self.log_dir, purge_step=0)
         self.writer.add_text('Info', self.info)
