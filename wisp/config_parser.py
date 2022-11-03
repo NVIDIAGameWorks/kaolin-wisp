@@ -247,6 +247,8 @@ def parse_options(return_parser=False):
                              help='Run validation only (and do not run training).')
     valid_group.add_argument('--valid-every', type=int, default=-1,
                              help='Frequency of running validation.')
+    valid_group.add_argument('--valid-split', type=str, default='val',
+                             help='Split to use for validation.')
 
     ###################
     # Arguments for renderer

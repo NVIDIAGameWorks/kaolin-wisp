@@ -123,8 +123,12 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
     else:
         raise RuntimeError("Unsupported number of splits, there should be ['test', 'train', 'val']")
 
+    if split not in ['test', 'train', 'val']:
+        raise RuntimeError(f"Split type ['{split}'] unsupported.")
+
     if split not in transform_dict:
-        raise RuntimeError(f"Split type ['{split}'] unsupported in the dataset provided")
+        log.info("WARNING: Split type ['{split}'] does not exist in the dataset. Falling back to ['train'].")
+        split = 'train'
 
     for key in transform_dict:
         with open(transform_dict[key], 'r') as f:
@@ -204,8 +208,8 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
                  "but the current implementation does not handle this.")
 
     if 'k1' in transform_dict[split]:
-        log.info \
-            ("WARNING: The dataset expects distortion correction, but the current implementation does not handle this.")
+        log.info("WARNING: The dataset expects distortion correction, "
+                 "but the current implementation does not handle this.")
 
     if 'rolling_shutter' in transform_dict[split]:
         log.info("WARNING: The dataset expects rolling shutter correction,"
