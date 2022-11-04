@@ -14,6 +14,7 @@ from abc import ABC
 import numpy as np
 import torch
 import pycuda
+import pycuda.gl as pycuda_gl
 from glumpy import app, gloo, gl, ext
 import imgui
 from typing import Optional, Type, Callable, Dict, List, Tuple
@@ -22,13 +23,13 @@ from wisp.framework import WispState, watch
 from wisp.renderer.core import RendererCore
 from wisp.renderer.core.control import CameraControlMode, WispKey, WispMouseButton
 from wisp.renderer.core.control import FirstPersonCameraMode, TrackballCameraMode, TurntableCameraMode
+from wisp.renderer.core.api import add_pipeline_to_scene_graph
 from wisp.renderer.gizmos import Gizmo, WorldGrid, AxisPainter, PrimitivesPainter
 from wisp.renderer.gui import WidgetRendererProperties, WidgetGPUStats, WidgetSceneGraph, WidgetImgui
 
-
 @contextmanager
 def cuda_activate(img):
-    """Context manager simplifying use of pycuda.gl.RegisteredImage.
+    """Context manager simplifying use of pycuda_gl.RegisteredImage.
     Boilerplate code based in part on pytorch-glumpy.
     """
     mapping = img.map()
@@ -101,8 +102,9 @@ class WispApp(ABC):
         self._is_imgui_hovered = False
         self._is_reposition_imgui_menu = True
         self.canvas_dirty = False
+        self.redraw_every_frame = False
 
-        # Note: Normally pycuda.gl.autoinit should be invoked here after the window is created,
+        # Note: Normally pycuda_gl.autoinit should be invoked here after the window is created,
         # but wisp already initializes it when the library first loads. See wisp.app.cuda_guard.py
 
         # Initialize applicative renderer, which independently paints images for the main canvas
@@ -119,8 +121,8 @@ class WispApp(ABC):
         # The initialization of these fields is deferred util "on_resize" is first prompted.
         # There we generate a simple billboard GL program with a shared CUDA resource
         # Canvas content will be blitted onto it
-        self.cuda_buffer: Optional[pycuda.gl.RegisteredImage] = None    # CUDA buffer, as a shared resource with OpenGL
-        self.depth_cuda_buffer: Optional[pycuda.gl.RegisteredImage] = None
+        self.cuda_buffer: Optional[pycuda_gl.RegisteredImage] = None    # CUDA buffer, as a shared resource with OpenGL
+        self.depth_cuda_buffer: Optional[pycuda_gl.RegisteredImage] = None
         self.canvas_program: Optional[gloo.Program] = None              # GL program used to paint a single billboard
 
         self.user_mode: CameraControlMode = None    # Camera controller object (first person, trackball or turntable)
@@ -133,6 +135,34 @@ class WispApp(ABC):
         self.change_user_mode(self.default_user_mode())
 
         self.redraw()   # Refresh RendererCore
+    
+    def add_pipeline(self, name, pipeline, transform=None):
+        """Register a neural fields pipeline into the scene graph.
+
+        Args:
+            name (str): The name of the pipeline.
+            pipeline (wisp.models.Pipeline): The pipeline holding a tracer and nef.
+            transform (wisp.core.ObjectTransform): The transform for the pipeline.
+        """
+        add_pipeline_to_scene_graph(self.wisp_state, name, pipeline, transform=transform)
+    
+    def add_widget(self, widget):
+        """ Adds a widget to the list of widgets.
+
+        Args:
+            widget (wisp.renderer.gui.imgui.WidgetImgui): The widget to add.
+        """
+        self.widgets.append(widget)
+
+    def add_gizmo(self, name, gizmo):
+        """Adds a gizmo to the list of gizmos.
+
+        Args:
+            name (str): The name of the gizmo.
+            gizmo (wisp.renderer.gizmos.Gizmo): The gizmo to add.
+        """
+        self.gizmos[name] = gizmo
+
 
     def init_wisp_state(self, wisp_state: WispState) -> None:
         """ A hook for applications to initialize specific fields inside the wisp state object.
@@ -147,6 +177,7 @@ class WispApp(ABC):
         """ Returns which widgets the gui will display, in order.
         Override to define which gui widgets are used by the wisp app.
         """
+        # TODO(ttakikawa): This should be empty for the base app.
         return [WidgetGPUStats(), WidgetRendererProperties(), WidgetSceneGraph()]
 
     def create_gizmos(self) -> Dict[str, Gizmo]:
@@ -154,10 +185,11 @@ class WispApp(ABC):
         Gizmos are transient rasterized objects rendered by OpenGL on top of the canvas.
         For example: world grid, axes painter.
         """
+        # TODO(ttakikawa): This should be empty for the base app.
         gizmos = dict()
+        grid_size = 10.0
         planes = self.wisp_state.renderer.reference_grids
         axes = set(''.join(planes))
-        grid_size = 10.0
         for plane in planes:
             gizmos[f'world_grid_{plane}'] = WorldGrid(squares_per_axis=20, grid_size=grid_size,
                                                       line_color=(128, 128, 128), line_size=1, plane=plane)
@@ -276,7 +308,7 @@ class WispApp(ABC):
         return canvas
 
     @staticmethod
-    def _create_cugl_shared_texture(res_h, res_w, channel_depth, map_flags=pycuda.gl.graphics_map_flags.WRITE_DISCARD,
+    def _create_cugl_shared_texture(res_h, res_w, channel_depth, map_flags=pycuda_gl.graphics_map_flags.WRITE_DISCARD,
                                     dtype=np.uint8):
         """ Create and return a Texture2D with gloo and pycuda views. """
         if issubclass(dtype, np.integer):
@@ -287,7 +319,7 @@ class WispApp(ABC):
             raise ValueError(f'_create_cugl_shared_texture invoked with unsupported texture dtype: {dtype}')
         tex.activate()  # Force gloo to create on GPU
         tex.deactivate()
-        cuda_buffer = pycuda.gl.RegisteredImage(int(tex.handle), tex.target,
+        cuda_buffer = pycuda_gl.RegisteredImage(int(tex.handle), tex.target,
                                                 map_flags)  # Create shared GL / CUDA resource
         return tex, cuda_buffer
 
@@ -430,6 +462,9 @@ class WispApp(ABC):
 
         # imgui renders first
         self.render_gui(self.wisp_state)
+
+        if self.redraw_every_frame:
+            self.canvas_dirty = True
 
         # The app was asked to redraw the scene, inform the render core
         if self.canvas_dirty:

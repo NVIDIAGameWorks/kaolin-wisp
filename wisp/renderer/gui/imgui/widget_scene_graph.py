@@ -40,6 +40,11 @@ class WidgetSceneGraph(WidgetImgui):
         self.object_widgets = dict()
         self.transform_widget = WidgetObjectTransform()
 
+    def add_object_type(self, name, widget, color, title):
+        self.names_to_widgets[name] = widget
+        self.names_to_color[name] = color
+        self.names_to_title[name] = title
+
     def get_bl_renderer_widget(self, object_id, object_type):
         if object_id not in self.object_widgets:
             widget_type = self.names_to_widgets.get(object_type)
