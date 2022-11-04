@@ -123,12 +123,8 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
     else:
         raise RuntimeError("Unsupported number of splits, there should be ['test', 'train', 'val']")
 
-    if split not in ['test', 'train', 'val']:
-        raise RuntimeError(f"Split type ['{split}'] unsupported.")
-
     if split not in transform_dict:
-        log.info("WARNING: Split type ['{split}'] does not exist in the dataset. Falling back to ['train'].")
-        split = 'train'
+        raise RuntimeError(f"Split type ['{split}'] unsupported in the dataset provided")
 
     for key in transform_dict:
         with open(transform_dict[key], 'r') as f:
@@ -208,8 +204,8 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
                  "but the current implementation does not handle this.")
 
     if 'k1' in transform_dict[split]:
-        log.info("WARNING: The dataset expects distortion correction, "
-                 "but the current implementation does not handle this.")
+        log.info \
+            ("WARNING: The dataset expects distortion correction, but the current implementation does not handle this.")
 
     if 'rolling_shutter' in transform_dict[split]:
         log.info("WARNING: The dataset expects rolling shutter correction,"
@@ -227,7 +223,7 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
 
     offset = transform_dict[split]['offset'] if 'offset' in transform_dict[split] else [0 ,0 ,0]
     scale = transform_dict[split]['scale'] if 'scale' in transform_dict[split] else 1.0
-    aabb_scale = transform_dict[split]['aabb_scale'] if 'aabb_scale' in transform_dict[split] else 1.0
+    aabb_scale = transform_dict[split]['aabb_scale'] if 'aabb_scale' in transform_dict[split] else 1.25
 
     # TODO(ttakikawa): Actually scale the AABB instead? Maybe
     poses[..., :3, 3] /= aabb_scale
