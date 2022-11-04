@@ -50,14 +50,20 @@ class NeuralRadianceField(BaseNeuralField):
         else:
             self.effective_feature_dim = self.grid.feature_dim
 
-        self.input_dim = self.effective_feature_dim + self.view_embed_dim
+        self.input_dim = self.effective_feature_dim
 
         if self.position_input:
             self.input_dim += self.pos_embed_dim
 
-        self.decoder = BasicDecoder(self.input_dim, 4, get_activation_class(self.activation_type), True,
-                                    layer=get_layer_class(self.layer_type), num_layers=self.num_layers,
-                                    hidden_dim=self.hidden_dim, skip=[])
+        self.decoder_density = BasicDecoder(self.input_dim, 16, get_activation_class(self.activation_type), True,
+                                            layer=get_layer_class(self.layer_type), num_layers=self.num_layers,
+                                            hidden_dim=self.hidden_dim, skip=[])
+
+        self.decoder_density.lout.bias.data[0] = 1.0
+
+        self.decoder_color = BasicDecoder(16 + self.view_embed_dim, 3, get_activation_class(self.activation_type), True,
+                                          layer=get_layer_class(self.layer_type), num_layers=self.num_layers+1,
+                                          hidden_dim=self.hidden_dim, skip=[])
 
     def init_grid(self):
         """Initialize the grid object.
@@ -153,26 +159,24 @@ class NeuralRadianceField(BaseNeuralField):
         # Embed coordinates into high-dimensional vectors with the grid.
         feats = self.grid.interpolate(coords, lod_idx).reshape(-1, self.effective_feature_dim)
         timer.check("rf_rgba_interpolate")
-
-        # Optionally concat the positions to the embedding, and also concatenate embedded view directions.
-        if self.position_input:
-            fdir = torch.cat([feats,
-                self.pos_embedder(coords.reshape(-1, 3)),
-                self.view_embedder(-ray_d)[:,None].repeat(1, num_samples, 1).view(-1, self.view_embed_dim)], dim=-1)
-        else: 
-            fdir = torch.cat([feats,
-                self.view_embedder(-ray_d)[:,None].repeat(1, num_samples, 1).view(-1, self.view_embed_dim)], dim=-1)
-        timer.check("rf_rgba_embed_cat")
         
+        if self.position_input:
+            raise NotImplementedError
+
         # Decode high-dimensional vectors to RGBA.
-        rgba = self.decoder(fdir)
+        density_feats = self.decoder_density(feats)
         timer.check("rf_rgba_decode")
+        
+        # Optionally concat the positions to the embedding, and also concatenate embedded view directions.
+        fdir = torch.cat([density_feats,
+            self.view_embedder(-ray_d)[:,None].repeat(1, num_samples, 1).view(-1, self.view_embed_dim)], dim=-1)
+        timer.check("rf_rgba_embed_cat")
 
         # Colors are values [0, 1] floats
-        colors = torch.sigmoid(rgba[...,:3]).reshape(batch, num_samples, 3)
+        colors = torch.sigmoid(self.decoder_color(fdir)).reshape(batch, num_samples, 3)
 
         # Density is [particles / meter], so need to be multiplied by distance
-        density = torch.relu(rgba[...,3:4]).reshape(batch, num_samples, 1)
+        density = torch.relu(density_feats[...,0:1]).reshape(batch, num_samples, 1)
         timer.check("rf_rgba_activation")
         
         return dict(rgb=colors, density=density)
