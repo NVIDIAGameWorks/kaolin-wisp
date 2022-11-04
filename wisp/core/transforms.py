@@ -25,12 +25,14 @@ class ObjectTransform:
         self._translation = torch.zeros(3, device=self.device, dtype=self.dtype)
         self._rotation = torch.zeros(3, device=self.device, dtype=self.dtype)
         self._scale = torch.ones(4, device=self.device, dtype=self.dtype)
+        self._permutation = torch.eye(4, device=self.device, dtype=self.dtype)
 
     def reset(self):
         """ Restore object transform to unit scale, at the origin, with zero orientation. """
         self._translation = torch.zeros(3, device=self.device, dtype=self.dtype)
         self._rotation = torch.zeros(3, device=self.device, dtype=self.dtype)
         self._scale = torch.ones(4, device=self.device, dtype=self.dtype)
+        self._permutation = torch.eye(4, device=self.device, dtype=self.dtype)
 
     def translate(self, translation: torch.Tensor):
         """
@@ -56,7 +58,24 @@ class ObjectTransform:
                 For non uniform scale, pass a (3,) shaped tensor.
                 For uniform scale, pass a float.
         """
-        self.scale[:3] *= scale
+        self._scale[:3] *= scale
+
+    def permute(self, permutation):
+        """
+        Args:
+            permutation (list[int]): The permutation of the axis. 
+                                     For example, [1, 0, 2] will swap the x and y axis.
+        """
+        permutation = torch.tensor(permutation, device=self.device, dtype=torch.long)
+        if permutation.shape[0] != 3:
+            raise Exception("Permutation only supports 3 axis.")
+        if torch.any(permutation < 0):
+            raise Exception("Permutation axis cannot be negative.")
+        if torch.any(permutation > 2):
+            raise Exception("Permutation axis out of bounds.")
+        self._permutation.fill_(0)
+        self._permutation[(0,1,2), permutation] = 1
+        self._permutation[3, 3] = 1
 
     def _translation_mat(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -180,7 +199,7 @@ class ObjectTransform:
         rotation_rads = self._rotation.div(180.0).mul(torch.pi)
         rotation_mat = self._rotation_mat(*rotation_rads)
         translation_mat = self._translation_mat(self._translation)
-        model_mat = translation_mat @ rotation_mat @ scale_mat
+        model_mat = translation_mat @ rotation_mat @ scale_mat @ self._permutation
         return model_mat
 
     def inv_model_matrix(self):
@@ -197,7 +216,7 @@ class ObjectTransform:
         rotation_rads = self._rotation.div(180.0).mul(torch.pi)
         rotation_mat = self._inv_rotation_mat(*rotation_rads)
         translation_mat = self._inv_translation_mat(self._translation)
-        inv_mat = scale_mat @ rotation_mat @ translation_mat
+        inv_mat = self._permutation @ scale_mat @ rotation_mat @ translation_mat
         return inv_mat
 
     def to(self, *args, **kwargs) -> ObjectTransform:
@@ -210,14 +229,17 @@ class ObjectTransform:
         _translation = self._translation.to(*args, **kwargs)
         _rotation = self._rotation.to(*args, **kwargs)
         _scale = self._scale.to(*args, **kwargs)
-        if _translation is not self._translation or _rotation is not self._rotation or _scale is not self._scale:
-            return ObjectTransform(
-                device=_translation.device,
-                dtype=_translation.dtype,
-                _translation=_translation,
-                _rotation=_rotation,
-                _scale=_scale,
-            )
+        _permutation = self._permutation.to(*args, **kwargs)
+        if _translation is not self._translation or \
+           _rotation is not self._rotation or \
+           _scale is not self._scale or \
+           _permutation is not self._permutation:
+            transform = ObjectTransform(device=_translation.device, dtype=_translation.dtype)
+            transform._translation = _translation
+            transform._rotation = _rotation
+            transform._scale = _scale
+            transform._permutation = _permutation
+            return transform
         else:
             return self
 

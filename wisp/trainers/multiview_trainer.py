@@ -18,8 +18,7 @@ from wisp.trainers import BaseTrainer
 from wisp.utils import PerfTimer
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
-from wisp.core import Rays
-
+from wisp.core import Rays, RenderBuffer
 
 class MultiviewTrainer(BaseTrainer):
 
@@ -124,16 +123,14 @@ class MultiviewTrainer(BaseTrainer):
                 rb = self.renderer.render(self.pipeline, rays, lod_idx=lod_idx)
                 rb = rb.reshape(*img.shape[:2], -1)
                 
-                rb.view = None
-                rb.hit = None
-
-                rb.gts = img.cuda()
-                rb.err = (rb.gts[...,:3] - rb.rgb[...,:3])**2
-                psnr_total += psnr(rb.rgb[...,:3], rb.gts[...,:3])
-                lpips_total += lpips(rb.rgb[...,:3], rb.gts[...,:3], lpips_model)
-                ssim_total += ssim(rb.rgb[...,:3], rb.gts[...,:3])
+                gts = img.cuda()
+                psnr_total += psnr(rb.rgb[...,:3], gts[...,:3])
+                lpips_total += lpips(rb.rgb[...,:3], gts[...,:3], lpips_model)
+                ssim_total += ssim(rb.rgb[...,:3], gts[...,:3])
                 
-                exrdict = rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
+                out_rb = RenderBuffer(rgb=rb.rgb, depth=rb.depth, alpha=rb.alpha,
+                                      gts=gts, err=(gts[..., :3] - rb.rgb[..., :3])**2)
+                exrdict = out_rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
                 
                 out_name = f"{idx}"
                 if name is not None:

@@ -480,7 +480,7 @@ class TLAS(abc.ABC):
         rays = rays.reshape((-1, 3))
         ray_origins = torch.cat((rays.origins, torch.ones_like(rays.origins[:,:1])), dim=-1)
         ray_dirs = torch.cat((rays.dirs, torch.zeros_like(rays.dirs[:,:1])), dim=-1)
-        inv_model_matrix = transform.inv_model_matrix().to(dtype=rays.origins.dtype)
+        inv_model_matrix = transform.to(device=ray_dirs.device).inv_model_matrix().to(dtype=rays.origins.dtype)
         ray_origins = (inv_model_matrix @ ray_origins.T).T
         ray_dirs = (inv_model_matrix @ ray_dirs.T).T
         transformed_rays = Rays(ray_origins[:, :3], dirs=ray_dirs[:, :3],
