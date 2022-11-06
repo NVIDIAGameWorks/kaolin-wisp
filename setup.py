@@ -79,7 +79,7 @@ def get_extensions():
         print("No source files found for extension, skipping extension compilation")
         return None
 
-    extension = CppExtension CUDAExtension
+    extension = CppExtension
     if torch.cuda.is_available() or os.getenv('FORCE_CUDA', '0') == '1':
         define_macros += [("WITH_CUDA", None), ("THRUST_IGNORE_CUB_VERSION_CHECK", None)]
         sources += glob.glob('wisp/csrc/**/*.cu', recursive=True)
