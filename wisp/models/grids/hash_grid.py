@@ -73,7 +73,7 @@ class HashGrid(BLASGrid):
         self.blas.init_dense(self.blas_level)
         self.dense_points = spc_ops.unbatched_get_level_points(self.blas.points, self.blas.pyramid, self.blas_level).clone()
         self.num_cells = self.dense_points.shape[0]
-        self.occupancy = torch.ones(self.num_cells) * 20.0
+        self.occupancy = torch.zeros(self.num_cells)
 
     def init_from_octree(self, base_lod, num_lods):
         """Builds the multiscale hash grid with an octree sampling pattern.

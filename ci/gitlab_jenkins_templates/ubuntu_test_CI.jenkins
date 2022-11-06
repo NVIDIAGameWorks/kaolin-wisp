@@ -80,7 +80,7 @@ spec:
       }
       // Train NeRF with triplanar feature maps
       try {
-        timeout(time: 275, unit: 'SECONDS') {
+        timeout(time: 325, unit: 'SECONDS') {
             stage("Triplanar-NeRF") {
               sh '''
               cd /wisp
@@ -108,7 +108,7 @@ spec:
       }
       // Train NeRF with VQAD
       try {
-        timeout(time: 370, unit: 'SECONDS') {
+        timeout(time: 400, unit: 'SECONDS') {
             stage("VQAD-NeRF") {
               sh '''
               cd /wisp

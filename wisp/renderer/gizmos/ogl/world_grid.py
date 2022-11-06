@@ -17,15 +17,16 @@ from wisp.renderer.gizmos.gizmo import Gizmo
 class WorldGrid(Gizmo):
 
     def __init__(self, squares_per_axis: int = 20, grid_size: float = 1.0,
-                 line_color: Tuple = None, line_size: int = 2, plane: str = 'xy'):
+            line_color: Tuple = None, line_size: int = 2, plane: str = 'xy'):
         """
-        :param squares_per_axis Number of grid squares per row, column
-        :param grid_size Grid will occupy [-size, size] in world coordinates
-        :param line_color Tuple of RGB values for line color, in range [0,255]. i.e: (255, 255, 255) for white.
-        :param line_size integer between [1,32], where each grid square can be thought of a 32 x 32 pixel grid,
+        Args:
+            squares_per_axis (int): Number of grid squares per row, column
+            grid_size (float): Grid will occupy [-size, size] in world coordinates
+            line_color (Tuple): Tuple of RGB values for line color, in range [0,255]. i.e: (255, 255, 255) for white.
+            line_size (int): integer between [1,32], where each grid square can be thought of a 32 x 32 pixel grid,
                and line size specifies how many rows / columns each line occupies for each square.
                The actual amount of pixels each line occupies also depends on the grid_size and camera settings.
-        :param plane Plane to align the reference grid with. Valid choices: 'xy', 'xz', 'yz'.
+            plane (str): Plane to align the reference grid with. Valid choices: 'xy', 'xz', 'yz'.
         """
         # Size of each square texture, to be repeated, setting this one too low will decrease quality.
         # We may go above 32 x 32 and scale the line size accordingly

@@ -63,7 +63,7 @@ The following links contain additional information about various aspects of the 
 
 * [wisp](wisp) is the main library package.
   * [wisp/model](wisp/models) is a subpackage containing modules to construct neural fields.
-  * [wiso/renderer](wisp/renderer) is a subpackage containing logic related to the interactive renderer.
+  * [wisp/renderer](wisp/renderer) is a subpackage containing logic related to the interactive renderer.
 * [templates](templates) is a folder of templates for quick start of new projects.
 * [examples](examples) is a folder of small exemplary projects demonstrating some use cases of wisp.
 

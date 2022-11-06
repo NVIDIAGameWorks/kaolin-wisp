@@ -223,7 +223,7 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
 
     offset = transform_dict[split]['offset'] if 'offset' in transform_dict[split] else [0 ,0 ,0]
     scale = transform_dict[split]['scale'] if 'scale' in transform_dict[split] else 1.0
-    aabb_scale = transform_dict[split]['aabb_scale'] if 'aabb_scale' in transform_dict[split] else 1.0
+    aabb_scale = transform_dict[split]['aabb_scale'] if 'aabb_scale' in transform_dict[split] else 1.25
 
     # TODO(ttakikawa): Actually scale the AABB instead? Maybe
     poses[..., :3, 3] /= aabb_scale
