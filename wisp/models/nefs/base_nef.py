@@ -191,6 +191,9 @@ class BaseNeuralField(nn.Module):
                 If channels is a set, will return a dictionary of channels.
                 If channels is None, will return a dictionary of all channels.
         """
+        if not (isinstance(channels, str) or isinstance(channels, list) or isinstance(channels, set) or channels is None):
+            raise Exception(f"Channels type invalid, got {type(channels)}." \
+                             "Make sure your arguments for the nef are provided as keyword arguments.")
         if channels is None:
             requested_channels = self.get_supported_channels()
         elif isinstance(channels, str):

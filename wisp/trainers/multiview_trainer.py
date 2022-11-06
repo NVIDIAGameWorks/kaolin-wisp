@@ -18,8 +18,7 @@ from wisp.trainers import BaseTrainer
 from wisp.utils import PerfTimer
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
-from wisp.core import Rays
-
+from wisp.core import Rays, RenderBuffer
 
 class MultiviewTrainer(BaseTrainer):
 
@@ -124,16 +123,14 @@ class MultiviewTrainer(BaseTrainer):
                 rb = self.renderer.render(self.pipeline, rays, lod_idx=lod_idx)
                 rb = rb.reshape(*img.shape[:2], -1)
                 
-                rb.view = None
-                rb.hit = None
-
-                rb.gts = img.cuda()
-                rb.err = (rb.gts[...,:3] - rb.rgb[...,:3])**2
-                psnr_total += psnr(rb.rgb[...,:3], rb.gts[...,:3])
-                lpips_total += lpips(rb.rgb[...,:3], rb.gts[...,:3], lpips_model)
-                ssim_total += ssim(rb.rgb[...,:3], rb.gts[...,:3])
+                gts = img.cuda()
+                psnr_total += psnr(rb.rgb[...,:3], gts[...,:3])
+                lpips_total += lpips(rb.rgb[...,:3], gts[...,:3], lpips_model)
+                ssim_total += ssim(rb.rgb[...,:3], gts[...,:3])
                 
-                exrdict = rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
+                out_rb = RenderBuffer(rgb=rb.rgb, depth=rb.depth, alpha=rb.alpha,
+                                      gts=gts, err=(gts[..., :3] - rb.rgb[..., :3])**2)
+                exrdict = out_rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
                 
                 out_name = f"{idx}"
                 if name is not None:
@@ -157,9 +154,16 @@ class MultiviewTrainer(BaseTrainer):
     def validate(self, epoch=0):
         self.pipeline.eval()
 
+        record_dict = self.extra_args
+        dataset_name = os.path.splitext(os.path.basename(self.extra_args['dataset_path']))[0]
+        model_fname = os.path.abspath(os.path.join(self.log_dir, f'model.pth'))
+        record_dict.update({"dataset_name" : dataset_name, "epoch": epoch, 
+                            "log_fname" : self.log_fname, "model_fname": model_fname})
+        parent_log_dir = os.path.dirname(self.log_dir)
+
         log.info("Beginning validation...")
         
-        data = self.dataset.get_images(split="val", mip=2)
+        data = self.dataset.get_images(split=self.extra_args['valid_split'], mip=self.extra_args['mip'])
         imgs = list(data["imgs"])
 
         img_shape = imgs[0].shape
@@ -170,10 +174,13 @@ class MultiviewTrainer(BaseTrainer):
         if not os.path.exists(self.valid_log_dir):
             os.makedirs(self.valid_log_dir)
 
-        metric_dicts = []
-        lods = list(range(self.pipeline.nef.num_lods))[::-1]
-        for lod in lods:
-            metric_dicts.append(self.evaluate_metrics(epoch, data["rays"], imgs, lod, f"lod{lod}"))
-        df = pd.DataFrame(metric_dicts)
-        df['lod'] = lods
-        df.to_csv(os.path.join(self.valid_log_dir, "lod.csv"))
+        lods = list(range(self.pipeline.nef.num_lods))
+        record_dict.update(self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}"))
+        
+        df = pd.DataFrame.from_records([record_dict])
+        df['lod'] = lods[-1]
+        fname = os.path.join(parent_log_dir, f"logs.parquet")
+        if os.path.exists(fname):
+            df_ = pd.read_parquet(fname)
+            df = pd.concat([df_, df])
+        df.to_parquet(fname, index=False)

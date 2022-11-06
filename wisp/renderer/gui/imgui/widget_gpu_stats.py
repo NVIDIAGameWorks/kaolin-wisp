@@ -34,7 +34,8 @@ class WidgetGPUStats(WidgetImgui):
             imgui.text(f"{device_name}, CUDA v{torch.version.cuda}")
             width, height = imgui.get_content_region_available()
 
-            device_index = device.index if device.index is not None else torch.cuda.current_device()
+            device_index = getattr(device, 'index', None)
+            device_index = device_index if device_index is not None else torch.cuda.current_device()
             nvml_device_handle = pynvml.nvmlDeviceGetHandleByIndex(device_index)
             nvml_info = pynvml.nvmlDeviceGetMemoryInfo(nvml_device_handle)
             used_mem = nvml_info.used

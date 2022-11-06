@@ -6,11 +6,6 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-# On Towaki's machine with a RTX8000 on the V8, this code takes:
-# 3 seconds per epoch
-# 2:20 script runtime as reported on tensorboard
-# 27.8 PSNR 0.9295 SSIM 0.0988 LPIPS at the final validation
-
 global:
     exp_name: 'test-ngp-nerf'
 
@@ -61,7 +56,7 @@ grid:
 
 net:
     nef_type: 'NeuralRadianceField'
-    hidden_dim: 128
+    hidden_dim: 64
     num_layers: 1
     out_dim: 4
 

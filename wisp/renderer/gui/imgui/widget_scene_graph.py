@@ -13,6 +13,7 @@ from .widget_imgui import WidgetImgui
 from .widget_radiance_pipeline_renderer import WidgetNeuralRadianceFieldRenderer
 from .widget_sdf_pipeline_renderer import WidgetNeuralSDFRenderer
 from .widget_cameras import WidgetCameraProperties
+from .widget_object_transform import WidgetObjectTransform
 from wisp.renderer.core.api import request_redraw
 
 
@@ -37,6 +38,12 @@ class WidgetSceneGraph(WidgetImgui):
     def __init__(self):
         super().__init__()
         self.object_widgets = dict()
+        self.transform_widget = WidgetObjectTransform()
+
+    def add_object_type(self, name, widget, color, title):
+        self.names_to_widgets[name] = widget
+        self.names_to_color[name] = color
+        self.names_to_title[name] = title
 
     def get_bl_renderer_widget(self, object_id, object_type):
         if object_id not in self.object_widgets:
@@ -108,6 +115,12 @@ class WidgetSceneGraph(WidgetImgui):
                             imgui.same_line()
                             obj_title = self.get_object_title(obj_type)
                             imgui.text_colored(f"{obj_title}", *obj_color)
+
+                            object_transform = obj.transform
+                            if object_transform is not None:
+                                if imgui.tree_node("Transform", imgui.TREE_NODE_DEFAULT_OPEN):
+                                    self.transform_widget.paint(state, object_transform)
+                                imgui.tree_pop()
 
                             if imgui.tree_node("Properties", imgui.TREE_NODE_DEFAULT_OPEN):
                                 bl_renderer_widget = self.get_bl_renderer_widget(obj_id, obj_type)
