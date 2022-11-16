@@ -21,6 +21,8 @@ from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.core import Rays, RenderBuffer
 
 import wandb
+import numpy as np
+from tqdm import tqdm
 
 class MultiviewTrainer(BaseTrainer):
 
@@ -155,6 +157,26 @@ class MultiviewTrainer(BaseTrainer):
  
         return {"psnr" : psnr_total, "lpips": lpips_total, "ssim": ssim_total}
 
+    def render_final_view(self, num_angles, camera_distance):
+        angles = np.pi * 0.1 * np.array(list(range(num_angles + 1)))
+        x = -camera_distance * np.sin(angles)
+        y = self.extra_args["camera_origin"][1]
+        z = -camera_distance * np.cos(angles)
+        out_rgb = []
+        for idx in tqdm(range(21)):
+            for d in [self.extra_args["num_lods"] - 1]:
+                out = self.renderer.shade_images(
+                    self.pipeline,
+                    f=[x[idx], y, z[idx]],
+                    t=self.extra_args["camera_lookat"],
+                    fov=self.extra_args["camera_fov"],
+                    lod_idx=d,
+                    camera_clamp=self.extra_args["camera_clamp"]
+                )
+                out = out.image().byte().numpy_dict()
+                if out.get('rgb') is not None:
+                    wandb.log({"Rendered-RGB": wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=idx)
+
     def validate(self, epoch=0):
         self.pipeline.eval()
 
@@ -179,7 +201,12 @@ class MultiviewTrainer(BaseTrainer):
             os.makedirs(self.valid_log_dir)
 
         lods = list(range(self.pipeline.nef.num_lods))
-        record_dict.update(self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}"))
+        evaluation_results = self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
+        record_dict.update(evaluation_results)
+        if self.using_wandb:
+            wandb.log({"Validation/psnr": evaluation_results['psnr']}, step=epoch)
+            wandb.log({"Validation/lpips": evaluation_results['lpips']}, step=epoch)
+            wandb.log({"Validation/ssim": evaluation_results['ssim']}, step=epoch)
         
         df = pd.DataFrame.from_records([record_dict])
         df['lod'] = lods[-1]
