@@ -20,6 +20,8 @@ from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.core import Rays, RenderBuffer
 
+import wandb
+
 class MultiviewTrainer(BaseTrainer):
 
     def pre_epoch(self, epoch):
@@ -100,6 +102,8 @@ class MultiviewTrainer(BaseTrainer):
         for key in self.log_dict:
             if 'loss' in key:
                 self.writer.add_scalar(f'Loss/{key}', self.log_dict[key], epoch)
+                if self.using_wandb:
+                    wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch)
 
         log.info(log_text)
 

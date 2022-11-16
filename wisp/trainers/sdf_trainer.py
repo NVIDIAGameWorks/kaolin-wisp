@@ -23,6 +23,8 @@ from wisp.datasets import SDFDataset
 from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
 
+import wandb
+
 
 class SDFTrainer(BaseTrainer):
 
@@ -104,10 +106,15 @@ class SDFTrainer(BaseTrainer):
 
         self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
         self.writer.add_scalar('Loss/rgb_loss', self.log_dict['rgb_loss'], epoch)
+        if self.using_wandb:
+            wandb.log({"Loss/l2_loss": self.log_dict['l2_loss']}, step=epoch)
+            wandb.log({"Loss/rgb_loss": self.log_dict['rgb_loss']}, step=epoch)
         log.info(log_text)
 
         # Log losses
         self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
+        if self.using_wandb:
+            wandb.log({"Loss/total_loss": self.log_dict['total_loss']}, step=epoch)
 
     def render_tb(self, epoch):
         super().render_tb(epoch)
@@ -121,6 +128,16 @@ class SDFTrainer(BaseTrainer):
                 self.writer.add_image(f'Cross-section/X/{d}', hwc_to_chw(out_x), epoch)
                 self.writer.add_image(f'Cross-section/Y/{d}', hwc_to_chw(out_y), epoch)
                 self.writer.add_image(f'Cross-section/Z/{d}', hwc_to_chw(out_z), epoch)
+                if self.using_wandb:
+                    wandb.log({
+                        f'Cross-section/X/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
+                    }, step=epoch)
+                    wandb.log({
+                        f'Cross-section/Y/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
+                    }, step=epoch)
+                    wandb.log({
+                        f'Cross-section/Z/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
+                    }, step=epoch)
 
     def validate(self, epoch=0):
         """Implement validation. Just computes IOU.
