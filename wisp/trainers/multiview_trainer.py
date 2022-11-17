@@ -105,9 +105,11 @@ class MultiviewTrainer(BaseTrainer):
             if 'loss' in key:
                 self.writer.add_scalar(f'Loss/{key}', self.log_dict[key], epoch)
                 if self.using_wandb:
-                    wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch)
+                    wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch, commit=False)
 
         log.info(log_text)
+        if self.using_wandb:
+            wandb.log({})
 
         self.pipeline.eval()
 
@@ -162,7 +164,6 @@ class MultiviewTrainer(BaseTrainer):
         x = -camera_distance * np.sin(angles)
         y = self.extra_args["camera_origin"][1]
         z = -camera_distance * np.cos(angles)
-        out_rgb = []
         for idx in tqdm(range(21)):
             for d in [self.extra_args["num_lods"] - 1]:
                 out = self.renderer.shade_images(
@@ -175,7 +176,16 @@ class MultiviewTrainer(BaseTrainer):
                 )
                 out = out.image().byte().numpy_dict()
                 if out.get('rgb') is not None:
-                    wandb.log({"Rendered-RGB": wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=idx)
+                    wandb.log({"360-Degree-Scene/RGB": wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=idx, commit=False)
+                if out.get('rgba') is not None:
+                    wandb.log({"360-Degree-Scene/RGBA": wandb.Image(np.moveaxis(out['rgba'].T, 0, -1))}, step=idx, commit=False)
+                if out.get('depth') is not None:
+                    wandb.log({"360-Degree-Scene/Depth": wandb.Image(np.moveaxis(out['depth'].T, 0, -1))}, step=idx, commit=False)
+                if out.get('normal') is not None:
+                    wandb.log({"360-Degree-Scene/Normal": wandb.Image(np.moveaxis(out['normal'].T, 0, -1))}, step=idx, commit=False)
+                if out.get('alpha') is not None:
+                    wandb.log({"360-Degree-Scene/Alpha": wandb.Image(np.moveaxis(out['alpha'].T, 0, -1))}, step=idx, commit=False)
+                wandb.log({})
 
     def validate(self, epoch=0):
         self.pipeline.eval()

@@ -107,14 +107,14 @@ class SDFTrainer(BaseTrainer):
         self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
         self.writer.add_scalar('Loss/rgb_loss', self.log_dict['rgb_loss'], epoch)
         if self.using_wandb:
-            wandb.log({"Loss/l2_loss": self.log_dict['l2_loss']}, step=epoch)
-            wandb.log({"Loss/rgb_loss": self.log_dict['rgb_loss']}, step=epoch)
+            wandb.log({"Loss/l2_loss": self.log_dict['l2_loss']}, step=epoch, commit=False)
+            wandb.log({"Loss/rgb_loss": self.log_dict['rgb_loss']}, step=epoch, commit=False)
         log.info(log_text)
 
         # Log losses
         self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
         if self.using_wandb:
-            wandb.log({"Loss/total_loss": self.log_dict['total_loss']}, step=epoch)
+            wandb.log({"Loss/total_loss": self.log_dict['total_loss']}, step=epoch, commit=False)
 
     def render_tb(self, epoch):
         super().render_tb(epoch)
@@ -131,13 +131,13 @@ class SDFTrainer(BaseTrainer):
                 if self.using_wandb:
                     wandb.log({
                         f'Cross-section/X/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
-                    }, step=epoch)
+                    }, step=epoch, commit=False)
                     wandb.log({
                         f'Cross-section/Y/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
-                    }, step=epoch)
+                    }, step=epoch, commit=False)
                     wandb.log({
                         f'Cross-section/Z/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
-                    }, step=epoch)
+                    }, step=epoch, commit=False)
 
     def validate(self, epoch=0):
         """Implement validation. Just computes IOU.

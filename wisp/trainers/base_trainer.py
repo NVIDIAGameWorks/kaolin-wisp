@@ -389,8 +389,8 @@ class BaseTrainer(ABC):
         self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
         self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
         if self.using_wandb:
-            wandb.log({"Loss/total_loss": self.log_dict['total_loss']}, step=epoch)
-            wandb.log({"Loss/l2_loss": self.log_dict['l2_loss']}, step=epoch)
+            wandb.log({"Loss/total_loss": self.log_dict['total_loss']}, step=epoch, commit=False)
+            wandb.log({"Loss/l2_loss": self.log_dict['l2_loss']}, step=epoch, commit=False)
 
         log.info(log_text)
 
@@ -416,28 +416,28 @@ class BaseTrainer(ABC):
             if out.get('depth') is not None:
                 self.writer.add_image(f'Depth/{d}', out['depth'].T, epoch)
                 if self.using_wandb:
-                    wandb.log({f'Depth/{d}': wandb.Image(np.moveaxis(out['depth'].T, 0, -1))}, step=epoch)
+                    wandb.log({f'Depth/{d}': wandb.Image(np.moveaxis(out['depth'].T, 0, -1))}, step=epoch, commit=False)
             if out.get('hit') is not None:
                 self.writer.add_image(f'Hit/{d}', out['hit'].T, epoch)
                 if self.using_wandb:
-                    wandb.log({f'Depth/{d}': wandb.Image(np.moveaxis(out['hit'].T, 0, -1))}, step=epoch)
+                    wandb.log({f'Hit/{d}': wandb.Image(np.moveaxis(out['hit'].T, 0, -1))}, step=epoch, commit=False)
             if out.get('normal') is not None:
                 self.writer.add_image(f'Normal/{d}', out['normal'].T, epoch)
                 if self.using_wandb:
-                    wandb.log({f'Normal/{d}': wandb.Image(np.moveaxis(out['normal'].T, 0, -1))}, step=epoch)
+                    wandb.log({f'Normal/{d}': wandb.Image(np.moveaxis(out['normal'].T, 0, -1))}, step=epoch, commit=False)
             if out.get('rgba') is not None:
                 self.writer.add_image(f'RGBA/{d}', out['rgba'].T, epoch)
                 if self.using_wandb:
-                    wandb.log({f'RGBA/{d}': wandb.Image(np.moveaxis(out['rgba'].T, 0, -1))}, step=epoch)
+                    wandb.log({f'RGBA/{d}': wandb.Image(np.moveaxis(out['rgba'].T, 0, -1))}, step=epoch, commit=False)
             else:
                 if out.get('rgb') is not None:
                     self.writer.add_image(f'RGB/{d}', out['rgb'].T, epoch)
                     if self.using_wandb:
-                        wandb.log({f'RGB/{d}': wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=epoch)
+                        wandb.log({f'RGB/{d}': wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=epoch, commit=False)
                 if out.get('alpha') is not None:
                     self.writer.add_image(f'Alpha/{d}', out['alpha'].T, epoch)
                     if self.using_wandb:
-                        wandb.log({f'Alpha/{d}': wandb.Image(np.moveaxis(out['alpha'].T, 0, -1))}, step=epoch)
+                        wandb.log({f'Alpha/{d}': wandb.Image(np.moveaxis(out['alpha'].T, 0, -1))}, step=epoch, commit=False)
                 
     def save_model(self, epoch):
         """
