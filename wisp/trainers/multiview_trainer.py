@@ -23,6 +23,7 @@ from wisp.core import Rays, RenderBuffer
 import wandb
 import numpy as np
 from tqdm import tqdm
+from PIL import Image
 
 class MultiviewTrainer(BaseTrainer):
 
@@ -164,6 +165,7 @@ class MultiviewTrainer(BaseTrainer):
         x = -camera_distance * np.sin(angles)
         y = self.extra_args["camera_origin"][1]
         z = -camera_distance * np.cos(angles)
+        out_rgb = []
         for idx in tqdm(range(21)):
             for d in [self.extra_args["num_lods"] - 1]:
                 out = self.renderer.shade_images(
@@ -177,6 +179,7 @@ class MultiviewTrainer(BaseTrainer):
                 out = out.image().byte().numpy_dict()
                 if out.get('rgb') is not None:
                     wandb.log({"360-Degree-Scene/RGB": wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=idx, commit=False)
+                    out_rgb.append(Image.fromarray(np.moveaxis(out['rgb'].T, 0, -1)))
                 if out.get('rgba') is not None:
                     wandb.log({"360-Degree-Scene/RGBA": wandb.Image(np.moveaxis(out['rgba'].T, 0, -1))}, step=idx, commit=False)
                 if out.get('depth') is not None:
@@ -186,6 +189,11 @@ class MultiviewTrainer(BaseTrainer):
                 if out.get('alpha') is not None:
                     wandb.log({"360-Degree-Scene/Alpha": wandb.Image(np.moveaxis(out['alpha'].T, 0, -1))}, step=idx, commit=False)
                 wandb.log({})
+        
+        rgb_gif = out_rgb[0]
+        gif_path = os.path.join(self.log_dir, "rgb.gif")
+        rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
+        wandb.log({"360-Degree-Scene/RGB-Rendering": wandb.Video(gif_path)})        
 
     def validate(self, epoch=0):
         self.pipeline.eval()
