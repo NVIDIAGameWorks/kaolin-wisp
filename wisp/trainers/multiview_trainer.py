@@ -193,7 +193,7 @@ class MultiviewTrainer(BaseTrainer):
         rgb_gif = out_rgb[0]
         gif_path = os.path.join(self.log_dir, "rgb.gif")
         rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
-        wandb.log({"360-Degree-Scene/RGB-Rendering": wandb.Video(gif_path)})        
+        wandb.log({"360-Degree-Scene/RGB-Rendering": wandb.Video(gif_path)})
 
     def validate(self, epoch=0):
         self.pipeline.eval()

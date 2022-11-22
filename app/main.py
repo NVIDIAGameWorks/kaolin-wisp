@@ -15,11 +15,13 @@ if __name__ == "__main__":
         get_optimizer_from_config
     from wisp.framework import WispState
     
+    import os
     import wandb
 
     # Usual boilerplate
     parser = parse_options(return_parser=True)
     parser.add_argument("--wandb_project", type=str, default=None, help="Weights & Biases Project")
+    parser.add_argument("--wandb_run_name", type=str, default=None, help="Weights & Biases Run Name")
     parser.add_argument("--wandb_entity", type=str, default=None, help="Weights & Biases Entity")
     parser.add_argument(
         "--wandb_viz_nerf_angles",
@@ -42,12 +44,13 @@ if __name__ == "__main__":
     if using_wandb:
         wandb.init(
             project=args.wandb_project,
-            name=args.exp_name,
+            name=args.exp_name if args.wandb_run_name is None else args.wandb_run_name,
             entity=args.wandb_entity,
             job_type="validate" if args.valid_only else "train",
             config=vars(args),
             sync_tensorboard=True
         )
+        scene_file = os.path.join(args.dataset_path, "scene.ply")
     
     app_utils.default_log_setup(args.log_level)
     pipeline, train_dataset, device = get_modules_from_config(args)
