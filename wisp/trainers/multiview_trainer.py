@@ -166,9 +166,9 @@ class MultiviewTrainer(BaseTrainer):
         x = -camera_distance * np.sin(angles)
         y = self.extra_args["camera_origin"][1]
         z = -camera_distance * np.cos(angles)
-        for idx in tqdm(range(21)):
+        for d in range(self.extra_args["num_lods"]):
             out_rgb = []
-            for d in [self.extra_args["num_lods"] - 1]:
+            for idx in tqdm(range(21), desc=f"Generating 360 Degree of View for LOD {d}"):
                 out = self.renderer.shade_images(
                     self.pipeline,
                     f=[x[idx], y, z[idx]],
@@ -194,7 +194,7 @@ class MultiviewTrainer(BaseTrainer):
             rgb_gif = out_rgb[0]
             gif_path = os.path.join(self.log_dir, "rgb.gif")
             rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
-            wandb.log({"360-Degree-Scene/RGB-Rendering/LOD-{d}": wandb.Video(gif_path)})
+            wandb.log({f"360-Degree-Scene/RGB-Rendering/LOD-{d}": wandb.Video(gif_path)})
 
     def validate(self, epoch=0):
         self.pipeline.eval()

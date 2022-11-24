@@ -27,7 +27,7 @@ if __name__ == "__main__":
         "--wandb_viz_nerf_angles",
         type=int,
         default=20,
-        help="Number of Angles to visualize Scene from on Weights & Biases"
+        help="Number of Angles to visualize Scene from on Weights & Biases. If you do not wish to generate 360 degree visualizations, you can set this to 0."
     )
     parser.add_argument(
         "--wandb_viz_nerf_distance",
@@ -62,14 +62,14 @@ if __name__ == "__main__":
                                       render_every=args.render_every, save_every=args.save_every, using_wandb=using_wandb)
     if args.valid_only:
         trainer.validate()
-        if using_wandb:
+        if using_wandb and args.wandb_viz_nerf_angles != 0:
             trainer.render_final_view(
                 num_angles=args.wandb_viz_nerf_angles,
                 camera_distance=args.wandb_viz_nerf_distance
             )
     else:
         trainer.train()
-        if using_wandb:
+        if using_wandb and args.wandb_viz_nerf_angles != 0:
             trainer.render_final_view(
                 num_angles=args.wandb_viz_nerf_angles,
                 camera_distance=args.wandb_viz_nerf_distance
