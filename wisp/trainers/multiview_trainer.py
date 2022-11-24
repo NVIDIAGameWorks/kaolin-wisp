@@ -14,7 +14,7 @@ import random
 import pandas as pd
 import torch
 from lpips import LPIPS
-from wisp.trainers import BaseTrainer
+from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from wisp.utils import PerfTimer
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
@@ -106,7 +106,8 @@ class MultiviewTrainer(BaseTrainer):
             if 'loss' in key:
                 self.writer.add_scalar(f'Loss/{key}', self.log_dict[key], epoch)
                 if self.using_wandb:
-                    wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch, commit=False)
+                    # wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch, commit=False)
+                    log_metric_to_wandb(f'Loss/{key}', self.log_dict[key], epoch)
 
         log.info(log_text)
         if self.using_wandb:
@@ -165,8 +166,8 @@ class MultiviewTrainer(BaseTrainer):
         x = -camera_distance * np.sin(angles)
         y = self.extra_args["camera_origin"][1]
         z = -camera_distance * np.cos(angles)
-        out_rgb = []
         for idx in tqdm(range(21)):
+            out_rgb = []
             for d in [self.extra_args["num_lods"] - 1]:
                 out = self.renderer.shade_images(
                     self.pipeline,
@@ -178,22 +179,22 @@ class MultiviewTrainer(BaseTrainer):
                 )
                 out = out.image().byte().numpy_dict()
                 if out.get('rgb') is not None:
-                    wandb.log({"360-Degree-Scene/RGB": wandb.Image(np.moveaxis(out['rgb'].T, 0, -1))}, step=idx, commit=False)
+                    log_images_to_wandb(f"360-Degree-Scene/RGB/LOD-{d}", out['rgb'].T, idx)
                     out_rgb.append(Image.fromarray(np.moveaxis(out['rgb'].T, 0, -1)))
                 if out.get('rgba') is not None:
-                    wandb.log({"360-Degree-Scene/RGBA": wandb.Image(np.moveaxis(out['rgba'].T, 0, -1))}, step=idx, commit=False)
+                    log_images_to_wandb(f"360-Degree-Scene/RGBA/LOD-{d}", out['rgba'].T, idx)
                 if out.get('depth') is not None:
-                    wandb.log({"360-Degree-Scene/Depth": wandb.Image(np.moveaxis(out['depth'].T, 0, -1))}, step=idx, commit=False)
+                    log_images_to_wandb(f"360-Degree-Scene/Depth/LOD-{d}", out['depth'].T, idx)
                 if out.get('normal') is not None:
-                    wandb.log({"360-Degree-Scene/Normal": wandb.Image(np.moveaxis(out['normal'].T, 0, -1))}, step=idx, commit=False)
+                    log_images_to_wandb(f"360-Degree-Scene/Normal/LOD-{d}", out['normal'].T, idx)
                 if out.get('alpha') is not None:
-                    wandb.log({"360-Degree-Scene/Alpha": wandb.Image(np.moveaxis(out['alpha'].T, 0, -1))}, step=idx, commit=False)
+                    log_images_to_wandb(f"360-Degree-Scene/Alpha/LOD-{d}", out['alpha'].T, idx)
                 wandb.log({})
         
-        rgb_gif = out_rgb[0]
-        gif_path = os.path.join(self.log_dir, "rgb.gif")
-        rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
-        wandb.log({"360-Degree-Scene/RGB-Rendering": wandb.Video(gif_path)})
+            rgb_gif = out_rgb[0]
+            gif_path = os.path.join(self.log_dir, "rgb.gif")
+            rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
+            wandb.log({"360-Degree-Scene/RGB-Rendering/LOD-{d}": wandb.Video(gif_path)})
 
     def validate(self, epoch=0):
         self.pipeline.eval()
@@ -222,9 +223,9 @@ class MultiviewTrainer(BaseTrainer):
         evaluation_results = self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
         record_dict.update(evaluation_results)
         if self.using_wandb:
-            wandb.log({"Validation/psnr": evaluation_results['psnr']}, step=epoch)
-            wandb.log({"Validation/lpips": evaluation_results['lpips']}, step=epoch)
-            wandb.log({"Validation/ssim": evaluation_results['ssim']}, step=epoch)
+            log_metric_to_wandb("Validation/psnr", evaluation_results['psnr'], epoch)
+            log_metric_to_wandb("Validation/lpips", evaluation_results['lpips'], epoch)
+            log_metric_to_wandb("Validation/ssim", evaluation_results['ssim'], epoch)
         
         df = pd.DataFrame.from_records([record_dict])
         df['lod'] = lods[-1]

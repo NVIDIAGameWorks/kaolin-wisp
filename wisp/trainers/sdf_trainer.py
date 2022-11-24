@@ -16,7 +16,7 @@ import glob
 import logging as log
 
 
-from wisp.trainers import BaseTrainer
+from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from torch.utils.data import DataLoader
 from wisp.utils import PerfTimer
 from wisp.datasets import SDFDataset
@@ -107,17 +107,17 @@ class SDFTrainer(BaseTrainer):
         self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
         self.writer.add_scalar('Loss/rgb_loss', self.log_dict['rgb_loss'], epoch)
         if self.using_wandb:
-            wandb.log({"Loss/l2_loss": self.log_dict['l2_loss']}, step=epoch, commit=False)
-            wandb.log({"Loss/rgb_loss": self.log_dict['rgb_loss']}, step=epoch, commit=False)
+            log_metric_to_wandb("Loss/l2_loss", self.log_dict['l2_loss'], epoch)
+            log_metric_to_wandb("Loss/rgb_loss", self.log_dict['rgb_loss'], epoch)
         log.info(log_text)
 
         # Log losses
         self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
         if self.using_wandb:
-            wandb.log({"Loss/total_loss": self.log_dict['total_loss']}, step=epoch, commit=False)
+            log_metric_to_wandb("Loss/total_loss", self.log_dict['total_loss'], epoch)
 
-    def render_tb(self, epoch):
-        super().render_tb(epoch)
+    def render_images(self, epoch):
+        super().render_images(epoch)
 
         self.pipeline.eval()
         for d in [self.extra_args["num_lods"] - 1]:
@@ -129,15 +129,9 @@ class SDFTrainer(BaseTrainer):
                 self.writer.add_image(f'Cross-section/Y/{d}', hwc_to_chw(out_y), epoch)
                 self.writer.add_image(f'Cross-section/Z/{d}', hwc_to_chw(out_z), epoch)
                 if self.using_wandb:
-                    wandb.log({
-                        f'Cross-section/X/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
-                    }, step=epoch, commit=False)
-                    wandb.log({
-                        f'Cross-section/Y/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
-                    }, step=epoch, commit=False)
-                    wandb.log({
-                        f'Cross-section/Z/{d}': wandb.Image(np.moveaxis(hwc_to_chw(out_x), 0, -1))
-                    }, step=epoch, commit=False)
+                    log_images_to_wandb(f'Cross-section/X/{d}', hwc_to_chw(out_x), epoch)
+                    log_images_to_wandb(f'Cross-section/Y/{d}', hwc_to_chw(out_y), epoch)
+                    log_images_to_wandb(f'Cross-section/Z/{d}', hwc_to_chw(out_z), epoch)
 
     def validate(self, epoch=0):
         """Implement validation. Just computes IOU.
