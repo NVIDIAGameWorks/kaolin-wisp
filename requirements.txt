@@ -27,6 +27,3 @@ fastparquet
 PyDispatcher
 pynvml
 setuptools==59.5.0
-
-# Weights & Biases for logging
-wandb>=0.13.5
