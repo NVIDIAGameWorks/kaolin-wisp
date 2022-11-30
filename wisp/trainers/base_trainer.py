@@ -160,6 +160,14 @@ class BaseTrainer(ABC):
         self.save_every = save_every
         self.using_wandb = using_wandb
         self.timer.check('set_logger')
+        
+        if self.using_wandb:
+            for d in range(self.extra_args["num_lods"]):
+                wandb.define_metric(f"LOD-{d}-360-Degree-Scene")
+                wandb.define_metric(
+                    f"LOD-{d}-360-Degree-Scene",
+                    step_metric=f"LOD-{d}-360-Degree-Scene/step"
+                )
 
     def init_dataloader(self):
         self.train_data_loader = DataLoader(self.dataset,

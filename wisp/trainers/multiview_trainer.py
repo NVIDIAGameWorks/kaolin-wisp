@@ -168,7 +168,8 @@ class MultiviewTrainer(BaseTrainer):
         z = -camera_distance * np.cos(angles)
         for d in range(self.extra_args["num_lods"]):
             out_rgb = []
-            for idx in tqdm(range(21), desc=f"Generating 360 Degree of View for LOD {d}"):
+            for idx in tqdm(range(num_angles + 1), desc=f"Generating 360 Degree of View for LOD {d}"):
+                log_metric_to_wandb(f"LOD-{d}-360-Degree-Scene/step", idx, step=idx)
                 out = self.renderer.shade_images(
                     self.pipeline,
                     f=[x[idx], y, z[idx]],
@@ -179,16 +180,16 @@ class MultiviewTrainer(BaseTrainer):
                 )
                 out = out.image().byte().numpy_dict()
                 if out.get('rgb') is not None:
-                    log_images_to_wandb(f"360-Degree-Scene/RGB/LOD-{d}", out['rgb'].T, idx)
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/RGB", out['rgb'].T, idx)
                     out_rgb.append(Image.fromarray(np.moveaxis(out['rgb'].T, 0, -1)))
                 if out.get('rgba') is not None:
-                    log_images_to_wandb(f"360-Degree-Scene/RGBA/LOD-{d}", out['rgba'].T, idx)
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/RGBA", out['rgba'].T, idx)
                 if out.get('depth') is not None:
-                    log_images_to_wandb(f"360-Degree-Scene/Depth/LOD-{d}", out['depth'].T, idx)
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Depth", out['depth'].T, idx)
                 if out.get('normal') is not None:
-                    log_images_to_wandb(f"360-Degree-Scene/Normal/LOD-{d}", out['normal'].T, idx)
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Normal", out['normal'].T, idx)
                 if out.get('alpha') is not None:
-                    log_images_to_wandb(f"360-Degree-Scene/Alpha/LOD-{d}", out['alpha'].T, idx)
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Alpha", out['alpha'].T, idx)
                 wandb.log({})
         
             rgb_gif = out_rgb[0]
