@@ -62,18 +62,14 @@ if __name__ == "__main__":
                                       render_every=args.render_every, save_every=args.save_every, using_wandb=using_wandb)
     if args.valid_only:
         trainer.validate()
-        if using_wandb and args.wandb_viz_nerf_angles != 0:
-            trainer.render_final_view(
-                num_angles=args.wandb_viz_nerf_angles,
-                camera_distance=args.wandb_viz_nerf_distance
-            )
     else:
         trainer.train()
-        if using_wandb and args.wandb_viz_nerf_angles != 0:
-            trainer.render_final_view(
-                num_angles=args.wandb_viz_nerf_angles,
-                camera_distance=args.wandb_viz_nerf_distance
-            )
+    
+    if args.trainer_type == "MultiviewTrainer" and using_wandb and args.wandb_viz_nerf_angles != 0:
+        trainer.render_final_view(
+            num_angles=args.wandb_viz_nerf_angles,
+            camera_distance=args.wandb_viz_nerf_distance
+        )
     
     if using_wandb:
         wandb.finish()
