@@ -110,6 +110,7 @@ Complete list of features supported by Weights & Biases:
 - Log interactive 360 degree renderings post training in all levels of detail.
 - Log model checkpoints as [Weights & Biases artifacts](https://wandb.ai/site/artifacts).
 - Sync experiment configs for reproducibility.
+- Host Tensorboard instance inside Weights & Biases run.
 
 The full list of optional arguments related to logging on Weights & Biases include:
 
