@@ -28,7 +28,7 @@ if __name__ == "__main__":
         "--wandb_viz_nerf_angles",
         type=int,
         default=20,
-        help="Number of Angles to visualize Scene from on Weights & Biases. If you do not wish to generate 360 degree visualizations, you can set this to 0."
+        help="Number of Angles to visualize a scene on Weights & Biases. Set this to 0 to disable 360 degree visualizations."
     )
     parser.add_argument(
         "--wandb_viz_nerf_distance",
