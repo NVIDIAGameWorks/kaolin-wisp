@@ -50,7 +50,6 @@ if __name__ == "__main__":
             config=vars(args),
             sync_tensorboard=True
         )
-        scene_file = os.path.join(args.dataset_path, "scene.ply")
     
     app_utils.default_log_setup(args.log_level)
     pipeline, train_dataset, device = get_modules_from_config(args)
