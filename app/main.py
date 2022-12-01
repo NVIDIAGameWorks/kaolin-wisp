@@ -27,7 +27,7 @@ if __name__ == "__main__":
         "--wandb_viz_nerf_angles",
         type=int,
         default=20,
-        help="Number of Angles to visualize Scene from on Weights & Biases"
+        help="Number of Angles to visualize a scene on Weights & Biases. Set this to 0 to disable 360 degree visualizations."
     )
     parser.add_argument(
         "--wandb_viz_nerf_distance",
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Add custom args if needed for app
     args, args_str = argparse_to_str(parser)
     
-    using_wandb = args.wandb_project is not None and args.wandb_entity is not None
+    using_wandb = args.wandb_project is not None
     if using_wandb:
         wandb.init(
             project=args.wandb_project,
@@ -50,7 +50,6 @@ if __name__ == "__main__":
             config=vars(args),
             sync_tensorboard=True
         )
-        scene_file = os.path.join(args.dataset_path, "scene.ply")
     
     app_utils.default_log_setup(args.log_level)
     pipeline, train_dataset, device = get_modules_from_config(args)
@@ -62,18 +61,14 @@ if __name__ == "__main__":
                                       render_every=args.render_every, save_every=args.save_every, using_wandb=using_wandb)
     if args.valid_only:
         trainer.validate()
-        if using_wandb:
-            trainer.render_final_view(
-                num_angles=args.wandb_viz_nerf_angles,
-                camera_distance=args.wandb_viz_nerf_distance
-            )
     else:
         trainer.train()
-        if using_wandb:
-            trainer.render_final_view(
-                num_angles=args.wandb_viz_nerf_angles,
-                camera_distance=args.wandb_viz_nerf_distance
-            )
+    
+    if args.trainer_type == "MultiviewTrainer" and using_wandb and args.wandb_viz_nerf_angles != 0:
+        trainer.render_final_view(
+            num_angles=args.wandb_viz_nerf_angles,
+            camera_distance=args.wandb_viz_nerf_distance
+        )
     
     if using_wandb:
         wandb.finish()

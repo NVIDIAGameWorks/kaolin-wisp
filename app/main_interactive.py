@@ -21,10 +21,37 @@ if __name__ == "__main__":
 
     # Usual boilerplate
     parser = parse_options(return_parser=True)
+    parser.add_argument("--wandb_project", type=str, default=None, help="Weights & Biases Project")
+    parser.add_argument("--wandb_run_name", type=str, default=None, help="Weights & Biases Run Name")
+    parser.add_argument("--wandb_entity", type=str, default=None, help="Weights & Biases Entity")
+    parser.add_argument(
+        "--wandb_viz_nerf_angles",
+        type=int,
+        default=20,
+        help="Number of Angles to visualize a scene on Weights & Biases. Set this to 0 to disable 360 degree visualizations."
+    )
+    parser.add_argument(
+        "--wandb_viz_nerf_distance",
+        type=int,
+        default=3,
+        help="Distance to visualize Scene from on Weights & Biases"
+    )
     app_utils.add_log_level_flag(parser)
     app_group = parser.add_argument_group('app')
     # Add custom args if needed for app
     args, args_str = argparse_to_str(parser)
+
+    using_wandb = args.wandb_project is not None
+    if using_wandb:
+        wandb.init(
+            project=args.wandb_project,
+            name=args.exp_name if args.wandb_run_name is None else args.wandb_run_name,
+            entity=args.wandb_entity,
+            job_type="validate" if args.valid_only else "train",
+            config=vars(args),
+            sync_tensorboard=True
+        )
+
     app_utils.default_log_setup(args.log_level)
     pipeline, train_dataset, device = get_modules_from_config(args)
     optim_cls, optim_params = get_optimizer_from_config(args)
@@ -35,7 +62,7 @@ if __name__ == "__main__":
                                       args.grid_lr_weight, optim_params, args.log_dir, device,
                                       exp_name=args.exp_name, info=args_str, extra_args=vars(args),
                                       render_every=args.render_every, save_every=args.save_every,
-                                      scene_state=scene_state)
+                                      scene_state=scene_state, using_wandb=using_wandb)
             
     if not os.environ.get('WISP_HEADLESS') == '1':
         from wisp.renderer.app.optimization_app import OptimizationApp
@@ -50,3 +77,12 @@ if __name__ == "__main__":
             trainer.validate()
         else:
             trainer.train()
+    
+    if args.trainer_type == "MultiviewTrainer" and using_wandb and args.wandb_viz_nerf_angles != 0:
+        trainer.render_final_view(
+            num_angles=args.wandb_viz_nerf_angles,
+            camera_distance=args.wandb_viz_nerf_distance
+        )
+    
+    if using_wandb:
+        wandb.finish()
