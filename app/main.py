@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Add custom args if needed for app
     args, args_str = argparse_to_str(parser)
     
-    using_wandb = args.wandb_project is not None and args.wandb_entity is not None
+    using_wandb = args.wandb_project is not None
     if using_wandb:
         wandb.init(
             project=args.wandb_project,

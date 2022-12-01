@@ -100,13 +100,9 @@ for the options that are already passed in.
 
 ### Logging to [Weights & Biases](https://wandb.ai/site)
 
-In order to track training and validation metrics, interactive 360 degree renderings and many more features on your Weights & Biases workspace, you can add an additional flag during training:
+To track training and validation metrics, render 3D interactive plots, reproduce your configurations and results, and many more features in your Weights & Biases workspace just add the additional flag `--wandb_project <your-project-name>` when initializing the training script.
 
-```
---wandb_project kaolin-wisp-project
-```
-
-Here's a complete list of features supported by Weights & Biases logging for kaolin-wisp:
+Complete list of features supported by Weights & Biases:
 
 - Log training and validation metrics in real time.
 - Log system metrics in real time.
@@ -115,7 +111,7 @@ Here's a complete list of features supported by Weights & Biases logging for kao
 - Log model checkpoints as [Weights & Biases artifacts](https://wandb.ai/site/artifacts).
 - Sync experiment configs for reproducibility.
 
-Here's a complete list of parameters related to logging on Weights & Biases:
+The full list of optional arguments related to logging on Weights & Biases include:
 
 - `--wandb_project`: Name of Weights & Biases project
 - `--wandb_run_name`: Name of Weights & Biases run \[Optional\]
