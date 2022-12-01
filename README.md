@@ -98,6 +98,31 @@ python3 app/main.py --config configs/nglod_nerf.yaml --dataset-path /path/to/V8 
 Take a look at `wisp/config_parser.py` for the list of different options you can pass in, and `configs/nglod_nerf.yaml` 
 for the options that are already passed in.
 
+### Logging to [Weights & Biases](https://wandb.ai/site)
+
+In order to track training and validation metrics, interactive 360 degree renderings and many more features on your Weights & Biases workspace, you can add an additional flag during training:
+
+```
+--wandb_project kaolin-wisp-project
+```
+
+Here's a complete list of features supported by Weights & Biases logging for kaolin-wisp:
+
+- Log training and validation metrics in real time.
+- Log system metrics in real time.
+- Log RGB, RGBA, Depth renderings etc. during training.
+- Log interactive 360 degree renderings post training in all levels of detail.
+- Log model checkpoints as [Weights & Biases artifacts](https://wandb.ai/site/artifacts).
+- Sync experiment configs for reproducibility.
+
+Here's a complete list of parameters related to logging on Weights & Biases:
+
+- `--wandb_project`: Name of Weights & Biases project
+- `--wandb_run_name`: Name of Weights & Biases run \[Optional\]
+- `--wandb_entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
+- `--wandb_viz_nerf_angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
+- `--wandb_viz_nerf_distance`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
+
 ### Interactive training
 
 To run the training task interactively using the renderer engine, run:
