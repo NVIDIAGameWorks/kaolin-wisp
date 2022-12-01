@@ -98,7 +98,7 @@ python3 app/main.py --config configs/nglod_nerf.yaml --dataset-path /path/to/V8 
 Take a look at `wisp/config_parser.py` for the list of different options you can pass in, and `configs/nglod_nerf.yaml` 
 for the options that are already passed in.
 
-### Logging to [Weights & Biases](https://wandb.ai/site)
+### Experiment Tracking with [Weights & Biases](https://wandb.ai/site)
 
 To track training and validation metrics, render 3D interactive plots, reproduce your configurations and results, and many more features in your Weights & Biases workspace just add the additional flag `--wandb_project <your-project-name>` when initializing the training script.
 
