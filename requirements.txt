@@ -13,7 +13,7 @@ Pillow
 scipy==1.5.2
 scikit-image
 scikit-learn
-six==1.12.0
+six>=1.12.0
 moviepy
 opencv-python
 plyfile
@@ -27,3 +27,4 @@ fastparquet
 PyDispatcher
 pynvml
 setuptools==59.5.0
+wandb>=13.5
