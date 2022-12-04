@@ -27,4 +27,4 @@ fastparquet
 PyDispatcher
 pynvml
 setuptools==59.5.0
-wandb>=13.5
+wandb>=0.13.5
