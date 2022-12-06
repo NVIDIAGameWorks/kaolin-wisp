@@ -201,6 +201,13 @@ geometry representations like meshes. We provide a [multiview dataset](https://d
 wisp as a reference dataset for a volumetric object. 
 We also provide the [blender file and rendering scripts](https://drive.google.com/drive/folders/1Via1TOsnG-3mUkkGteEoRJdEYJEx3wgf?usp=sharing) if you want to generate specific data with this scene, please refer to the [readme.md](https://drive.google.com/file/d/1IrWKjxxrJOlD3C5lDYvejaSXiPtm_XI_/view?usp=sharing) for greater details on how to generate the data. 
 
+## External Contributions
+
+We welcome & encourage external contributions to the codebase!
+Special thanks for community members:
+* [lightfield botanist](https://github.com/3a1b2c3)
+* [Soumik Rakshit](https://github.com/soumik12345)
+
 ## Thanks
 
 We thank James Lucas, Jonathan Tremblay, Valts Blukis, Anita Hu, and Nishkrit Desai for giving us early feedback
