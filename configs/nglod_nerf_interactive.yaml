@@ -20,5 +20,5 @@ dataset:
 
 trainer:
     save_every: -1
-    render_every: -1
+    render_tb_every: -1
     valid_every: -1

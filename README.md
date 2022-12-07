@@ -114,11 +114,11 @@ Complete list of features supported by Weights & Biases:
 
 The full list of optional arguments related to logging on Weights & Biases include:
 
-- `--wandb_project`: Name of Weights & Biases project
-- `--wandb_run_name`: Name of Weights & Biases run \[Optional\]
-- `--wandb_entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
-- `--wandb_viz_nerf_angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
-- `--wandb_viz_nerf_distance`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
+- `--wandb-project`: Name of Weights & Biases project
+- `--wandb-run-name`: Name of Weights & Biases run \[Optional\]
+- `--wandb-entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
+- `--wandb-viz-nerf-angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
+- `--wandb-viz-nerf-distance`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
 
 ### Interactive training
 

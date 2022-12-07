@@ -41,7 +41,8 @@ trainer:
     model_format: 'full'
     valid_every: 50
     save_every: 10
-    render_every: 10
+    prune_every: 25 # iterations
+    render_tb_every: 10
 
 grid:
     grid_type: 'HashGrid'

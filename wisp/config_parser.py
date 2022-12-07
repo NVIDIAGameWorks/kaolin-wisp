@@ -213,8 +213,10 @@ def parse_options(return_parser=False):
     train_group.add_argument('--save-as-new', action='store_true', 
                              help='Save the model at every epoch (no overwrite).')
     train_group.add_argument('--save-every', type=int, default=5, 
-                             help='Save the model at every N epoch.')
-    train_group.add_argument('--render-every', type=int, default=5,
+                             help='Save the model at every N epochs.')
+    train_group.add_argument('--render-tb-every', type=int, default=5,
+                                help='Render every N iterations')
+    train_group.add_argument('--log-tb-every', type=int, default=5,
                                 help='Render every N epochs')
     # TODO (ttakikawa): Only used for SDFs, but also should support RGB etc
     train_group.add_argument('--log-2d', action='store_true', 
@@ -225,7 +227,7 @@ def parse_options(return_parser=False):
     train_group.add_argument('--grow-every', type=int, default=-1,
                              help='Grow network every X epochs')
     train_group.add_argument('--prune-every', type=int, default=-1,
-                             help='Prune every N epochs')
+                             help='Prune every N iterations')
     # TODO (ttakikawa): Only used in multiview training, combine with the SDF growing schemes.
     train_group.add_argument('--random-lod', action='store_true',
                              help='Use random lods to train.')
@@ -238,8 +240,25 @@ def parse_options(return_parser=False):
                              choices=['onebyone','increase','shrink', 'finetocoarse', 'onlylast'],
                              help='Strategy for coarse-to-fine training')
     
+    train_group.add_argument("--wandb-project", type=str, default=None, help="Weights & Biases Project")
+    train_group.add_argument("--wandb-run_name", type=str, default=None, help="Weights & Biases Run Name")
+    train_group.add_argument("--wandb-entity", type=str, default=None, help="Weights & Biases Entity")
+    train_group.add_argument(
+        "--wandb-viz-nerf-angles",
+        type=int,
+        default=20,
+        help="Number of Angles to visualize a scene on Weights & Biases. Set this to 0 to disable 360 degree visualizations."
+    )
+    train_group.add_argument(
+        "--wandb-viz-nerf-distance",
+        type=int,
+        default=3,
+        help="Distance to visualize Scene from on Weights & Biases"
+    )
+
+
     ###################
-    # Arguments for training
+    # Arguments for validation
     ###################
     valid_group = parser.add_argument_group('validation')
     

@@ -51,7 +51,7 @@ trainer:
     model_format: 'full'
     valid_every: 20
     save_every: 5
-    render_every: 5
+    render_tb_every: 5
     log_2d: True
     only_last: True
     resample: True

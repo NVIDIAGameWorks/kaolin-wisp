@@ -17,7 +17,7 @@ six>=1.12.0
 moviepy
 opencv-python
 plyfile
-protobuf==3.20.0
+protobuf>=3.20.0
 polyscope
 more_itertools
 Futureproof

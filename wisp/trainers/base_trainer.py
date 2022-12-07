@@ -45,12 +45,14 @@ class BaseTrainer(ABC):
             pre_epoch()
 
             iterate()
+                pre_step()
                 step()
+                post_step()
 
             post_epoch()
             |- log_tb()
-            |- render_images()
             |- save_model()
+            |- render_tb()
             |- resample_dataset()
 
             validate()
@@ -67,7 +69,7 @@ class BaseTrainer(ABC):
     def __init__(self, pipeline, dataset, num_epochs, batch_size,
                  optim_cls, lr, weight_decay, grid_lr_weight, optim_params, log_dir, device,
                  exp_name=None, info=None, scene_state=None, extra_args=None,
-                 render_every=-1, save_every=-1, using_wandb=False):
+                 render_tb_every=-1, save_every=-1, using_wandb=False):
         """Constructor.
         
         Args:
@@ -86,7 +88,7 @@ class BaseTrainer(ABC):
             scene_state (wisp.core.State): Use this to inject a scene state from the outside to be synced
                                            elsewhere.
             extra_args (dict): Optional dict of extra_args for easy prototyping.
-            render_every (int): The number of epochs between renders for logging. -1 = no rendering.
+            render_tb_every (int): The number of epochs between renders for tensorboard logging. -1 = no rendering.
             save_every (int): The number of epochs between model saves. -1 = no saving.
         """
         log.info(f'Info: \n{info}')
@@ -147,16 +149,18 @@ class BaseTrainer(ABC):
         self.dataset_size = None
         self.log_dict = {}
         self.init_dataloader()
-        
+
         self.log_fname = f'{datetime.now().strftime("%Y%m%d-%H%M%S")}'
         self.log_dir = os.path.join(
             log_dir,
             self.exp_name,
             self.log_fname    
         )
+        
+        # Default TensorBoard Logging
         self.writer = SummaryWriter(self.log_dir, purge_step=0)
         self.writer.add_text('Info', self.info)
-        self.render_every = render_every
+        self.render_tb_every = render_tb_every
         self.save_every = save_every
         self.using_wandb = using_wandb
         self.timer.check('set_logger')
@@ -168,6 +172,8 @@ class BaseTrainer(ABC):
                     f"LOD-{d}-360-Degree-Scene",
                     step_metric=f"LOD-{d}-360-Degree-Scene/step"
                 )
+
+        self.iteration = 1
 
     def init_dataloader(self):
         self.train_data_loader = DataLoader(self.dataset,
@@ -218,10 +224,6 @@ class BaseTrainer(ABC):
         """
         self.renderer = OfflineRenderer(**self.extra_args)
 
-    #######################
-    # __init__ helper functions
-    #######################
-
     def resample_dataset(self):
         """
         Override this function if some custom logic is needed.
@@ -241,38 +243,78 @@ class BaseTrainer(ABC):
         """
         Override this function to use custom logs.
         """
-        self.log_dict['l2_loss'] = 0
-        self.log_dict['total_loss'] = 0
+        self.log_dict['total_loss'] = 0.0
         self.log_dict['total_iter_count'] = 0
 
-    def pre_epoch(self, epoch):
+    def pre_epoch(self):
         """
         Override this function to change the pre-epoch preprocessing.
         This function runs once before the epoch.
         """
-        self.epoch = epoch
-
         # The DataLoader is refreshed befored every epoch, because by default, the dataset refreshes
         # (resamples) after every epoch.
 
         self.loss_lods = list(range(0, self.extra_args["num_lods"]))
         if self.extra_args["grow_every"] > 0:
-            self.grow(epoch)
+            self.grow()
         
         if self.extra_args["only_last"]:
             self.loss_lods = self.loss_lods[-1:]
 
-        if self.extra_args["resample"] and epoch % self.extra_args["resample_every"] == 0:
+        if self.extra_args["resample"] and self.epoch % self.extra_args["resample_every"] == 0:
             self.resample_dataset()
 
         self.pipeline.train()
         
         self.timer.check('pre_epoch done')
+    
+    def post_epoch(self):
+        """
+        Override this function to change the post-epoch post processing.
 
+        By default, this function logs to Tensorboard, renders images to Tensorboard, saves the model,
+        and resamples the dataset.
 
-    def grow(self, epoch):
+        To keep default behaviour but also augment with other features, do 
+          
+          super().post_epoch()
+
+        in the derived method.
+        """
+        self.pipeline.eval()
+
+        total_loss = self.log_dict['total_loss'] / len(self.train_data_loader)
+        self.scene_state.optimization.losses['total_loss'].append(total_loss)
+
+        self.log_cli()
+        self.log_tb()
+        
+        # Render visualizations to tensorboard
+        if self.render_tb_every > -1 and self.epoch % self.render_tb_every == 0:
+            self.render_tb()
+       
+       # Save model
+        if self.save_every > -1 and self.epoch % self.save_every == 0 and self.epoch != 0:
+            self.save_model()
+        return
+        
+        self.timer.check('post_epoch done')
+
+    def pre_step(self):
+        """
+        Override this function to change the pre-step preprocessing (runs per iteration).
+        """
+        return
+    
+    def post_step(self):
+        """
+        Override this function to change the pre-step preprocessing (runs per iteration).
+        """
+        return
+
+    def grow(self):
         stage = min(self.extra_args["num_lods"],
-                    (epoch // self.extra_args["grow_every"]) + 1) # 1 indexed
+                    (self.epoch // self.extra_args["grow_every"]) + 1) # 1 indexed
         if self.extra_args["growth_strategy"] == 'onebyone':
             self.loss_lods = [stage-1]
         elif self.extra_args["growth_strategy"] == 'increase':
@@ -292,20 +334,18 @@ class BaseTrainer(ABC):
         """Begin epoch.
         """
         self.reset_data_iterator()
-        self.iteration = 1
-        self.pre_epoch(self.epoch)
+        self.pre_epoch()
         self.init_log_dict()
 
     def end_epoch(self):
         """End epoch.
         """
-        self.post_epoch(self.epoch)
-        self.iteration = 1
+        self.post_epoch()
 
         if self.extra_args["valid_every"] > -1 and \
                 self.epoch % self.extra_args["valid_every"] == 0 and \
                 self.epoch != 0:
-            self.validate(self.epoch)
+            self.validate()
             self.timer.check('validate')
 
         if self.epoch < self.num_epochs:
@@ -329,6 +369,7 @@ class BaseTrainer(ABC):
         """
         if self.scene_state.optimization.running:
             iter_start_time = time.time()
+            self.scene_state.optimization.iteration = self.iteration
             try:
                 if self.train_data_loader_iter is None:
                     self.begin_epoch()
@@ -338,81 +379,43 @@ class BaseTrainer(ABC):
                 self.end_epoch()
                 self.begin_epoch()
                 data = self.next_batch()
-            self.step(self.epoch, self.iteration, data)
+            self.pre_step()
+            self.step(data)
+            self.post_step()
             iter_end_time = time.time()
             self.scene_state.optimization.elapsed_time += iter_end_time - iter_start_time
 
-    #######################
-    # step
-    #######################
-
     @abstractmethod
-    def step(self, epoch, n_iter, data):
+    def step(self, data):
+        """Advance the training by one step using the batched data supplied.
+
+        data (dict): Dictionary of the input batch from the DataLoader.
+        """
         pass
     
-    #######################
-    # post_epoch
-    #######################
-    
-    def post_epoch(self, epoch):
+    def log_cli(self):
         """
-        Override this function to change the post-epoch post processing.
+        Override this function to change CLI logging.
 
-        By default, this function logs to Tensorboard, renders images to Tensorboard, saves the model,
-        and resamples the dataset.
-
-        To keep default behaviour but also augment with other features, do 
-          
-          super().post_epoch(self, epoch)
-
-        in the derived method.
-        """
-        self.pipeline.eval()
-
-        total_loss = self.log_dict['total_loss'] / self.log_dict['total_iter_count']
-        self.scene_state.optimization.losses['total_loss'].append(total_loss)
-
-        # Write to tensorboard
-        self.log_tb(epoch)
-
-        # Render visualizations to tensorboard
-        if self.render_every > -1 and epoch % self.render_every == 0:
-            self.render_images(epoch)
-        
-        # Save model
-        if self.save_every > -1 and epoch % self.save_every == 0:
-            self.save_model(epoch)
-
-        self.timer.check('post_epoch done')
-    
-    #######################
-    # post_epoch helper functions
-    #######################
-
-    def log_tb(self, epoch):
-        """
-        Override this function to change loss logging.
+        By default, this function only runs every epoch.
         """
         # Average over iterations
-        log_text = 'EPOCH {}/{}'.format(epoch, self.num_epochs)
-        self.log_dict['total_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'])
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
 
-        self.log_dict['l2_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | l2 loss: {:>.3E}'.format(self.log_dict['l2_loss'])
-        
-        # Log losses
-        self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
-        self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
-        if self.using_wandb:
-            log_metric_to_wandb("Loss/total_loss", self.log_dict['total_loss'], epoch)
-            log_metric_to_wandb("Loss/l2_loss", self.log_dict['l2_loss'], epoch)
-
-        log.info(log_text)
-
-    def render_images(self, epoch):
+    def log_tb(self):
         """
-        Override this function to change render logging.
+        Override this function to change loss / other numeric logging to TensorBoard / Wandb.
+        """
+        for key in self.log_dict:
+            if 'loss' in key:
+                self.writer.add_scalar(f'Loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
+                if self.using_wandb:
+                    log_metric_to_wandb(f'Loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
+    
+    def render_tb(self):
+        """
+        Override this function to change render logging to TensorBoard / Wandb.
         """
         self.pipeline.eval()
         for d in [self.extra_args["num_lods"] - 1]:
@@ -429,39 +432,22 @@ class BaseTrainer(ABC):
                 out.rgb[..., :3] += bg * (1.0 - out.rgb[..., 3:4])
             
             out = out.image().byte().numpy_dict()
-            if out.get('depth') is not None:
-                self.writer.add_image(f'Depth/{d}', out['depth'].T, epoch)
-                if self.using_wandb:
-                    log_images_to_wandb(f'Depth/{d}', out['depth'].T, epoch)
-            if out.get('hit') is not None:
-                self.writer.add_image(f'Hit/{d}', out['hit'].T, epoch)
-                if self.using_wandb:
-                    log_images_to_wandb(f'Hit/{d}', out['hit'].T, epoch)
-            if out.get('normal') is not None:
-                self.writer.add_image(f'Normal/{d}', out['normal'].T, epoch)
-                if self.using_wandb:
-                    log_images_to_wandb(f'Normal/{d}', out['normal'].T, epoch)
-            if out.get('rgba') is not None:
-                self.writer.add_image(f'RGBA/{d}', out['rgba'].T, epoch)
-                if self.using_wandb:
-                    log_images_to_wandb(f'RGBA/{d}', out['rgba'].T, epoch)
-            else:
-                if out.get('rgb') is not None:
-                    self.writer.add_image(f'RGB/{d}', out['rgb'].T, epoch)
+
+            log_buffers = ['depth', 'hit', 'normal', 'rgb', 'alpha']
+
+            for key in log_buffers:
+                if out.get(key) is not None:
+                    self.writer.add_image(f'{key}/{d}', out[key].T, self.epoch)
                     if self.using_wandb:
-                        log_images_to_wandb(f'RGB/{d}', out['rgb'].T, epoch)
-                if out.get('alpha') is not None:
-                    self.writer.add_image(f'Alpha/{d}', out['alpha'].T, epoch)
-                    if self.using_wandb:
-                        log_images_to_wandb(f'Alpha/{d}', out['alpha'].T, epoch)
-                
-    def save_model(self, epoch):
+                        log_images_to_wandb(f'{key}/{d}', out[key].T, self.epoch)
+
+    def save_model(self):
         """
         Override this function to change model saving.
         """
         
         if self.extra_args["save_as_new"]:
-            model_fname = os.path.join(self.log_dir, f'model-{epoch}.pth')
+            model_fname = os.path.join(self.log_dir, f'model-ep{self.epoch}-it{self.iteration}.pth')
         else:
             model_fname = os.path.join(self.log_dir, f'model.pth')
         
@@ -475,12 +461,8 @@ class BaseTrainer(ABC):
             name = wandb.util.make_artifact_name_safe(f"{wandb.run.name}-model")
             model_artifact = wandb.Artifact(name, type="model")
             model_artifact.add_file(model_fname)
-            wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
+            wandb.run.log_artifact(model_artifact, aliases=["latest", f"ep{self.epoch}_it{self.iteration}"])
         
-    #######################
-    # train
-    #######################
-
     def train(self):
         """
         Override this if some very specific training procedure is needed.
@@ -493,7 +475,7 @@ class BaseTrainer(ABC):
         self.writer.close()
 
     @abstractmethod
-    def validate(self, epoch=0):
+    def validate(self):
         pass
 
     #######################
