@@ -14,11 +14,16 @@ import random
 import pandas as pd
 import torch
 from lpips import LPIPS
-from wisp.trainers import BaseTrainer
+from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from wisp.utils import PerfTimer
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.core import Rays, RenderBuffer
+
+import wandb
+import numpy as np
+from tqdm import tqdm
+from PIL import Image
 
 class MultiviewTrainer(BaseTrainer):
 
@@ -100,8 +105,13 @@ class MultiviewTrainer(BaseTrainer):
         for key in self.log_dict:
             if 'loss' in key:
                 self.writer.add_scalar(f'Loss/{key}', self.log_dict[key], epoch)
+                if self.using_wandb:
+                    # wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch, commit=False)
+                    log_metric_to_wandb(f'Loss/{key}', self.log_dict[key], epoch)
 
         log.info(log_text)
+        if self.using_wandb:
+            wandb.log({})
 
         self.pipeline.eval()
 
@@ -151,6 +161,42 @@ class MultiviewTrainer(BaseTrainer):
  
         return {"psnr" : psnr_total, "lpips": lpips_total, "ssim": ssim_total}
 
+    def render_final_view(self, num_angles, camera_distance):
+        angles = np.pi * 0.1 * np.array(list(range(num_angles + 1)))
+        x = -camera_distance * np.sin(angles)
+        y = self.extra_args["camera_origin"][1]
+        z = -camera_distance * np.cos(angles)
+        for d in range(self.extra_args["num_lods"]):
+            out_rgb = []
+            for idx in tqdm(range(num_angles + 1), desc=f"Generating 360 Degree of View for LOD {d}"):
+                log_metric_to_wandb(f"LOD-{d}-360-Degree-Scene/step", idx, step=idx)
+                out = self.renderer.shade_images(
+                    self.pipeline,
+                    f=[x[idx], y, z[idx]],
+                    t=self.extra_args["camera_lookat"],
+                    fov=self.extra_args["camera_fov"],
+                    lod_idx=d,
+                    camera_clamp=self.extra_args["camera_clamp"]
+                )
+                out = out.image().byte().numpy_dict()
+                if out.get('rgb') is not None:
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/RGB", out['rgb'].T, idx)
+                    out_rgb.append(Image.fromarray(np.moveaxis(out['rgb'].T, 0, -1)))
+                if out.get('rgba') is not None:
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/RGBA", out['rgba'].T, idx)
+                if out.get('depth') is not None:
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Depth", out['depth'].T, idx)
+                if out.get('normal') is not None:
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Normal", out['normal'].T, idx)
+                if out.get('alpha') is not None:
+                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Alpha", out['alpha'].T, idx)
+                wandb.log({})
+        
+            rgb_gif = out_rgb[0]
+            gif_path = os.path.join(self.log_dir, "rgb.gif")
+            rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
+            wandb.log({f"360-Degree-Scene/RGB-Rendering/LOD-{d}": wandb.Video(gif_path)})
+
     def validate(self, epoch=0):
         self.pipeline.eval()
 
@@ -175,7 +221,12 @@ class MultiviewTrainer(BaseTrainer):
             os.makedirs(self.valid_log_dir)
 
         lods = list(range(self.pipeline.nef.num_lods))
-        record_dict.update(self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}"))
+        evaluation_results = self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
+        record_dict.update(evaluation_results)
+        if self.using_wandb:
+            log_metric_to_wandb("Validation/psnr", evaluation_results['psnr'], epoch)
+            log_metric_to_wandb("Validation/lpips", evaluation_results['lpips'], epoch)
+            log_metric_to_wandb("Validation/ssim", evaluation_results['ssim'], epoch)
         
         df = pd.DataFrame.from_records([record_dict])
         df['lod'] = lods[-1]

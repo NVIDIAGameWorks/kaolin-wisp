@@ -98,6 +98,28 @@ python3 app/main.py --config configs/nglod_nerf.yaml --dataset-path /path/to/V8 
 Take a look at `wisp/config_parser.py` for the list of different options you can pass in, and `configs/nglod_nerf.yaml` 
 for the options that are already passed in.
 
+### Experiment Tracking with [Weights & Biases](https://wandb.ai/site)
+
+To track training and validation metrics, render 3D interactive plots, reproduce your configurations and results, and many more features in your Weights & Biases workspace just add the additional flag `--wandb_project <your-project-name>` when initializing the training script.
+
+Complete list of features supported by Weights & Biases:
+
+- Log training and validation metrics in real time.
+- Log system metrics in real time.
+- Log RGB, RGBA, Depth renderings etc. during training.
+- Log interactive 360 degree renderings post training in all levels of detail.
+- Log model checkpoints as [Weights & Biases artifacts](https://wandb.ai/site/artifacts).
+- Sync experiment configs for reproducibility.
+- Host Tensorboard instance inside Weights & Biases run.
+
+The full list of optional arguments related to logging on Weights & Biases include:
+
+- `--wandb_project`: Name of Weights & Biases project
+- `--wandb_run_name`: Name of Weights & Biases run \[Optional\]
+- `--wandb_entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
+- `--wandb_viz_nerf_angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
+- `--wandb_viz_nerf_distance`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
+
 ### Interactive training
 
 To run the training task interactively using the renderer engine, run:
@@ -178,6 +200,13 @@ which are volumetric ghosts that are harder to model with common standard
 geometry representations like meshes. We provide a [multiview dataset](https://drive.google.com/file/d/1jKIkqm4XhdeEQwXTqbKlZw-9dO7kJfsZ/view) of the 
 wisp as a reference dataset for a volumetric object. 
 We also provide the [blender file and rendering scripts](https://drive.google.com/drive/folders/1Via1TOsnG-3mUkkGteEoRJdEYJEx3wgf?usp=sharing) if you want to generate specific data with this scene, please refer to the [readme.md](https://drive.google.com/file/d/1IrWKjxxrJOlD3C5lDYvejaSXiPtm_XI_/view?usp=sharing) for greater details on how to generate the data. 
+
+## External Contributions
+
+We welcome & encourage external contributions to the codebase!
+Special thanks for community members:
+* [lightfield botanist](https://github.com/3a1b2c3)
+* [Soumik Rakshit](https://github.com/soumik12345)
 
 ## Thanks
 

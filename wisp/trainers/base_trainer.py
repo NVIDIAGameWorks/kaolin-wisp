@@ -18,6 +18,17 @@ from wisp.framework import WispState, BottomLevelRendererState
 from wisp.utils import PerfTimer
 from wisp.datasets import default_collate
 
+import wandb
+import numpy as np
+
+
+def log_metric_to_wandb(key, _object, step):
+    wandb.log({key: _object}, step=step, commit=False)
+
+
+def log_images_to_wandb(key, image, step):
+    wandb.log({key: wandb.Image(np.moveaxis(image, 0, -1))}, step=step, commit=False)
+
 
 class BaseTrainer(ABC):
     """
@@ -38,7 +49,7 @@ class BaseTrainer(ABC):
 
             post_epoch()
             |- log_tb()
-            |- render_tb()
+            |- render_images()
             |- save_model()
             |- resample_dataset()
 
@@ -56,7 +67,7 @@ class BaseTrainer(ABC):
     def __init__(self, pipeline, dataset, num_epochs, batch_size,
                  optim_cls, lr, weight_decay, grid_lr_weight, optim_params, log_dir, device,
                  exp_name=None, info=None, scene_state=None, extra_args=None,
-                 render_every=-1, save_every=-1):
+                 render_every=-1, save_every=-1, using_wandb=False):
         """Constructor.
         
         Args:
@@ -147,7 +158,16 @@ class BaseTrainer(ABC):
         self.writer.add_text('Info', self.info)
         self.render_every = render_every
         self.save_every = save_every
+        self.using_wandb = using_wandb
         self.timer.check('set_logger')
+        
+        if self.using_wandb:
+            for d in range(self.extra_args["num_lods"]):
+                wandb.define_metric(f"LOD-{d}-360-Degree-Scene")
+                wandb.define_metric(
+                    f"LOD-{d}-360-Degree-Scene",
+                    step_metric=f"LOD-{d}-360-Degree-Scene/step"
+                )
 
     def init_dataloader(self):
         self.train_data_loader = DataLoader(self.dataset,
@@ -357,7 +377,7 @@ class BaseTrainer(ABC):
 
         # Render visualizations to tensorboard
         if self.render_every > -1 and epoch % self.render_every == 0:
-            self.render_tb(epoch)
+            self.render_images(epoch)
         
         # Save model
         if self.save_every > -1 and epoch % self.save_every == 0:
@@ -384,10 +404,13 @@ class BaseTrainer(ABC):
         # Log losses
         self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
         self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
+        if self.using_wandb:
+            log_metric_to_wandb("Loss/total_loss", self.log_dict['total_loss'], epoch)
+            log_metric_to_wandb("Loss/l2_loss", self.log_dict['l2_loss'], epoch)
 
         log.info(log_text)
 
-    def render_tb(self, epoch):
+    def render_images(self, epoch):
         """
         Override this function to change render logging.
         """
@@ -408,17 +431,29 @@ class BaseTrainer(ABC):
             out = out.image().byte().numpy_dict()
             if out.get('depth') is not None:
                 self.writer.add_image(f'Depth/{d}', out['depth'].T, epoch)
+                if self.using_wandb:
+                    log_images_to_wandb(f'Depth/{d}', out['depth'].T, epoch)
             if out.get('hit') is not None:
                 self.writer.add_image(f'Hit/{d}', out['hit'].T, epoch)
+                if self.using_wandb:
+                    log_images_to_wandb(f'Hit/{d}', out['hit'].T, epoch)
             if out.get('normal') is not None:
                 self.writer.add_image(f'Normal/{d}', out['normal'].T, epoch)
+                if self.using_wandb:
+                    log_images_to_wandb(f'Normal/{d}', out['normal'].T, epoch)
             if out.get('rgba') is not None:
                 self.writer.add_image(f'RGBA/{d}', out['rgba'].T, epoch)
+                if self.using_wandb:
+                    log_images_to_wandb(f'RGBA/{d}', out['rgba'].T, epoch)
             else:
                 if out.get('rgb') is not None:
                     self.writer.add_image(f'RGB/{d}', out['rgb'].T, epoch)
+                    if self.using_wandb:
+                        log_images_to_wandb(f'RGB/{d}', out['rgb'].T, epoch)
                 if out.get('alpha') is not None:
                     self.writer.add_image(f'Alpha/{d}', out['alpha'].T, epoch)
+                    if self.using_wandb:
+                        log_images_to_wandb(f'Alpha/{d}', out['alpha'].T, epoch)
                 
     def save_model(self, epoch):
         """
@@ -435,6 +470,12 @@ class BaseTrainer(ABC):
             torch.save(self.pipeline, model_fname)
         else:
             torch.save(self.pipeline.state_dict(), model_fname)
+        
+        if self.using_wandb:
+            name = wandb.util.make_artifact_name_safe(f"{wandb.run.name}-model")
+            model_artifact = wandb.Artifact(name, type="model")
+            model_artifact.add_file(model_fname)
+            wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
         
     #######################
     # train
