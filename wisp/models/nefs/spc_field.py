@@ -3,6 +3,7 @@ import torch
 from wisp.models.grids import OctreeGrid
 from wisp.models.nefs.nerf import NeuralRadianceField, BaseNeuralField
 import wisp.ops.spc as wisp_spc_ops
+import kaolin.ops.spc as kaolin_ops_spc
 
 
 class SPCField(BaseNeuralField):
@@ -82,8 +83,15 @@ class SPCField(BaseNeuralField):
             if self.normals is not None:
                 colors = 0.5 * (normals + 1.0)
             else:
-                # TODO (operel): support mono color to display topology
-                raise NotImplementedError('SPCFields currently do not support SPC objects without features')
+                # manufacture colors from point coordinates
+                lengths = torch.tensor([len(octree)], dtype=torch.int32)
+                level, pyramids, exsum = kaolin_ops_spc.scan_octrees(octree, lengths)
+                point_hierarchies = kaolin_ops_spc.generate_points(octree, pyramids, exsum)
+                # get coordinate of highest level
+                colors = point_hierarchies[pyramids[0,1,level]:]
+                # normalize
+                colors = colors/np.power(2, level)
+
             self.colors = colors
 
         # By default assume the SPC keeps features only at the highest LOD.
