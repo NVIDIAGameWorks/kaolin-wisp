@@ -27,28 +27,23 @@ from PIL import Image
 
 class MultiviewTrainer(BaseTrainer):
 
-    def pre_epoch(self, epoch):
-        """Override pre_epoch to support pruning.
+    def pre_step(self):
+        """Override pre_step to support pruning.
         """
-        super().pre_epoch(epoch)   
+        super().pre_step()
         
-        if self.extra_args["prune_every"] > -1 and epoch > 0 and epoch % self.extra_args["prune_every"] == 0:
+        if self.extra_args["prune_every"] > -1 and self.iteration > 0 and self.iteration % self.extra_args["prune_every"] == 0:
             self.pipeline.nef.prune()
-            self.init_optimizer()
 
     def init_log_dict(self):
         """Custom log dict.
         """
-        self.log_dict['total_loss'] = 0
-        self.log_dict['total_iter_count'] = 0
+        super().init_log_dict()
         self.log_dict['rgb_loss'] = 0.0
-        self.log_dict['image_count'] = 0
 
-    def step(self, epoch, n_iter, data):
+    def step(self, data):
         """Implement the optimization over image-space loss.
         """
-        self.scene_state.optimization.iteration = n_iter
-
         timer = PerfTimer(activate=False, show_memory=False)
 
         # Map to device
@@ -87,7 +82,6 @@ class MultiviewTrainer(BaseTrainer):
             timer.check("loss")
 
         self.log_dict['total_loss'] += loss.item()
-        self.log_dict['total_iter_count'] += 1
         
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
@@ -95,27 +89,14 @@ class MultiviewTrainer(BaseTrainer):
 
         timer.check("backward and step")
         
-    def log_tb(self, epoch):
-        log_text = 'EPOCH {}/{}'.format(epoch, self.num_epochs)
-        self.log_dict['total_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'])
-        self.log_dict['rgb_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'])
+    def log_cli(self):
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
+        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
         
-        for key in self.log_dict:
-            if 'loss' in key:
-                self.writer.add_scalar(f'Loss/{key}', self.log_dict[key], epoch)
-                if self.using_wandb:
-                    # wandb.log({f'Loss/{key}': self.log_dict[key]}, step=epoch, commit=False)
-                    log_metric_to_wandb(f'Loss/{key}', self.log_dict[key], epoch)
-
         log.info(log_text)
-        if self.using_wandb:
-            wandb.log({})
 
-        self.pipeline.eval()
-
-    def evaluate_metrics(self, epoch, rays, imgs, lod_idx, name=None):
+    def evaluate_metrics(self, rays, imgs, lod_idx, name=None):
         
         ray_os = list(rays.origins)
         ray_ds = list(rays.dirs)
@@ -153,7 +134,7 @@ class MultiviewTrainer(BaseTrainer):
         lpips_total /= len(imgs)  
         ssim_total /= len(imgs)
                 
-        log_text = 'EPOCH {}/{}'.format(epoch, self.num_epochs)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
         log_text += ' | {}: {:.2f}'.format(f"{name} PSNR", psnr_total)
         log_text += ' | {}: {:.6f}'.format(f"{name} SSIM", ssim_total)
         log_text += ' | {}: {:.6f}'.format(f"{name} LPIPS", lpips_total)
@@ -196,14 +177,14 @@ class MultiviewTrainer(BaseTrainer):
             gif_path = os.path.join(self.log_dir, "rgb.gif")
             rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
             wandb.log({f"360-Degree-Scene/RGB-Rendering/LOD-{d}": wandb.Video(gif_path)})
-
-    def validate(self, epoch=0):
+    
+    def validate(self):
         self.pipeline.eval()
 
         record_dict = self.extra_args
         dataset_name = os.path.splitext(os.path.basename(self.extra_args['dataset_path']))[0]
         model_fname = os.path.abspath(os.path.join(self.log_dir, f'model.pth'))
-        record_dict.update({"dataset_name" : dataset_name, "epoch": epoch, 
+        record_dict.update({"dataset_name" : dataset_name, "epoch": self.epoch, 
                             "log_fname" : self.log_fname, "model_fname": model_fname})
         parent_log_dir = os.path.dirname(self.log_dir)
 
@@ -221,12 +202,12 @@ class MultiviewTrainer(BaseTrainer):
             os.makedirs(self.valid_log_dir)
 
         lods = list(range(self.pipeline.nef.num_lods))
-        evaluation_results = self.evaluate_metrics(epoch, data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
+        evaluation_results = self.evaluate_metrics(data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
         record_dict.update(evaluation_results)
         if self.using_wandb:
-            log_metric_to_wandb("Validation/psnr", evaluation_results['psnr'], epoch)
-            log_metric_to_wandb("Validation/lpips", evaluation_results['lpips'], epoch)
-            log_metric_to_wandb("Validation/ssim", evaluation_results['ssim'], epoch)
+            log_metric_to_wandb("Validation/psnr", evaluation_results['psnr'], self.epoch)
+            log_metric_to_wandb("Validation/lpips", evaluation_results['lpips'], self.epoch)
+            log_metric_to_wandb("Validation/ssim", evaluation_results['ssim'], self.epoch)
         
         df = pd.DataFrame.from_records([record_dict])
         df['lod'] = lods[-1]

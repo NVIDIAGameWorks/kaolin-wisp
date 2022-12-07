@@ -31,12 +31,11 @@ class SDFTrainer(BaseTrainer):
     def init_log_dict(self):
         """Custom logging dictionary.
         """
-        self.log_dict['total_loss'] = 0
-        self.log_dict['total_iter_count'] = 0
+        super().init_log_dict()
         self.log_dict['rgb_loss'] = 0
         self.log_dict['l2_loss'] = 0
 
-    def step(self, epoch, n_iter, data):
+    def step(self, data):
         """Implement training from ground truth TSDF.
         """
         # Map to device
@@ -86,38 +85,23 @@ class SDFTrainer(BaseTrainer):
 
         # Update logs
         self.log_dict['l2_loss'] += _l2_loss.item()
-        self.log_dict['total_loss'] += loss.item() * batch_size
-        self.log_dict['total_iter_count'] += batch_size
+        self.log_dict['total_loss'] += loss.item() 
 
         # Backpropagate
         loss.backward()
         self.optimizer.step()
 
-    def log_tb(self, epoch):
+    def log_cli(self):
         """Override logging.
         """
-        log_text = 'EPOCH {}/{}'.format(epoch, self.num_epochs)
-        self.log_dict['total_loss'] /= self.log_dict['total_iter_count'] + 1e-6
-        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'])
-        self.log_dict['l2_loss'] /= self.log_dict['total_iter_count'] + 1e-6
-        log_text += ' | l2 loss: {:>.3E}'.format(self.log_dict['l2_loss'])
-        self.log_dict['rgb_loss'] /= self.log_dict['total_iter_count'] + 1e-6
-        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'])
-
-        self.writer.add_scalar('Loss/l2_loss', self.log_dict['l2_loss'], epoch)
-        self.writer.add_scalar('Loss/rgb_loss', self.log_dict['rgb_loss'], epoch)
-        if self.using_wandb:
-            log_metric_to_wandb("Loss/l2_loss", self.log_dict['l2_loss'], epoch)
-            log_metric_to_wandb("Loss/rgb_loss", self.log_dict['rgb_loss'], epoch)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
+        log_text += ' | l2 loss: {:>.3E}'.format(self.log_dict['l2_loss'] / len(self.train_data_loader))
+        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
         log.info(log_text)
 
-        # Log losses
-        self.writer.add_scalar('Loss/total_loss', self.log_dict['total_loss'], epoch)
-        if self.using_wandb:
-            log_metric_to_wandb("Loss/total_loss", self.log_dict['total_loss'], epoch)
-
-    def render_images(self, epoch):
-        super().render_images(epoch)
+    def render_tb(self):
+        super().render_tb()
 
         self.pipeline.eval()
         for d in [self.extra_args["num_lods"] - 1]:
@@ -125,15 +109,15 @@ class SDFTrainer(BaseTrainer):
                 out_x = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=0)
                 out_y = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=1)
                 out_z = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=2)
-                self.writer.add_image(f'Cross-section/X/{d}', hwc_to_chw(out_x), epoch)
-                self.writer.add_image(f'Cross-section/Y/{d}', hwc_to_chw(out_y), epoch)
-                self.writer.add_image(f'Cross-section/Z/{d}', hwc_to_chw(out_z), epoch)
+                self.writer.add_image(f'Cross-section/X/{d}', hwc_to_chw(out_x), self.epoch)
+                self.writer.add_image(f'Cross-section/Y/{d}', hwc_to_chw(out_y), self.epoch)
+                self.writer.add_image(f'Cross-section/Z/{d}', hwc_to_chw(out_z), self.epoch)
                 if self.using_wandb:
-                    log_images_to_wandb(f'Cross-section/X/{d}', hwc_to_chw(out_x), epoch)
-                    log_images_to_wandb(f'Cross-section/Y/{d}', hwc_to_chw(out_y), epoch)
-                    log_images_to_wandb(f'Cross-section/Z/{d}', hwc_to_chw(out_z), epoch)
+                    log_images_to_wandb(f'Cross-section/X/{d}', hwc_to_chw(out_x), self.epoch)
+                    log_images_to_wandb(f'Cross-section/Y/{d}', hwc_to_chw(out_y), self.epoch)
+                    log_images_to_wandb(f'Cross-section/Z/{d}', hwc_to_chw(out_z), self.epoch)
 
-    def validate(self, epoch=0):
+    def validate(self):
         """Implement validation. Just computes IOU.
         """
             
@@ -162,12 +146,12 @@ class SDFTrainer(BaseTrainer):
                 pred = self.pipeline.nef(coords=pts, lod_idx=lod_idx, channels="sdf")
                 val_dict[metric_name] += [float(compute_sdf_iou(pred, gts))]
 
-        log_text = 'EPOCH {}/{}'.format(epoch, self.num_epochs)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
 
         for k, v in val_dict.items():
             score_total = 0.0
             for lod, score in zip(self.loss_lods, v):
-                self.writer.add_scalar(f'Validation/{k}/{lod}', score, epoch+1)
+                self.writer.add_scalar(f'Validation/{k}/{lod}', score, self.epoch)
                 score_total += score
             log_text += ' | {}: {:.4f}'.format(k, score_total / len(v))
         log.info(log_text)

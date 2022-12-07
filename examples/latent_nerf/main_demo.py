@@ -24,7 +24,7 @@ def create_trainer(args, scene_state):
                                            optim_cls, args.lr, args.weight_decay,
                                            args.grid_lr_weight, optim_params, args.log_dir, device,
                                            exp_name=args.exp_name, info=args_str, extra_args=vars(args),
-                                           render_every=args.render_every, save_every=args.save_every,
+                                           render_tb_every=args.render_tb_every, save_every=args.save_every,
                                            scene_state=scene_state)
     return trainer
 

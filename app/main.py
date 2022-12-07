@@ -20,21 +20,6 @@ if __name__ == "__main__":
 
     # Usual boilerplate
     parser = parse_options(return_parser=True)
-    parser.add_argument("--wandb_project", type=str, default=None, help="Weights & Biases Project")
-    parser.add_argument("--wandb_run_name", type=str, default=None, help="Weights & Biases Run Name")
-    parser.add_argument("--wandb_entity", type=str, default=None, help="Weights & Biases Entity")
-    parser.add_argument(
-        "--wandb_viz_nerf_angles",
-        type=int,
-        default=20,
-        help="Number of Angles to visualize a scene on Weights & Biases. Set this to 0 to disable 360 degree visualizations."
-    )
-    parser.add_argument(
-        "--wandb_viz_nerf_distance",
-        type=int,
-        default=3,
-        help="Distance to visualize Scene from on Weights & Biases"
-    )
     app_utils.add_log_level_flag(parser)
     app_group = parser.add_argument_group('app')
     # Add custom args if needed for app
@@ -58,7 +43,7 @@ if __name__ == "__main__":
                                       optim_cls, args.lr, args.weight_decay,
                                       args.grid_lr_weight, optim_params, args.log_dir, device,
                                       exp_name=args.exp_name, info=args_str, extra_args=vars(args),
-                                      render_every=args.render_every, save_every=args.save_every, using_wandb=using_wandb)
+                                      render_tb_every=args.render_tb_every, save_every=args.save_every, using_wandb=using_wandb)
     if args.valid_only:
         trainer.validate()
     else:
