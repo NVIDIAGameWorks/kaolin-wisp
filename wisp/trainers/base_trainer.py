@@ -179,7 +179,8 @@ class BaseTrainer(ABC):
         self.train_data_loader = DataLoader(self.dataset,
                                             batch_size=self.batch_size,
                                             collate_fn=default_collate,
-                                            shuffle=True, pin_memory=True, num_workers=0)
+                                            shuffle=True, pin_memory=True, 
+                                            num_workers=self.extra_args['dataloader_num_workers'])
 
     def init_optimizer(self):
         """Default initialization for the optimizer.
@@ -341,8 +342,6 @@ class BaseTrainer(ABC):
     def end_epoch(self):
         """End epoch.
         """
-        self.post_epoch()
-        
         current_time = time.time()
         elapsed_time = current_time - self.epoch_start_time 
         self.epoch_start_time = current_time
@@ -350,7 +349,8 @@ class BaseTrainer(ABC):
         self.writer.add_scalar(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
         if self.using_wandb:
             log_metric_to_wandb(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
-
+        
+        self.post_epoch()
 
         if self.extra_args["valid_every"] > -1 and \
                 self.epoch % self.extra_args["valid_every"] == 0 and \

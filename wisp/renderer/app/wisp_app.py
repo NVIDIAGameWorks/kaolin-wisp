@@ -170,7 +170,7 @@ class WispApp(ABC):
         be customized to affect the behaviour of the renderer.
         """
         # Channels available to view over the canvas
-        wisp_state.renderer.available_canvas_channels = ["rgb"]
+        wisp_state.renderer.available_canvas_channels = ["rgb", "depth"]
         wisp_state.renderer.selected_canvas_channel = "rgb"
 
     def create_widgets(self) -> List[WidgetImgui]:

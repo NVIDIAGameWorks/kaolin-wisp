@@ -15,9 +15,8 @@ class SampleRays:
         self.num_samples = num_samples
 
     def __call__(self, inputs):
-        ray_idx = torch.randperm(
-            inputs['imgs'].shape[0],
-            device=inputs['imgs'].device)[:self.num_samples]
+        ray_idx = torch.randint(0, inputs['imgs'].shape[0], [self.num_samples],
+            device=inputs['imgs'].device)
 
         out = {}
         out['rays'] = inputs['rays'][ray_idx].contiguous()
