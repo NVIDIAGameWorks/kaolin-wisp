@@ -38,12 +38,13 @@ hash_index(
     return index;
 }
 
-__device__ float 
+__inline__ __device__ float 
 clamp(float x, float a, float b)
 {
     return max(a, min(b, x));
 }
 
+template<typename scalar_t>
 __global__ void
 hashgrid_interpolate_cuda_kernel(
     const int64_t num_coords,
@@ -52,9 +53,9 @@ hashgrid_interpolate_cuda_kernel(
     const int32_t resolution,
     const int32_t lod_idx,
     const int32_t num_lods,
-    const float* coords,
-    const float* codebook,
-    float* feats
+    const float* __restrict__ coords,
+    const scalar_t* __restrict__ codebook,
+    scalar_t* __restrict__ feats
 ){
     uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
     int64_t stride = blockDim.x*gridDim.x;
@@ -64,7 +65,9 @@ hashgrid_interpolate_cuda_kernel(
                                clamp(resolution * (coords[i*3+1] * 0.5 + 0.5), 0, resolution-1-1e-5), 
                                clamp(resolution * (coords[i*3+2] * 0.5 + 0.5), 0, resolution-1-1e-5));
         int3 pos = make_int3(floor(x.x), floor(x.y), floor(x.z));
-        float3 x_ = make_float3(x.x - (float) pos.x, x.y - (float) pos.y, x.z - (float) pos.z);
+        float3 x_ = make_float3(x.x - static_cast<float>(pos.x), 
+                                x.y - static_cast<float>(pos.y), 
+                                x.z - static_cast<float>(pos.z));
         float3 _x = make_float3(1.0 - x_.x, 1.0 - x_.y, 1.0 - x_.z);
 
         float c000 = _x.x * _x.y * _x.z;
@@ -88,15 +91,15 @@ hashgrid_interpolate_cuda_kernel(
         
         for (uint64_t j=0; j<feature_dim; ++j) {
             float feat =
-                codebook[corner_idx[0]*feature_dim+j] * c000 + 
-                codebook[corner_idx[1]*feature_dim+j] * c001 + 
-                codebook[corner_idx[2]*feature_dim+j] * c010 + 
-                codebook[corner_idx[3]*feature_dim+j] * c011 +
-                codebook[corner_idx[4]*feature_dim+j] * c100 + 
-                codebook[corner_idx[5]*feature_dim+j] * c101 + 
-                codebook[corner_idx[6]*feature_dim+j] * c110 +
-                codebook[corner_idx[7]*feature_dim+j] * c111;
-            feats[num_lods*i*feature_dim+feature_dim*lod_idx+j] = feat;
+                static_cast<float>(codebook[corner_idx[0]*feature_dim+j]) * c000 + 
+                static_cast<float>(codebook[corner_idx[1]*feature_dim+j]) * c001 + 
+                static_cast<float>(codebook[corner_idx[2]*feature_dim+j]) * c010 + 
+                static_cast<float>(codebook[corner_idx[3]*feature_dim+j]) * c011 +
+                static_cast<float>(codebook[corner_idx[4]*feature_dim+j]) * c100 + 
+                static_cast<float>(codebook[corner_idx[5]*feature_dim+j]) * c101 + 
+                static_cast<float>(codebook[corner_idx[6]*feature_dim+j]) * c110 +
+                static_cast<float>(codebook[corner_idx[7]*feature_dim+j]) * c111;
+            feats[num_lods*i*feature_dim+feature_dim*lod_idx+j] = static_cast<scalar_t>(feat);
         }
     }
 } 
@@ -114,21 +117,24 @@ void hashgrid_interpolate_cuda_impl(
 
     int num_threads = 512;
     
-    const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats));
-    auto stream = at::cuda::getCurrentCUDAStream();
-    hashgrid_interpolate_cuda_kernel<<<(num_coords + num_threads - 1) / num_threads, num_threads, 0, stream>>>(
-        num_coords,
-        codebook_size,
-        feature_dim,
-        resolution,
-        lod_idx,
-        num_lods,
-        coords.data_ptr<float>(),
-        codebook.data_ptr<float>(),
-        feats.data_ptr<float>()
-    );
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(feats.type(), "hashgrid_interpolate_cuda", ([&] {
+        const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats));
+        auto stream = at::cuda::getCurrentCUDAStream();
+        hashgrid_interpolate_cuda_kernel<<<(num_coords + num_threads - 1) / num_threads, num_threads, 0, stream>>>(
+            num_coords,
+            codebook_size,
+            feature_dim,
+            resolution,
+            lod_idx,
+            num_lods,
+            coords.data_ptr<float>(),
+            codebook.data_ptr<scalar_t>(),
+            feats.data_ptr<scalar_t>()
+        );
+    }));
 }
 
+template<typename scalar_t>
 __global__ void
 hashgrid_interpolate_backward_cuda_kernel(
     const int64_t num_coords,
@@ -137,9 +143,9 @@ hashgrid_interpolate_backward_cuda_kernel(
     const int32_t resolution,
     const int32_t lod_idx,
     const int32_t num_lods,
-    const float* coords,
-    const float* grad_output, // N, feature_dim*num_lods
-    float* grad_codebook // codebook_size, feature_dim
+    const float* __restrict__ coords,
+    const scalar_t* __restrict__ grad_output, // N, feature_dim*num_lods
+    scalar_t* __restrict__ grad_codebook // codebook_size, feature_dim
 ){
     uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
     int64_t stride = blockDim.x*gridDim.x;
@@ -149,7 +155,9 @@ hashgrid_interpolate_backward_cuda_kernel(
                                clamp(resolution * (coords[i*3+1] * 0.5 + 0.5), 0, resolution-1-1e-5), 
                                clamp(resolution * (coords[i*3+2] * 0.5 + 0.5), 0, resolution-1-1e-5));
         int3 pos = make_int3(floor(x.x), floor(x.y), floor(x.z));
-        float3 x_ = make_float3(x.x - (float) pos.x, x.y - (float) pos.y, x.z - (float) pos.z);
+        float3 x_ = make_float3(x.x - static_cast<float>(pos.x), 
+                                x.y - static_cast<float>(pos.y), 
+                                x.z - static_cast<float>(pos.z));
         float3 _x = make_float3(1.0 - x_.x, 1.0 - x_.y, 1.0 - x_.z);
 
 
@@ -164,6 +172,7 @@ hashgrid_interpolate_backward_cuda_kernel(
         coeffs[7] = x_.x * x_.y * x_.z;
         
         int32_t corner_idx[8];
+
 #       pragma unroll
         for (int j=0; j<8; ++j) {
             int3 corner;
@@ -172,17 +181,32 @@ hashgrid_interpolate_backward_cuda_kernel(
             corner.z = pos.z + ((j & 1) >> 0);
             corner_idx[j] = hash_index(corner, resolution, codebook_size);
         }
-
-        for (uint64_t j=0; j<feature_dim; ++j) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+        if (std::is_same<scalar_t, at::Half>::value) {
+            for (uint64_t j=0; j<feature_dim; j += 2) {
 #           pragma unroll
-            for (int k=0; k<8; ++k) {
-                float grad =
-                    grad_output[i*num_lods*feature_dim + lod_idx*feature_dim + j] * coeffs[k];
-                atomicAdd(grad_codebook + (corner_idx[k]*feature_dim + j), grad);
+                for (int k=0; k<8; ++k) {
+                    uint64_t _idx = i*num_lods*feature_dim + lod_idx*feature_dim;
+                    __half2 grad = reinterpret_cast<const __half2*>(grad_output)[(_idx + j) / 2];
+                    grad = __floats2half2_rn(__half2float(grad.x) * coeffs[k],
+                                             __half2float(grad.y) * coeffs[k]);
+                    atomicAdd((__half2*)(grad_codebook + (corner_idx[k]*feature_dim + j)), grad);
+                }
+            }
+        } else
+#endif
+        {
+            for (uint64_t j=0; j<feature_dim; ++j) {
+#           pragma unroll
+                for (int k=0; k<8; ++k) {
+                    float grad =
+                        grad_output[i*num_lods*feature_dim + lod_idx*feature_dim + j] * coeffs[k];
+                    atomicAdd((float*)(grad_codebook + (corner_idx[k]*feature_dim + j)), grad);
+                }
             }
         }
     }
-} 
+}
 
 void hashgrid_interpolate_backward_cuda_impl(
     int64_t num_coords, 
@@ -197,19 +221,21 @@ void hashgrid_interpolate_backward_cuda_impl(
 
     int num_threads = 512;
 
-    const at::cuda::OptionalCUDAGuard device_guard(at::device_of(grad_codebook));
-    auto stream = at::cuda::getCurrentCUDAStream();
-    hashgrid_interpolate_backward_cuda_kernel<<<(num_coords + num_threads - 1) / num_threads, num_threads, 0, stream>>>(
-        num_coords,
-        codebook_size,
-        feature_dim,
-        resolution,
-        lod_idx,
-        num_lods,
-        coords.data_ptr<float>(),
-        grad_output.data_ptr<float>(),
-        grad_codebook.data_ptr<float>()
-    );
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(grad_output.type(), "hashgrid_interpolate_backward_cuda", ([&] {
+        const at::cuda::OptionalCUDAGuard device_guard(at::device_of(grad_codebook));
+        auto stream = at::cuda::getCurrentCUDAStream();
+        hashgrid_interpolate_backward_cuda_kernel<<<(num_coords + num_threads - 1) / num_threads, num_threads, 0, stream>>>(
+            num_coords,
+            codebook_size,
+            feature_dim,
+            resolution,
+            lod_idx,
+            num_lods,
+            coords.data_ptr<float>(),
+            grad_output.data_ptr<scalar_t>(),
+            grad_codebook.data_ptr<scalar_t>()
+        );
+    }));
 }
 
 } // namespace wisp

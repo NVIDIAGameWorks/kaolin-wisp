@@ -10,7 +10,7 @@ global:
     exp_name: 'test-ngp-nerf'
 
 optimizer:
-    optimizer_type: 'rmsprop'
+    optimizer_type: 'adam'
     lr: 0.001
 
 dataset:
@@ -41,7 +41,7 @@ trainer:
     model_format: 'full'
     valid_every: 50
     save_every: 10
-    prune_every: 25 # iterations
+    prune_every: 100 # iterations
     render_tb_every: 10
 
 grid:
