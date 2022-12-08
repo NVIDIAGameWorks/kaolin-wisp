@@ -336,11 +336,21 @@ class BaseTrainer(ABC):
         self.reset_data_iterator()
         self.pre_epoch()
         self.init_log_dict()
+        self.epoch_start_time = time.time()
 
     def end_epoch(self):
         """End epoch.
         """
         self.post_epoch()
+        
+        current_time = time.time()
+        elapsed_time = current_time - self.epoch_start_time 
+        self.epoch_start_time = current_time
+        # TODO(ttakikawa): Don't always write to TB
+        self.writer.add_scalar(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
+        if self.using_wandb:
+            log_metric_to_wandb(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
+
 
         if self.extra_args["valid_every"] > -1 and \
                 self.epoch % self.extra_args["valid_every"] == 0 and \
@@ -409,9 +419,9 @@ class BaseTrainer(ABC):
         """
         for key in self.log_dict:
             if 'loss' in key:
-                self.writer.add_scalar(f'Loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
+                self.writer.add_scalar(f'loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
                 if self.using_wandb:
-                    log_metric_to_wandb(f'Loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
+                    log_metric_to_wandb(f'loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
     
     def render_tb(self):
         """

@@ -52,7 +52,7 @@ class MultiviewTrainer(BaseTrainer):
 
         timer.check("map to device")
 
-        self.optimizer.zero_grad(set_to_none=True)
+        self.optimizer.zero_grad()
         
         timer.check("zero grad")
             

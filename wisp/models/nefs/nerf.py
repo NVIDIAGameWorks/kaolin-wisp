@@ -16,7 +16,6 @@ import math
 import copy
 
 from wisp.ops.spc import sample_spc
-from wisp.utils import PsDebugger, PerfTimer
 from wisp.ops.geometric import sample_unif_sphere
 
 from wisp.models.nefs import BaseNeuralField
@@ -92,13 +91,12 @@ class NeuralRadianceField(BaseNeuralField):
             if self.grid_type == "HashGrid":
                 # TODO(ttakikawa): Expose these parameters. 
                 # This is still an experimental feature for the most part. It does work however.
-                density_decay = 0.6
-                min_density = ((0.01 * 512)/np.sqrt(3))
+                density_decay = self.kwargs['prune_density_decay']
+                min_density = self.kwargs['prune_min_density']
 
                 self.grid.occupancy = self.grid.occupancy.cuda()
                 self.grid.occupancy = self.grid.occupancy * density_decay
                 points = self.grid.dense_points.cuda()
-                #idx = torch.randperm(points.shape[0]) # [:N] to subsample
                 res = 2.0**self.grid.blas_level
                 samples = torch.rand(points.shape[0], 3, device=points.device)
                 samples = points.float() + samples
@@ -110,13 +108,12 @@ class NeuralRadianceField(BaseNeuralField):
                 self.grid.occupancy = torch.stack([density[:, 0, 0], self.grid.occupancy], -1).max(dim=-1)[0]
 
                 mask = self.grid.occupancy > min_density
-                
-                #print(density.mean())
-                #print(density.max())
-                #print(mask.sum())
-                #print(self.grid.occupancy.max())
 
                 _points = points[mask]
+                
+                if _points.shape[0] == 0:
+                    return
+
                 octree = spc_ops.unbatched_points_to_octree(_points, self.grid.blas_level, sorted=True)
                 self.grid.blas.init(octree)
             else:
@@ -150,34 +147,28 @@ class NeuralRadianceField(BaseNeuralField):
                 - RGB tensor of shape [batch, num_samples, 3] 
                 - Density tensor of shape [batch, num_samples, 1]
         """
-        timer = PerfTimer(activate=False, show_memory=True)
         if lod_idx is None:
             lod_idx = len(self.grid.active_lods) - 1
         batch, num_samples, _ = coords.shape
-        timer.check("rf_rgba_preprocess")
         
         # Embed coordinates into high-dimensional vectors with the grid.
         feats = self.grid.interpolate(coords, lod_idx).reshape(-1, self.effective_feature_dim)
-        timer.check("rf_rgba_interpolate")
         
         if self.position_input:
             raise NotImplementedError
 
         # Decode high-dimensional vectors to RGBA.
         density_feats = self.decoder_density(feats)
-        timer.check("rf_rgba_decode")
         
         # Optionally concat the positions to the embedding, and also concatenate embedded view directions.
         fdir = torch.cat([density_feats,
             self.view_embedder(-ray_d)[:,None].repeat(1, num_samples, 1).view(-1, self.view_embed_dim)], dim=-1)
-        timer.check("rf_rgba_embed_cat")
 
         # Colors are values [0, 1] floats
         colors = torch.sigmoid(self.decoder_color(fdir)).reshape(batch, num_samples, 3)
 
         # Density is [particles / meter], so need to be multiplied by distance
         density = torch.relu(density_feats[...,0:1]).reshape(batch, num_samples, 1)
-        timer.check("rf_rgba_activation")
         
         return dict(rgb=colors, density=density)
 

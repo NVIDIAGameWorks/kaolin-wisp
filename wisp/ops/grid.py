@@ -71,9 +71,13 @@ class HashGridInterpolate(torch.autograd.Function):
     # TODO(ttakikawa): This class should also support the 2D case... which also means I have to write another kernel!
 
     @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
     def forward(ctx, coords, resolutions, codebook_bitwidth, lod_idx, *codebook):
+        if codebook[0].shape[-1] % 2 == 1:
+            raise Exception("The codebook feature dimension needs to be a multiple of 2.")
+
         # TODO(ttakikawa): Make the kernel use the LOD
-        feats_out = wisp_C.ops.hashgrid_interpolate_cuda(coords.contiguous().float(), 
+        feats_out = wisp_C.ops.hashgrid_interpolate_cuda(coords.float().contiguous(), 
                                                      codebook,
                                                      resolutions,
                                                      codebook_bitwidth).contiguous()
@@ -88,6 +92,7 @@ class HashGridInterpolate(torch.autograd.Function):
         return feats_out
     
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
         coords = ctx.saved_tensors[0]
         resolutions = ctx.resolutions
@@ -97,7 +102,7 @@ class HashGridInterpolate(torch.autograd.Function):
         codebook_bitwidth = ctx.codebook_bitwidth
         
         grad_codebook = wisp_C.ops.hashgrid_interpolate_backward_cuda(
-                coords.contiguous(), grad_output.contiguous(), 
+                coords.float().contiguous(), grad_output.contiguous(), 
                 resolutions, [c_[0] for c_ in codebook_shapes], 
                 codebook_bitwidth, feature_dim)
         return (None, None, None, None, *grad_codebook)

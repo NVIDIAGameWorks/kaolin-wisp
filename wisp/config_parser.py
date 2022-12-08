@@ -12,6 +12,7 @@ import argparse
 import pprint
 import yaml
 import torch
+import logging
 from wisp.datasets import *
 from wisp.models import Pipeline
 from wisp.models.nefs import *
@@ -20,6 +21,14 @@ from wisp.tracers import *
 from wisp.datasets.transforms import *
 
 str2optim = {m.lower(): getattr(torch.optim, m) for m in dir(torch.optim) if m[0].isupper()}
+try:
+    import apex
+    for m in dir(apex.optimizers):
+        if m[0].isupper():
+            str2optim[m.lower()] = getattr(apex.optimizers, m)
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.info("Cannot import apex for fused optimizers")
 
 def register_class(cls, name):
     globals()[name] = cls
@@ -95,6 +104,10 @@ def parse_options(return_parser=False):
                                   scheme, whereas geometric is the Instant-NGP growing scheme.')
     grid_group.add_argument('--codebook-bitwidth', type=int, default=8, 
                             help='Bitwidth to use for the codebook. The number of vectors will be 2^bitwidth.')
+    grid_group.add_argument('--prune-min-density', type=float, default=(0.01*512)/np.sqrt(3),
+                            help='Minimum density value for pruning')
+    grid_group.add_argument('--prune-density-decay', type=float, default=0.6,
+                            help='The decay applied on the density every pruning')
 
     ###################
     # Embedder arguments
@@ -147,6 +160,8 @@ def parse_options(return_parser=False):
     data_group.add_argument('--dataset-num-workers', type=int, default=-1, 
                             help='Number of workers for dataset preprocessing, if it supports multiprocessing. \
                                  -1 indicates no multiprocessing.')
+    data_group.add_argument('--dataloader-num-workers', type=int, default=0, 
+                            help='Number of workers for dataloader.')
 
     # SDF Dataset
     data_group.add_argument('--sample-mode', type=str, nargs='*', 
@@ -403,6 +418,8 @@ def get_optimizer_from_config(args):
     """
     optim_cls = str2optim[args.optimizer_type]
     if args.optimizer_type == 'adam':
+        optim_params = {'eps': 1e-15}
+    elif args.optimizer_type == 'fusedadam':
         optim_params = {'eps': 1e-15}
     elif args.optimizer_type == 'sgd':
         optim_params = {'momentum': 0.8}
