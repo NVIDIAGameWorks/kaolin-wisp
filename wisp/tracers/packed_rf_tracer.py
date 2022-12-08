@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 import kaolin.render.spc as spc_render
 from wisp.core import RenderBuffer
-from wisp.utils import PsDebugger, PerfTimer
 from wisp.tracers import BaseTracer
 
 
@@ -71,9 +70,19 @@ class PackedRFTracer(BaseTracer):
         #TODO(ttakikawa): Use a more robust method
         assert nef.grid is not None and "this tracer requires a grid"
 
-        timer = PerfTimer(activate=False, show_memory=False)
         N = rays.origins.shape[0]
         
+        if "depth" in channels:
+            depth = torch.zeros(N, 1, device=rays.origins.device)
+        else: 
+            depth = None
+        
+        if bg_color == 'white':
+            rgb = torch.ones(N, 3, device=rays.origins.device)
+        else:
+            rgb = torch.zeros(N, 3, device=rays.origins.device)
+        hit = torch.zeros(N, device=rays.origins.device, dtype=torch.bool)
+        out_alpha = torch.zeros(N, 1, device=rays.origins.device)
 
         if lod_idx is None:
             lod_idx = nef.grid.num_lods - 1
@@ -84,8 +93,6 @@ class PackedRFTracer(BaseTracer):
         ridx, pidx, samples, depths, deltas, boundary = nef.grid.raymarch(rays, 
                 level=nef.grid.active_lods[lod_idx], num_samples=num_steps, raymarch_type=raymarch_type)
 
-        timer.check("Raymarch")
-
         # Get the indices of the ray tensor which correspond to hits
         ridx_hit = ridx[spc_render.mark_pack_boundaries(ridx.int())]
 
@@ -94,7 +101,6 @@ class PackedRFTracer(BaseTracer):
         color, density = nef(coords=samples, ray_d=hit_ray_d, pidx=pidx, lod_idx=lod_idx,
                              channels=["rgb", "density"])
 
-        timer.check("RGBA")
         del ridx, rays
 
         # Compute optical thickness
@@ -104,30 +110,18 @@ class PackedRFTracer(BaseTracer):
 
         if "depth" in channels:
             ray_depth = spc_render.sum_reduce(depths.reshape(-1, 1) * transmittance, boundary)
-            depth = torch.zeros(N, 1, device=ray_depth.device)
-            depth[ridx_hit.long(), :] = ray_depth
-            timer.check("Integration")
-        else:
-            depth = None
+            depth[ridx_hit, :] = ray_depth
 
         alpha = spc_render.sum_reduce(transmittance, boundary)
-        timer.check("Sum Reduce")
-        out_alpha = torch.zeros(N, 1, device=color.device)
-        out_alpha[ridx_hit.long()] = alpha
-        hit = torch.zeros(N, device=color.device).bool()
-        hit[ridx_hit.long()] = alpha[...,0] > 0.0
+        out_alpha[ridx_hit] = alpha
+        hit[ridx_hit] = alpha[...,0] > 0.0
 
         # Populate the background
         if bg_color == 'white':
-            rgb = torch.ones(N, 3, device=color.device)
-            color = (1.0-alpha) + alpha * ray_colors
+            color = (1.0-alpha) + ray_colors
         else:
-            rgb = torch.zeros(N, 3, device=color.device)
             color = alpha * ray_colors
-
-        rgb[ridx_hit.long()] = color
-
-        timer.check("Composit")
+        rgb[ridx_hit] = color
 
         extra_outputs = {}
         for channel in extra_channels:
@@ -142,7 +136,7 @@ class PackedRFTracer(BaseTracer):
             )
             composited_feats = alpha * ray_feats
             out_feats = torch.zeros(N, num_channels, device=feats.device)
-            out_feats[ridx_hit.long()] = composited_feats
+            out_feats[ridx_hit] = composited_feats
             extra_outputs[channel] = out_feats
 
         return RenderBuffer(depth=depth, hit=hit, rgb=rgb, alpha=out_alpha, **extra_outputs)

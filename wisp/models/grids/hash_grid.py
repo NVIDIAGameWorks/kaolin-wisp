@@ -90,7 +90,8 @@ class HashGrid(BLASGrid):
 
         See Section 3 Equations 2 and 3 for more details.
         """
-        b = np.exp((np.log(max_width) - np.log(min_width)) / num_lods) 
+        b = np.exp((np.log(max_width) - np.log(min_width)) / (num_lods-1))
+        resolutions = [int(1 + np.floor(min_width*(b**l))) for l in range(num_lods)]
         resolutions = [int(np.floor(min_width*(b**l))) for l in range(num_lods)]
         self.init_from_resolutions(resolutions)
     

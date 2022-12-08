@@ -176,7 +176,9 @@ class OctreeAS(object):
         # and or aliased. 
         if raymarch_type == 'voxel':
             ridx, pidx, depth = self.raytrace(rays, level, with_exit=True)
-            
+            ridx = ridx.long()
+            pidx = pidx.long()
+
             timer.check("raytrace")
 
             depth_samples = wisp_spc_ops.sample_from_depth_intervals(depth, num_samples)[...,None]
@@ -188,7 +190,6 @@ class OctreeAS(object):
             timer.check("generate samples coords")
             
             boundary = wisp_spc_ops.expand_pack_boundary(spc_render.mark_first_hit(ridx.int()), num_samples)
-            #deltas = spc_render.diff(depth_samples, boundary).reshape(-1, 1)
 
         # Samples points along the rays, and then uses the SPC object the filter out samples that don't hit
         # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for 
@@ -197,32 +198,24 @@ class OctreeAS(object):
             # Sample points along 1D line
             depth = torch.linspace(0, 1.0, num_samples, device=rays.origins.device)[None] + \
                     (torch.rand(rays.origins.shape[0], num_samples, device=rays.origins.device)/num_samples)
-            #depth = torch.linspace(0, 1.0, num_samples, device=rays.origins.device) + \
-            #        (torch.rand(num_samples, rays.origins.device)/num_samples)
-            depth = depth ** 2
             
             # Normalize between near and far plane
             depth *= (rays.dist_max - rays.dist_min)
             depth += rays.dist_min
 
             # Batched generation of samples
-            #samples = rays.origins[:, None] + rays.dirs[:, None] * depth[None, :, None]
-            samples = rays.origins[:, None] + rays.dirs[:, None] * depth[..., None]
-            deltas = depth.diff(dim=-1, prepend=(torch.zeros(depth.shape[0], 1, device=depth.device)+ rays.dist_min))
-            # Hack together pidx, mask, ridx, boundaries, etc
+            samples = torch.addcmul(rays.origins[:, None], rays.dirs[:, None], depth[..., None])
+            deltas = depth.diff(dim=-1, prepend=(torch.zeros(rays.origins.shape[0], 1, device=depth.device) + rays.dist_min))
             pidx = self.query(samples.reshape(-1, 3), level=level).reshape(-1, num_samples)
-            mask = (pidx > -1)
+            mask = pidx > -1
+            depth_samples = depth[mask][..., None]
+            deltas = deltas[mask].reshape(-1, 1)
+            samples = samples[mask][:,None]
             ridx = torch.arange(0, pidx.shape[0], device=pidx.device)
             ridx = ridx[...,None].repeat(1, num_samples)[mask]
             boundary = spc_render.mark_pack_boundaries(ridx)
             pidx = pidx[mask]
-            #depth_samples = depth[None].repeat(rays.origins.shape[0], 1)[mask][..., None]
-            depth_samples = depth[mask][..., None]
-            
-            #deltas = spc_render.diff(depth_samples, boundary).reshape(-1, 1) 
-            deltas = deltas[mask].reshape(-1, 1)
 
-            samples = samples[mask][:,None]
         else:
             raise TypeError(f"raymarch type {raymarch_type} is wrong")
 
