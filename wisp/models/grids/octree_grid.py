@@ -25,7 +25,7 @@ class OctreeGrid(BLASGrid):
         accelstruct,
         feature_dim         : int,
         base_lod            : int,
-        num_lods            : int          = 1, 
+        num_lods            : int          = 1,
         interpolation_type  : str          = 'linear',
         multiscale_type     : str          = 'cat',
         feature_std         : float        = 0.0,

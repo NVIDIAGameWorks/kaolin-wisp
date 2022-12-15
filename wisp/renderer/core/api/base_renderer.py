@@ -123,16 +123,10 @@ class RayTracedRenderer(BottomLevelRenderer):
         return None
 
     def needs_redraw(self) -> bool:
-        if self.layers_painter is not None:
-            return self.layers_painter.needs_redraw(self.nef.grid)
-        else:
-            return True
+        return True
 
     def regenerate_data_layers(self) -> Dict[str, PrimitivesPack]:
-        if self.layers_painter is not None:
-            return self.layers_painter.regenerate_data_layers(self.nef.grid)
-        else:
-            return dict()
+        return dict()
 
     def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
         """ Prepare primary rays to render """
