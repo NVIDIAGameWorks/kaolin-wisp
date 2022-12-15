@@ -153,32 +153,34 @@ class TriplanarGrid(BLASGrid):
         """
         self.features.requires_grad_(False)
 
-    def interpolate(self, coords, lod_idx, pidx=None):
+    def interpolate(self, coords, lod_idx):
         """Query multiscale features.
 
         Args:
-            coords (torch.FloatTensor): coords of shape [batch, num_samples, 3]
-            lod_idx  (int): int specifying the index to ``active_lods`` 
-            pidx (torch.LongTensor): point_hiearchy indices of shape [batch]. Unused in this function.
+            coords (torch.FloatTensor): coords of shape [batch, num_samples, 3] or [batch, 3]
+            lod_idx  (int): int specifying the index to ``active_lods``
 
         Returns:
-            (torch.FloatTensor): interpolated features of shape [batch, num_samples, feature_dim]
+            (torch.FloatTensor): interpolated features of
+            shape [batch, num_samples, feature_dim] or [batch, feature_dim]
         """
-        batch, num_samples, _ = coords.shape
-        
+        output_shape = coords.shape[:-1]
+        if coords.ndim < 3:
+            coords = coords[:, None]  # (batch, 3) -> (batch, num_samples, 3)
+
         feats = []
         for i in range(lod_idx + 1):
             feats.append(self._interpolate(coords, self.features[i], i))
-        
+
         feats = torch.cat(feats, dim=-1)
 
         if self.multiscale_type == 'sum':
-            feats = feats.reshape(batch, num_samples, lod_idx + 1, feats.shape[-1] // (lod_idx + 1)).sum(-2)
-        
+            feats = feats.reshape(*output_shape, lod_idx + 1, feats.shape[-1] // (lod_idx + 1)).sum(-2)
+
         return feats
 
     def _interpolate(self, coords, feats, lod_idx):
-        """Interpolates the given feature using the coordinates x. 
+        """Interpolates the given feature using the coordinates x.
 
         This is a more low level interface for optimization.
 
@@ -196,20 +198,19 @@ class TriplanarGrid(BLASGrid):
             fs = feats(coords).reshape(batch, num_samples, 3 * feats.fdim)
         else:
             raise ValueError(f"Interpolation mode '{self.interpolation_type}' is not supported")
-        
+
         return fs
-    
-    def raymarch(self, rays, level=None, num_samples=64, raymarch_type='voxel'):
+
+    def raymarch(self, rays, num_samples=64, level=None, raymarch_type='voxel'):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: this is just used as an AABB tracer.
         """
-        return self.blas.raymarch(rays, level=0, num_samples=num_samples,
-                                  raymarch_type=raymarch_type)
-    
+        return self.blas.raymarch(rays, num_samples=num_samples, level=0, raymarch_type=raymarch_type)
+
     def raytrace(self, rays, level=None, with_exit=False):
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.
-        
+
         Important detail: this is just used as an AABB tracer.
         """
         return self.blas.raytrace(rays, level=0, with_exit=with_exit)

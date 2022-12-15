@@ -15,13 +15,36 @@ from wisp.tracers import BaseTracer
 
 class PackedRFTracer(BaseTracer):
     """Tracer class for sparse (packed) radiance fields.
+    - Packed: each ray yields a custom number of samples, which are therefore packed in a flat form within a tensor,
+     see: https://kaolin.readthedocs.io/en/latest/modules/kaolin.ops.batch.html#packed
+    - RF: Radiance Field
+    PackedRFTracer is differentiable, and can be employed within training loops.
 
-    This tracer class expects the use of a feature grid that has a BLAS (i.e. inherits the BLASGrid
-    class).
+    This tracer class expects the neural field to expose a BLASGrid: a Bottom-Level-Acceleration-Structure Grid,
+    i.e. a grid that inherits the BLASGrid class for both a feature structure and an occupancy acceleration structure).
     """
 
     def __init__(self, raymarch_type='voxel', num_steps=64, step_size=1.0, bg_color='white', **kwargs):
-        """Set the default trace() arguments. """
+        """Set the default trace() arguments.
+
+        Args:
+            raymarch_type (str): Sample generation strategy to use for raymarch.
+                'voxel' - intersects the rays with the acceleration structure cells.
+                    Then among the intersected cells, each cell is sampled `num_steps` times.
+                'ray' - samples `num_steps` along each ray, and then filters out samples which falls outside of occupied
+                    cells of the acceleration structure.
+            num_steps (int): The number of steps to use for the sampling. The meaning of this parameter changes
+                depending on `raymarch_type`:
+                'voxel' - each acceleration structure cell which intersects a ray is sampled `num_steps` times.
+                'ray' - number of samples generated per ray, before culling away samples which don't fall
+                    within occupied cells.
+                The exact number of samples generated, therefore, depends on this parameter but also the occupancy
+                status of the acceleration structure.
+            step_size (float): The step size between samples. Currently unused, but will be used for a new
+                               sampling method in the future.
+            bg_color (str): The background color to use.
+            TODO(ttakikawa): Might be able to simplify / remove
+        """
         super().__init__(**kwargs)
         self.raymarch_type = raymarch_type
         self.num_steps = num_steps
@@ -90,23 +113,26 @@ class PackedRFTracer(BaseTracer):
         # By default, PackedRFTracer will attempt to use the highest level of detail for the ray sampling.
         # This however may not actually do anything; the ray sampling behaviours are often single-LOD
         # and is governed by however the underlying feature grid class uses the BLAS to implement the sampling.
-        ridx, pidx, samples, depths, deltas, boundary = nef.grid.raymarch(rays, 
-                level=nef.grid.active_lods[lod_idx], num_samples=num_steps, raymarch_type=raymarch_type)
+        raymarch_results = nef.grid.raymarch(rays,
+                                             level=nef.grid.active_lods[lod_idx],
+                                             num_samples=num_steps,
+                                             raymarch_type=raymarch_type)
+        ridx, samples, depths, deltas, boundary = raymarch_results
 
         # Get the indices of the ray tensor which correspond to hits
         ridx_hit = ridx[spc_render.mark_pack_boundaries(ridx.int())]
-
         # Compute the color and density for each ray and their samples
         hit_ray_d = rays.dirs.index_select(0, ridx)
-        color, density = nef(coords=samples, ray_d=hit_ray_d, pidx=pidx, lod_idx=lod_idx,
-                             channels=["rgb", "density"])
 
-        del ridx, rays
+        # Compute the color and density for each ray and their samples
+        color, density = nef(coords=samples, ray_d=hit_ray_d, lod_idx=lod_idx, channels=["rgb", "density"])
+        density = density.reshape(-1, 1)    # Protect against squeezed return shape
+        del ridx
 
         # Compute optical thickness
-        tau = density.reshape(-1, 1) * deltas
+        tau = density * deltas
         del density, deltas
-        ray_colors, transmittance = spc_render.exponential_integration(color.reshape(-1, 3), tau, boundary, exclusive=True)
+        ray_colors, transmittance = spc_render.exponential_integration(color, tau, boundary, exclusive=True)
 
         if "depth" in channels:
             ray_depth = spc_render.sum_reduce(depths.reshape(-1, 1) * transmittance, boundary)
@@ -127,7 +153,6 @@ class PackedRFTracer(BaseTracer):
         for channel in extra_channels:
             feats = nef(coords=samples,
                         ray_d=hit_ray_d,
-                        pidx=pidx,
                         lod_idx=lod_idx,
                         channels=channel)
             num_channels = feats.shape[-1]

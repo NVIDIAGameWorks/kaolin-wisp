@@ -23,26 +23,26 @@ import kaolin.ops.spc as spc_ops
 PRIMES = [1, 265443567, 805459861]
 
 def hashgrid_naive(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
-    """A naive PyTorch implementation of the hashgrid.
+    """
+    -- This function is deprecated and unused --
+    This code exists here mostly as a reference:
+    Do NOT expect a 1-to-1 numerical correspondence to the CUDA accelerated version.
 
-    This code exists here mostly as a reference. Do NOT expect a 1-to-1 numerical correspondence
-    to the CUDA accelerated version (this might be a future TODO(ttakikawa) but right now there are no 
-    strong motivations to ensure 1-to-1 correspondence).
-
-    This code is also very slow. :) 
+    A naive PyTorch implementation of the hashgrid.
+    This code is therefore very slow. :)
     
     Args:
-        coords (torch.FloatTensor): 3D coordinates of shape [batch, num_samples, 3]
+        coords (torch.FloatTensor): 3D coordinates of shape [batch, 3]
         resolutions (torch.LongTensor): the resolution of the grid per level of shape [num_lods]
         codebook_bitwidth (int): The bitwidth of the codebook. The codebook will have 2^bw entries.
         lod_idx (int): The LOD to aggregate to.
         codebook (torch.ModuleList[torch.FloatTensor]): A list of codebooks of shapes [codebook_size, feature_dim].
 
     Returns:
-        (torch.FloatTensor): Features of shape [batch, num_samples, feature_dim]
+        (torch.FloatTensor): Features of shape [batch, feature_dim]
     """
     _, feature_dim = codebook[0].shape
-    batch, num_samples, _ = coords.shape
+    batch, _ = coords.shape
     codebook_size = 2**codebook_bitwidth
     feats = []
     for i, res in enumerate(resolutions[:lod_idx+1]):
@@ -64,7 +64,6 @@ def hashgrid_naive(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
         
         coeffs = _C.ops.spc.coords_to_trilinear_cuda(tf_coords.contiguous(), cc000.contiguous())[...,None]
         feats.append((fs * coeffs).sum(-2))
-    # TODO(ttakikawa): This probably does not return according to the num_samples interface
     return torch.cat(feats, -1)
 
 class HashGridInterpolate(torch.autograd.Function):
@@ -108,19 +107,20 @@ class HashGridInterpolate(torch.autograd.Function):
         return (None, None, None, None, *grad_codebook)
         
 def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
-    """The hashgrid function accleerated with CUDA.
+    """A hash-grid query + interpolation function, accelerated with CUDA.
     
     Args:
-        coords (torch.FloatTensor): 3D coordinates of shape [batch, num_samples, 3]
+        coords (torch.FloatTensor): 3D coordinates of shape [batch, 3]
         resolutions (torch.LongTensor): the resolution of the grid per level of shape [num_lods]
         codebook_bitwidth (int): The bitwidth of the codebook. The codebook will have 2^bw entries.
         lod_idx (int): The LOD to aggregate to.
         codebook (torch.ModuleList[torch.FloatTensor]): A list of codebooks of shapes [codebook_size, feature_dim].
 
     Returns:
-        (torch.FloatTensor): Features of shape [batch, num_samples, feature_dim]
+        (torch.FloatTensor): Features of shape [batch, feature_dim]
     """
-    batch, num_samples, dim = coords.shape
-    feats = HashGridInterpolate.apply(coords.reshape(-1, dim).contiguous(), resolutions, 
-            codebook_bitwidth, lod_idx, *[_c for _c in codebook])
-    return feats.reshape(batch, num_samples, codebook[0].shape[1] * len(resolutions))
+    batch, dim = coords.shape
+    feats = HashGridInterpolate.apply(coords.contiguous(), resolutions,
+                                      codebook_bitwidth, lod_idx, *[_c for _c in codebook])
+    feature_dim = codebook[0].shape[1] * len(resolutions)
+    return feats.reshape(batch, feature_dim)

@@ -6,13 +6,28 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import numpy as np
 import torch.nn as nn
 from abc import abstractmethod, ABC
 import inspect
 
 class BaseTracer(nn.Module, ABC):
-    """Virtual base class for tracer"""
+    """Base class for all tracers within Wisp.
+    Tracers drive the mapping process which takes an input "Neural Field", and outputs a RenderBuffer of pixels.
+    Different tracers may employ different algorithms for querying points, or tracing / marching rays through the
+    neural field.
+    A common paradigm for tracers to employ is as follows:
+    1. Take input in the form of rays or coordinates
+    2. Generate samples by tracing / marching rays, or querying coordinates over the neural field.
+       Possibly make use of the neural field spatial structure for high performance.
+    2. Invoke neural field's methods to decode sample features into actual channel values, such as color, density,
+       signed distance, and so forth.
+    3. Aggregate the sample values to decide on the final pixel value.
+       The exact output may depend on the requested channel type, blending mode or other parameters.
+    Wisp tracers are therefore flexible, and designed to be compatible with specific neural fields,
+    depending on the forward functions they support and internal grid structures they use.
+    Tracers are generally expected to be differentiable (e.g. they're part of the training loop),
+    though non-differentiable tracers are also allowed.
+    """
     
     def __init__(self, **kwargs):
         """Initializes the tracer class and sets the default arguments for trace.

@@ -6,17 +6,18 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from __future__ import annotations
+from typing import Tuple
 import torch
 import wisp.ops.mesh as mesh_ops
-from wisp.utils import PsDebugger, PerfTimer
 import wisp.ops.spc as wisp_spc_ops
 import kaolin.ops.spc as spc_ops
 import kaolin.render.spc as spc_render
 
 
-class OctreeAS(object):
+class OctreeAS:
     """Octree bottom-level acceleration structure class implemented using Kaolin SPC.
-       Can be used to to quickly query cells occupancy, and trace rays against the volume.
+    Can be used to to quickly query cells occupancy, and trace rays against the volume.
     """
     
     def __init__(self):
@@ -102,9 +103,10 @@ class OctreeAS(object):
         self.points, self.pyramid, self.prefix = wisp_spc_ops.octree_to_spc(self.octree)
         self.initialized = True
         self.max_level = self.pyramid.shape[-1] - 2
-    
-    def query(self, coords, level=None, with_parents=False):
-        """Returns the ``pidx`` for the sample coordinates.
+
+    def query(self, coords, level=None, with_parents=False) -> torch.LongTensor:
+        """Returns the ``pidx`` for the sample coordinates (indices of acceleration structure cells returned by
+        this query).
 
         Args:
             coords (torch.FloatTensor) : 3D coordinates of shape [num_coords, 3] in normalized [-1, 1] space.
@@ -120,7 +122,7 @@ class OctreeAS(object):
         
         return spc_ops.unbatched_query(self.octree, self.prefix, coords, level, with_parents)
 
-    def raytrace(self, rays, level=None, with_exit=False):
+    def raytrace(self, rays, level=None, with_exit=False) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
         """Traces rays against the SPC structure, returning all intersections along the ray with the SPC points
         (SPC points are quantized, and can be interpreted as octree cell centers or corners).
 
@@ -139,84 +141,165 @@ class OctreeAS(object):
             level = self.max_level
 
         ridx, pidx, depth = spc_render.unbatched_raytrace(
-                self.octree, self.points, self.pyramid, self.prefix,
-                rays.origins, rays.dirs, level, return_depth=True, with_exit=with_exit)
+            self.octree, self.points, self.pyramid, self.prefix,
+            rays.origins, rays.dirs, level, return_depth=True, with_exit=with_exit)
         return ridx, pidx, depth
 
-    def raymarch(self, rays, level=None, num_samples=64, raymarch_type='voxel'):
+    def _raymarch_voxel(self, rays, level=None, num_samples=64):
         """Samples points along the ray inside the SPC structure.
-
-        TODO(ttakikawa): Maybe separate the sampling logic from the raymarch logic. 
-                         Haven't decided yet if this inits sense.
-
-        TODO(ttakikawa): Do the returned shapes actually init sense? Reevaluate.
+        Raymarch is achieved by intersecting the rays with the SPC cells.
+        Then among the intersected cells, each cell is sampled num_samples times.
+        In this scheme, num_hit_samples <= num_intersections*num_samples
 
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
             level (int) : The level of the octree to raytrace. If None, traces the highest level.
             num_samples (int) : Number of samples per voxel
-        
+
         Returns:
-            (torch.LongTensor, torch.LongTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
-                - Indices into rays.origins and rays.dirs of shape [num_intersections]
-                - Indices into the point_hierarchy of shape [num_intersections]
-                - Sample coordinates of shape [num_intersections, num_samples, 3]
-                - Sample depths of shape [num_intersections*num_samples, 1]
-                - Sample depth diffs of shape [num_intersections*num_samples, 1]
-                - Boundary tensor which marks the beginning of each variable-sized sample pack of shape [num_intersections*num_samples]
+            (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
+            torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
+                - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
+                - Sample coordinates of shape [num_hit_samples, 3]
+                - Sample depths of shape [num_hit_samples, 1]
+                - Sample depth diffs of shape [num_hit_samples, 1]
+                - Boundary tensor which marks the beginning of each variable-sized
+                  sample pack of shape [num_hit_samples]
         """
-        timer = PerfTimer(activate=False, show_memory=False)
+        # NUM_INTERSECTIONS = number of nuggets: ray / cell intersections
+        # NUM_INTERSECTIONS can be 0!
+        # ridx, pidx ~ (NUM_INTERSECTIONS,)
+        # depth ~ (NUM_INTERSECTIONS, 2)
+        ridx, pidx, depth = self.raytrace(rays, level, with_exit=True)
+        ridx = ridx.long()
+        num_intersections = ridx.shape[0]
+
+        # depth_samples ~ (NUM_INTERSECTIONS, NUM_SAMPLES, 1)
+        depth_samples = wisp_spc_ops.sample_from_depth_intervals(depth, num_samples)[..., None]
+        deltas = depth_samples[..., 0].diff(dim=-1, prepend=depth[..., 0:1]).reshape(-1, 1)
+
+        # samples ~ (NUM_INTERSECTIONS, NUM_SAMPLES, 1)
+        samples = torch.addcmul(rays.origins.index_select(0, ridx)[:, None],
+                                rays.dirs.index_select(0, ridx)[:, None], depth_samples)
+
+        # boundary ~ (NUM_INTERSECTIONS * NUM_SAMPLES,)
+        # (each intersected cell is sampled NUM_SAMPLES times)
+        boundary = wisp_spc_ops.expand_pack_boundary(spc_render.mark_first_hit(ridx.int()), num_samples)
+
+        # ridx ~ (NUM_INTERSECTIONS * NUM_SAMPLES,)
+        # samples ~ (NUM_INTERSECTIONS * NUM_SAMPLES, 3)
+        # depth_samples ~ (NUM_INTERSECTIONS * NUM_SAMPLES, 1)
+        ridx = ridx[:,None].expand(num_intersections, num_samples).reshape(-1)
+        samples = samples.reshape(num_intersections * num_samples, 3)
+        depth_samples = depth_samples.reshape(num_intersections * num_samples, 1)
+
+        return ridx, samples, depth_samples, deltas, boundary
+
+    def _raymarch_ray(self, rays, level=None, num_samples=1024):
+        """Samples points along the ray inside the SPC structure.
+        Raymarch is achieved by sampling num_samples along each ray,
+        and then filtering out samples which falls outside of occupied cells.
+        In this scheme, num_hit_samples <= num_rays * num_samples.
+        Ray boundaries are determined by the ray dist_min / dist_max values
+        (which could, for example, be set by the near / far planes).
+
+        Args:
+            rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
+            level (int) : The level of the octree to raytrace. If None, traces the highest level.
+            num_samples (int) : Number of samples per voxel
+
+        Returns:
+            (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
+            torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
+                - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
+                - Sample coordinates of shape [num_hit_samples, 3]
+                - Sample depths of shape [num_hit_samples, 1]
+                - Sample depth diffs of shape [num_hit_samples, 1]
+                - Boundary tensor which marks the beginning of each variable-sized
+                  sample pack of shape [num_hit_samples]
+        """
+        # Sample points along 1D line
+        # depth ~ (NUM_RAYS, NUM_SAMPLES)
+        depth = torch.linspace(0, 1.0, num_samples, device=rays.origins.device)[None] + \
+                (torch.rand(rays.origins.shape[0], num_samples, device=rays.origins.device) / num_samples)
+
+        # Normalize between near and far plane
+        depth *= (rays.dist_max - rays.dist_min)
+        depth += rays.dist_min
+
+        # Batched generation of samples
+        # samples ~ (NUM_RAYS, NUM_SAMPLES, 3)
+        # deltas, pidx, mask ~ (NUM_RAYS, NUM_SAMPLES)
+        samples = torch.addcmul(rays.origins[:, None], rays.dirs[:, None], depth[..., None])
+        deltas = depth.diff(dim=-1,
+                            prepend=(torch.zeros(rays.origins.shape[0], 1, device=depth.device) + rays.dist_min))
+        pidx = self.query(samples.reshape(-1, 3), level=level).reshape(-1, num_samples)
+        mask = pidx > -1
+
+        # NUM_HIT_SAMPLES: number of samples sampled within occupied cells
+        # NUM_HIT_SAMPLES can be 0!
+        # depth_samples, deltas, ridx, boundary ~ (NUM_HIT_SAMPLES,)
+        # samples ~ (NUM_HIT_SAMPLES, 3)
+        depth_samples = depth[mask][:, None]
+        deltas = deltas[mask].reshape(-1, 1)
+        samples = samples[mask]
+        ridx = torch.arange(0, pidx.shape[0], device=pidx.device)
+        ridx = ridx[..., None].repeat(1, num_samples)[mask]
+        boundary = spc_render.mark_pack_boundaries(ridx)
+
+        return ridx, samples, depth_samples, deltas, boundary
+
+    def raymarch(self, rays, num_samples, level=None, raymarch_type='voxel'):
+        """Samples points along the ray inside the SPC structure.
+        The exact algorithm employed for raymarching is determined by `raymarch_type`.
+
+        Args:
+            rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
+            level (int) : The level of the octree to raytrace. If None, traces the highest level.
+            num_samples (int) : Number of samples per voxel
+            raymarch_type (str): Sampling strategy to use for raymarch.
+                'voxel' - intersects the rays with the SPC cells. Then among the intersected cells, each cell
+                    is sampled num_samples times.
+                    In this scheme, num_hit_samples <= num_intersections*num_samples
+                'ray' - samples num_samples along each ray, and then filters out samples which falls outside of occupied
+                    cells.
+                    In this scheme, num_hit_samples <= num_rays * num_samples
+
+        Returns:
+            (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
+            torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
+                - Number of samples generated per ray [batch]
+                - Sample coordinates of shape [num_hit_samples, 3]
+                - Sample depths of shape [num_hit_samples, 1]
+                - Sample depth diffs of shape [num_hit_samples, 1]
+                - Boundary tensor which marks the beginning of each variable-sized sample pack
+                  of shape [num_hit_samples]
+        """
         if level is None:
             level = self.max_level
 
         # Samples points along the rays by first tracing it against the SPC object.
         # Then, given each SPC voxel hit, will sample some number of samples in each voxel.
-        # This setting is pretty nice for getting decent outputs from outside-looking-in scenes, 
+        # This setting is pretty nice for getting decent outputs from outside-looking-in scenes,
         # but in general it's not very robust or proper since the ray samples will be weirdly distributed
-        # and or aliased. 
+        # and or aliased.
         if raymarch_type == 'voxel':
-            ridx, pidx, depth = self.raytrace(rays, level, with_exit=True)
-            ridx = ridx.long()
-            pidx = pidx.long()
-
-            timer.check("raytrace")
-
-            depth_samples = wisp_spc_ops.sample_from_depth_intervals(depth, num_samples)[...,None]
-            deltas = depth_samples[...,0].diff(dim=-1, prepend=depth[...,0:1]).reshape(-1, 1)
-            timer.check("sample depth")
-
-            samples = torch.addcmul(rays.origins.index_select(0, ridx)[:,None], 
-                                    rays.dirs.index_select(0, ridx)[:,None], depth_samples)
-            timer.check("generate samples coords")
-            
-            boundary = wisp_spc_ops.expand_pack_boundary(spc_render.mark_first_hit(ridx.int()), num_samples)
+            ridx, samples, depth_samples, deltas, boundary = self._raymarch_voxel(rays=rays,
+                                                                                  level=level,
+                                                                                  num_samples=num_samples)
 
         # Samples points along the rays, and then uses the SPC object the filter out samples that don't hit
-        # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for 
+        # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for
         # inside-looking-out scenes. The camera near and far planes will have to be adjusted carefully, however.
         elif raymarch_type == 'ray':
-            # Sample points along 1D line
-            depth = torch.linspace(0, 1.0, num_samples, device=rays.origins.device)[None] + \
-                    (torch.rand(rays.origins.shape[0], num_samples, device=rays.origins.device)/num_samples)
-            
-            # Normalize between near and far plane
-            depth *= (rays.dist_max - rays.dist_min)
-            depth += rays.dist_min
-
-            # Batched generation of samples
-            samples = torch.addcmul(rays.origins[:, None], rays.dirs[:, None], depth[..., None])
-            deltas = depth.diff(dim=-1, prepend=(torch.zeros(rays.origins.shape[0], 1, device=depth.device) + rays.dist_min))
-            pidx = self.query(samples.reshape(-1, 3), level=level).reshape(-1, num_samples)
-            mask = pidx > -1
-            depth_samples = depth[mask][..., None]
-            deltas = deltas[mask].reshape(-1, 1)
-            samples = samples[mask][:,None]
-            ridx = torch.arange(0, pidx.shape[0], device=pidx.device)
-            ridx = ridx[...,None].repeat(1, num_samples)[mask]
-            boundary = spc_render.mark_pack_boundaries(ridx)
-            pidx = pidx[mask]
+            ridx, samples, depth_samples, deltas, boundary = self._raymarch_ray(rays=rays,
+                                                                                level=level,
+                                                                                num_samples=num_samples)
 
         else:
-            raise TypeError(f"raymarch type {raymarch_type} is wrong")
+            raise TypeError(f"Raymarch sampler type: {raymarch_type} is not supported by OctreeAS.")
 
-        return ridx, pidx, samples, depth_samples, deltas, boundary
+        return ridx, samples, depth_samples, deltas, boundary
+
+    def name(self) -> str:
+        return "Octree"
