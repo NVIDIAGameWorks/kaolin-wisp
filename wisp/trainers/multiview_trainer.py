@@ -60,8 +60,8 @@ class MultiviewTrainer(BaseTrainer):
         
         if self.extra_args["random_lod"]:
             # Sample from a geometric distribution
-            population = [i for i in range(self.pipeline.nef.num_lods)]
-            weights = [2**i for i in range(self.pipeline.nef.num_lods)]
+            population = [i for i in range(self.pipeline.nef.grid.num_lods)]
+            weights = [2**i for i in range(self.pipeline.nef.grid.num_lods)]
             weights = [i/sum(weights) for i in weights]
             lod_idx = random.choices(population, weights)[0]
         else:
@@ -201,7 +201,7 @@ class MultiviewTrainer(BaseTrainer):
         if not os.path.exists(self.valid_log_dir):
             os.makedirs(self.valid_log_dir)
 
-        lods = list(range(self.pipeline.nef.num_lods))
+        lods = list(range(self.pipeline.nef.grid.num_lods))
         evaluation_results = self.evaluate_metrics(data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
         record_dict.update(evaluation_results)
         if self.using_wandb:

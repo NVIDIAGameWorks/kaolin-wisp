@@ -7,73 +7,104 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
-import logging as log
-import time
-import math
-import copy
-
-from wisp.ops.spc import sample_spc
 from wisp.ops.geometric import sample_unif_sphere
-
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
-from wisp.accelstructs import OctreeAS
 from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
-from wisp.models.grids import *
-
+from wisp.models.grids import BLASGrid, HashGrid
+from wisp.accelstructs import OctreeAS
 import kaolin.ops.spc as spc_ops
 
+
 class NeuralRadianceField(BaseNeuralField):
-    """Model for encoding radiance fields (density and plenoptic color)
+    """Model for encoding Neural Radiance Fields (Mildenhall et al. 2020), e.g., density and view dependent color.
+    Different to the original NeRF paper, this implementation uses feature grids for a
+    higher quality and more efficient implementation, following later trends in the literature,
+    such as Neural Sparse Voxel Fields (Liu et al. 2020), Instant Neural Graphics Primitives (Muller et al. 2022)
+    and Variable Bitrate Neural Fields (Takikawa et al. 2022).
     """
-    def init_embedder(self):
+
+    def __init__(self,
+                 grid: BLASGrid = None,
+                 # embedder args
+                 pos_embedder: str = 'none',
+                 view_embedder: str = 'none',
+                 pos_multires: int = 10,
+                 view_multires: int = 4,
+                 # decoder args
+                 activation_type: str = 'relu',
+                 layer_type: str = 'none',
+                 hidden_dim: int = 128,
+                 num_layers: int = 1,
+                 # pruning args
+                 prune_density_decay: float = None,
+                 prune_min_density: float = None,
+                 ):
+        super().__init__()
+        self.grid = grid
+
+        # Init Embedders
+        self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires)
+        self.view_embedder, self.view_embed_dim = self.init_embedder(view_embedder, view_multires)
+
+        # Init Decoder
+        self.activation_type = activation_type
+        self.layer_type = layer_type
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.decoder_density, self.decoder_color = \
+            self.init_decoders(activation_type, layer_type, num_layers, hidden_dim)
+
+        self.prune_density_decay = prune_density_decay
+        self.prune_min_density = prune_min_density
+
+        torch.cuda.empty_cache()
+
+    def init_embedder(self, embedder_type, frequencies=None):
         """Creates positional embedding functions for the position and view direction.
         """
-        self.pos_embedder, self.pos_embed_dim = get_positional_embedder(self.pos_multires, 
-                                                                       self.embedder_type == "positional")
-        self.view_embedder, self.view_embed_dim = get_positional_embedder(self.view_multires, 
-                                                                         self.embedder_type == "positional")
-        log.info(f"Position Embed Dim: {self.pos_embed_dim}")
-        log.info(f"View Embed Dim: {self.view_embed_dim}")
+        if embedder_type == 'none':
+            embedder, embed_dim = None, 0
+        elif embedder_type == 'identity':
+            embedder, embed_dim = torch.nn.Identity(), 0
+        elif embedder_type == 'positional':
+            embedder, embed_dim = get_positional_embedder(frequencies=frequencies)
+        else:
+            raise NotImplementedError(f'Unsupported embedder type for NeuralRadianceField: {embedder_type}')
+        return embedder, embed_dim
 
-    def init_decoder(self):
+    def init_decoders(self, activation_type, layer_type, num_layers, hidden_dim):
         """Initializes the decoder object. 
         """
-        if self.multiscale_type == 'cat':
-            self.effective_feature_dim = self.grid.feature_dim * self.num_lods
-        else:
-            self.effective_feature_dim = self.grid.feature_dim
+        decoder_density = BasicDecoder(input_dim=self.density_net_input_dim,
+                                       output_dim=16,
+                                       activation=get_activation_class(activation_type),
+                                       bias=True,
+                                       layer=get_layer_class(layer_type),
+                                       num_layers=num_layers,
+                                       hidden_dim=hidden_dim,
+                                       skip=[])
+        decoder_density.lout.bias.data[0] = 1.0
 
-        self.input_dim = self.effective_feature_dim
-
-        if self.position_input:
-            self.input_dim += self.pos_embed_dim
-
-        self.decoder_density = BasicDecoder(self.input_dim, 16, get_activation_class(self.activation_type), True,
-                                            layer=get_layer_class(self.layer_type), num_layers=self.num_layers,
-                                            hidden_dim=self.hidden_dim, skip=[])
-
-        self.decoder_density.lout.bias.data[0] = 1.0
-
-        self.decoder_color = BasicDecoder(16 + self.view_embed_dim, 3, get_activation_class(self.activation_type), True,
-                                          layer=get_layer_class(self.layer_type), num_layers=self.num_layers+1,
-                                          hidden_dim=self.hidden_dim, skip=[])
+        decoder_color = BasicDecoder(input_dim=self.color_net_input_dim,
+                                     output_dim=3,
+                                     activation=get_activation_class(activation_type),
+                                     bias=True,
+                                     layer=get_layer_class(layer_type),
+                                     num_layers=num_layers + 1,
+                                     hidden_dim=hidden_dim,
+                                     skip=[])
+        return decoder_density, decoder_color
 
     def prune(self):
         """Prunes the blas based on current state.
         """
         if self.grid is not None:
-            
-            if self.grid_type == "HashGrid":
-                # TODO(ttakikawa): Expose these parameters. 
-                # This is still an experimental feature for the most part. It does work however.
-                density_decay = self.kwargs['prune_density_decay']
-                min_density = self.kwargs['prune_min_density']
+            if isinstance(self.grid, HashGrid):
+                density_decay = self.prune_density_decay
+                min_density = self.prune_min_density
 
                 self.grid.occupancy = self.grid.occupancy.cuda()
                 self.grid.occupancy = self.grid.occupancy * density_decay
@@ -95,18 +126,11 @@ class NeuralRadianceField(BaseNeuralField):
                 if _points.shape[0] == 0:
                     return
 
+                # TODO (operel): This will soon change to support other blas types
                 octree = spc_ops.unbatched_points_to_octree(_points, self.grid.blas_level, sorted=True)
                 self.grid.blas = OctreeAS(octree)
             else:
-                raise NotImplementedError
-
-    def get_nef_type(self):
-        """Returns a text keyword of the neural field type.
-
-        Returns:
-            (str): The key type
-        """
-        return 'nerf'
+                raise NotImplementedError(f'Pruning not implemented for grid type {self.grid}')
 
     def register_forward_functions(self):
         """Register the forward functions.
@@ -132,9 +156,11 @@ class NeuralRadianceField(BaseNeuralField):
 
         # Embed coordinates into high-dimensional vectors with the grid.
         feats = self.grid.interpolate(coords, lod_idx).reshape(-1, self.effective_feature_dim)
-        
-        if self.position_input:
-            raise NotImplementedError
+
+        # Optionally concat the positions to the embedding
+        if self.pos_embedder is not None:
+            embedded_pos = self.pos_embedder(coords).view(-1, self.pos_embed_dim)
+            feats = torch.cat([feats, embedded_pos], dim=-1)
 
         # Decode high-dimensional vectors to density features.
         density_feats = self.decoder_density(feats)
@@ -155,3 +181,18 @@ class NeuralRadianceField(BaseNeuralField):
         density = torch.relu(density_feats[...,0:1])
         return dict(rgb=colors, density=density)
 
+    @property
+    def effective_feature_dim(self):
+        if self.grid.multiscale_type == 'cat':
+            effective_feature_dim = self.grid.feature_dim * self.grid.num_lods
+        else:
+            effective_feature_dim = self.grid.feature_dim
+        return effective_feature_dim
+
+    @property
+    def density_net_input_dim(self):
+        return self.effective_feature_dim + self.pos_embed_dim
+
+    @property
+    def color_net_input_dim(self):
+        return 16 + self.view_embed_dim

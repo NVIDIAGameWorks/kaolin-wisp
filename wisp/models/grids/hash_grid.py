@@ -25,7 +25,7 @@ class HashGrid(BLASGrid):
     The occupancy state (e.g. BLAS, Bottom Level Acceleration Structure) is tracked separately from the feature
     volume, and relies on heuristics such as pruning for keeping it aligned with the feature structure.
     """
-    def __init__(self, 
+    def __init__(self,
         feature_dim        : int,
         base_lod           : int   = None,
         num_lods           : int   = 1,
