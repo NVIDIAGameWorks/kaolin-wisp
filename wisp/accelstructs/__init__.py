@@ -7,3 +7,4 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from .octree_as import OctreeAS
+from .aabb_as import AxisAlignedBBoxAS

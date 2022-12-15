@@ -20,89 +20,80 @@ class OctreeAS:
     Can be used to to quickly query cells occupancy, and trace rays against the volume.
     """
     
-    def __init__(self):
-        self.initialized = False
+    def __init__(self, octree):
+        """Initializes the acceleration structure from the topology of a sparse Structured Point Cloud (SPC).
+        Structured Point Clouds (SPC) is a sparse octree-based representation that is useful to
+        organize and efficiently pack 3D geometrically sparse information.
+        SPCs can be intuitively described as sparse voxel-grids, quantized point clouds, or voxelized point clouds.
 
-    def init_from_mesh(self, mesh_path, level, sample_tex=False, num_samples=100000000):
-        """Builds the grid from a path to the mesh.
+        Args:
+            octree (torch.ByteTensor): SPC octree tensor, containing the acceleration structure topology.
+            For more details about this compact format, see:
+             https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
+        """
+        self.octree = octree
+        self.points, self.pyramid, self.prefix = wisp_spc_ops.octree_to_spc(octree)
+        self.max_level = self.pyramid.shape[-1] - 2
+        self.extent = dict()    # Additional optional information which may be stored in this struct
 
-        Only supports OBJ for now.
+    @classmethod
+    def from_mesh(cls, mesh_path, level, sample_tex=False, num_samples=100000000) -> OctreeAS:
+        """ Builds the acceleration structure and initializes occupancy of cells from samples over mesh faces.
+        Assumes a path to the mesh, only OBJ is supported for now.
 
         Args:
             mesh_path (str): Path to the OBJ file.
             level (int): The depth of the octree.
-            sample_tex (bool): If True, will also sample textures and store it in the accelstruct.
+            sample_tex (bool): If True, will also sample textures and store it in the accelstruct within
+                self.texv, self.texf, self.mats fields.
+                This feature is currently unused.
             num_samples (int): The number of samples to be generated on the mesh surface.
-
-        Returns:
-            (void): Will initialize the OctreeAS object.
+                More samples require additional processing time but are more likely to produce faithful occupancy
+                output without "holes".
         """
-
         if sample_tex:
             out = mesh_ops.load_obj(mesh_path, load_materials=True)
-            self.V, self.F, self.texv, self.texf, self.mats = out
+            vertices, faces, texture_vertices, texture_faces, materials = out
         else:
-            self.V, self.F = mesh_ops.load_obj(mesh_path)
+            vertices, faces = mesh_ops.load_obj(mesh_path)
 
         # For now only supports sphere normalization, which is a bit more robust for SDF type workloads
         # (although it will underutilize the voxels)
-        self.V, self.F = mesh_ops.normalize(self.V, self.F, 'sphere')
+        vertices, faces = mesh_ops.normalize(vertices, faces, 'sphere')
 
         # Note: This function is not deterministic since it relies on sampling.
-        #       Eventually this will be replaced by 3D rasterization.
-        octree = wisp_spc_ops.mesh_to_octree(self.V, self.F, level, num_samples)
-        self.init(octree)
-    
-    def init_from_pointcloud(self, pointcloud, level):
-        """Builds the grid from a pointcloud.
+        # Eventually this will be replaced by 3D rasterization.
+        octree = wisp_spc_ops.mesh_to_octree(vertices, faces, level, num_samples)
+        accel_struct = OctreeAS(octree)
+        accel_struct.extent['vertices'] = vertices
+        accel_struct.extent['faces'] = faces
+        if sample_tex:
+            accel_struct.extent['texv'] = texture_vertices
+            accel_struct.extent['texf'] = texture_faces
+            accel_struct.extent['mats'] = materials
+        return accel_struct
+
+    @classmethod
+    def from_pointcloud(cls, pointcloud, level) -> OctreeAS:
+        """ Builds the acceleration structure and initializes occupancy of cells from a pointcloud.
 
         Args:
             pointcloud (torch.FloatTensor): 3D coordinates of shape [num_coords, 3] in 
                                             normalized space [-1, 1].
             level (int): The depth of the octree.
-
-        Returns:
-            (void): Will initialize the OctreeAS object.
         """
         octree = wisp_spc_ops.pointcloud_to_octree(pointcloud, level, dilate=0)
-        self.init(octree)
+        return OctreeAS(octree)
 
-    def init_dense(self, level):
-        """Builds a dense octree grid.
+    @classmethod
+    def make_dense(cls, level) -> OctreeAS:
+        """ Builds the acceleration structure and initializes full occupancy of all cells.
 
         Args:
             level (int): The depth of the octree.
-
-        Returns:
-            (void): Will initialize the OctreeAS object.
         """
         octree = wisp_spc_ops.create_dense_octree(level)
-        self.init(octree)
-
-    def init_aabb(self):
-        """Builds a root-only octree.
-
-        Useful for hacking together a quick AABB tracer.
-
-        Returns:
-            (void): Will initialize the OctreeAS object.
-        """
-        octree = wisp_spc_ops.create_dense_octree(1)
-        self.init(octree)
-
-    def init(self, octree):
-        """Initializes auxillary state from an octree tensor.
-
-        Args:
-            octree (torch.ByteTensor): SPC octree tensor.
-
-        Returns:
-            (void): Will initialize the OctreeAS object.
-        """
-        self.octree = octree
-        self.points, self.pyramid, self.prefix = wisp_spc_ops.octree_to_spc(self.octree)
-        self.initialized = True
-        self.max_level = self.pyramid.shape[-1] - 2
+        return OctreeAS(octree)
 
     def query(self, coords, level=None, with_parents=False) -> torch.LongTensor:
         """Returns the ``pidx`` for the sample coordinates (indices of acceleration structure cells returned by

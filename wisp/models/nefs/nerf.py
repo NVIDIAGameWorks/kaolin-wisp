@@ -64,25 +64,6 @@ class NeuralRadianceField(BaseNeuralField):
                                           layer=get_layer_class(self.layer_type), num_layers=self.num_layers+1,
                                           hidden_dim=self.hidden_dim, skip=[])
 
-    def init_grid(self):
-        """Initialize the grid object.
-        """
-        if self.grid_type == "OctreeGrid":
-            grid_class = OctreeGrid
-        elif self.grid_type == "CodebookOctreeGrid":
-            grid_class = CodebookOctreeGrid
-        elif self.grid_type == "TriplanarGrid":
-            grid_class = TriplanarGrid
-        elif self.grid_type == "HashGrid":
-            grid_class = HashGrid
-        else:
-            raise NotImplementedError
-
-        self.grid = grid_class(self.feature_dim,
-                               base_lod=self.base_lod, num_lods=self.num_lods,
-                               interpolation_type=self.interpolation_type, multiscale_type=self.multiscale_type,
-                               **self.kwargs)
-
     def prune(self):
         """Prunes the blas based on current state.
         """
@@ -115,7 +96,7 @@ class NeuralRadianceField(BaseNeuralField):
                     return
 
                 octree = spc_ops.unbatched_points_to_octree(_points, self.grid.blas_level, sorted=True)
-                self.grid.blas.init(octree)
+                self.grid.blas = OctreeAS(octree)
             else:
                 raise NotImplementedError
 

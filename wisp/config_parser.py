@@ -427,59 +427,183 @@ def get_optimizer_from_config(args):
         optim_params = {}
     return optim_cls, optim_params
 
-def get_modules_from_config(args):
-    """Utility function to get the modules for training from the parsed config.
-    """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    nef = globals()[args.nef_type](**vars(args))
-    tracer = globals()[args.tracer_type](**vars(args))
-    pipeline = Pipeline(nef, tracer)
 
-    if args.pretrained:
-        if args.model_format == "full":
-            pipeline = torch.load(args.pretrained)
+def load_mv_grid(args, dataset: torch.utils.data.Dataset):
+    grid = None
+    # Optimization: For octrees based grids, if dataset contains depth info, initialize only cells known to be occupied
+    has_depth_supervision = getattr(dataset, "coords", None) is not None
+
+    if args.grid_type == "OctreeGrid":
+        if has_depth_supervision:
+            grid = OctreeGrid.from_pointcloud(
+                pointcloud=dataset.coords,
+                feature_dim=args.feature_dim,
+                base_lod=args.base_lod,
+                num_lods=args.num_lods,
+                interpolation_type=args.interpolation_type,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+            )
         else:
-            pipeline.load_state_dict(torch.load(args.pretrained))
-    pipeline.to(device)
+            grid = OctreeGrid.make_dense(
+                feature_dim=args.feature_dim,
+                base_lod=args.base_lod,
+                num_lods=args.num_lods,
+                interpolation_type=args.interpolation_type,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+            )
+    elif args.grid_type == "CodebookOctreeGrid":
+        if has_depth_supervision:
+            grid = CodebookOctreeGrid.from_pointcloud(
+                pointcloud=dataset.coords,
+                feature_dim=args.feature_dim,
+                base_lod=args.base_lod,
+                num_lods=args.num_lods,
+                interpolation_type=args.interpolation_type,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+                codebook_bitwidth=args.codebook_bitwidth
+            )
+        else:
+            grid = CodebookOctreeGrid.make_dense(
+                feature_dim=args.feature_dim,
+                base_lod=args.base_lod,
+                num_lods=args.num_lods,
+                interpolation_type=args.interpolation_type,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+                codebook_bitwidth=args.codebook_bitwidth
+            )
+    elif args.grid_type == "TriplanarGrid":
+        grid = TriplanarGrid(
+            feature_dim=args.feature_dim,
+            base_lod=args.base_lod,
+            num_lods=args.num_lods,
+            interpolation_type=args.interpolation_type,
+            multiscale_type=args.multiscale_type,
+            feature_std=args.feature_std,
+            feature_bias=args.feature_bias,
+        )
+    elif args.grid_type == "HashGrid":
+        # "geometric" - determines the resolution of the grid using geometric sequence initialization from InstantNGP,
+        if args.tree_type == "geometric":
+            grid = HashGrid.from_geometric(
+                feature_dim=args.feature_dim,
+                num_lods=args.num_lods,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+                codebook_bitwidth=args.codebook_bitwidth,
+                min_grid_res=16,
+                max_grid_res=args.max_grid_res,
+                blas_level=7
+            )
+        # "quad" - determines the resolution of the grid using an octree sampling pattern.
+        elif args.tree_type == "octree":
+            grid = HashGrid.from_octree(
+                feature_dim=args.feature_dim,
+                base_lod=args.base_lod,
+                num_lods=args.num_lods,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+                codebook_bitwidth=args.codebook_bitwidth,
+                blas_level=7
+            )
+    else:
+        raise ValueError(f"Unknown grid_type argument: {args.grid_type}")
+    return grid
 
+def load_sdf_grid(args):
+    grid = None
+    if args.grid_type == "OctreeGrid":
+        # For SDF pipelines case, the grid may be initialized from the mesh to speed up the optimization.
+        grid = OctreeGrid.from_mesh(
+            mesh_path=args.dataset_path,
+            num_samples_on_mesh=args.num_samples_on_mesh,
+            feature_dim=args.feature_dim,
+            base_lod=args.base_lod,
+            num_lods=args.num_lods,
+            interpolation_type=args.interpolation_type,
+            multiscale_type=args.multiscale_type,
+            feature_std=args.feature_std,
+            feature_bias=args.feature_bias,
+        )
+    elif args.grid_type == "TriplanarGrid":
+        grid = TriplanarGrid(
+            feature_dim=args.feature_dim,
+            base_lod=args.base_lod,
+            num_lods=args.num_lods,
+            interpolation_type=args.interpolation_type,
+            multiscale_type=args.multiscale_type,
+            feature_std=args.feature_std,
+            feature_bias=args.feature_bias,
+        )
+    elif args.grid_type == "HashGrid":
+        # "geometric" - determines the resolution of the grid using geometric sequence initialization from InstantNGP,
+        if args.tree_type == "geometric":
+            grid = HashGrid.from_geometric(
+                feature_dim=args.feature_dim,
+                num_lods=args.num_lods,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+                codebook_bitwidth=args.codebook_bitwidth,
+                min_grid_res=16,
+                max_grid_res=args.max_grid_res,
+                blas_level=7
+            )
+        # "quad" - determines the resolution of the grid using an octree sampling pattern.
+        elif args.tree_type == "octree":
+            grid = HashGrid.from_octree(
+                feature_dim=args.feature_dim,
+                base_lod=args.base_lod,
+                num_lods=args.num_lods,
+                multiscale_type=args.multiscale_type,
+                feature_std=args.feature_std,
+                feature_bias=args.feature_bias,
+                codebook_bitwidth=args.codebook_bitwidth,
+                blas_level=7
+            )
+    else:
+        raise ValueError(f"Unknown grid_type argument: {args.grid_type}")
+    return grid
+
+def load_dataset(args):
     if args.dataset_type == "multiview":
         transform = SampleRays(args.num_rays_sampled_per_img)
         train_dataset = MultiviewDataset(**vars(args), transform=transform)
         train_dataset.init()
-        
-        if pipeline.nef.grid is not None:
-            if isinstance(pipeline.nef.grid, OctreeGrid):
-                if not args.valid_only and not pipeline.nef.grid.blas_initialized():
-                    if args.multiview_dataset_format in ['rtmv']:
-                        pipeline.nef.grid.init_from_pointcloud(train_dataset.coords)
-                    else:
-                        pipeline.nef.grid.init_dense()
-                    pipeline.to(device)
-            if isinstance(pipeline.nef.grid, HashGrid):
-                if not args.valid_only:
-                    if args.tree_type == 'quad':
-                        pipeline.nef.grid.init_from_octree(args.base_lod, args.num_lods)
-                    elif args.tree_type == 'geometric':
-                        pipeline.nef.grid.init_from_geometric(16, args.max_grid_res, args.num_lods)
-                    else:
-                        raise NotImplementedError
-                    pipeline.to(device)
-
     elif args.dataset_type == "sdf":
         train_dataset = SDFDataset(args.sample_mode, args.num_samples,
                                    args.get_normals, args.sample_tex)
-        
+    return train_dataset
+
+def get_modules_from_config(args):
+    """Utility function to get the modules for training from the parsed config.
+    """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    train_dataset = load_dataset(args)
+    grid = None
+    if args.dataset_type == "multiview":
+        grid = load_mv_grid(args, train_dataset)
+    elif args.dataset_type == "sdf":
+        grid = load_sdf_grid(args)
+    nef = globals()[args.nef_type](grid=grid, **vars(args))
+    tracer = globals()[args.tracer_type](**vars(args))
+    pipeline = Pipeline(nef, tracer)
+    pipeline = pipeline.to(device)
+
+    if args.dataset_type == "sdf":
         if pipeline.nef.grid is not None:
             if isinstance(pipeline.nef.grid, OctreeGrid):
-                
-                if not args.valid_only and not pipeline.nef.grid.blas_initialized():
-                    pipeline.nef.grid.init_from_mesh(
-                        args.dataset_path, sample_tex=args.sample_tex, num_samples=args.num_samples_on_mesh)
-                    pipeline.to(device)
-                
                 train_dataset.init_from_grid(pipeline.nef.grid, args.samples_per_voxel)
             else:
                 train_dataset.init_from_mesh(args.dataset_path, args.mode_mesh_norm)
-    else:
-        raise ValueError(f'"{args.dataset_type}" unrecognized dataset_type')
+
     return pipeline, train_dataset, device

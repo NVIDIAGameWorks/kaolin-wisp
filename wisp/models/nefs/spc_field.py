@@ -20,7 +20,7 @@ class SPCField(BaseNeuralField):
     Feature samples per ray may be collected from each intersected "cell" of the structured point cloud.
     """
 
-    def __init__(self, octree, features_dict=None,
+    def __init__(self, spc_octree, features_dict=None,
                  device='cuda', base_lod=None, num_lods=None, optimizable=False, **kwargs):
         """
         Creates a new Structured Point Cloud (SPC), represented as a Wisp Field.
@@ -28,7 +28,7 @@ class SPCField(BaseNeuralField):
         See `examples/spc_browser` for an elaborate description of SPCs.
 
         Args:
-            octree (torch.ByteTensor):
+            spc_octree (torch.ByteTensor):
                 A tensor which holds the topology of the SPC.
                 Each byte represents a single octree cell's occupancy (that is, each bit of that byte represents
                 the occupancy status of a child octree cell), yielding 8 bits for 8 cells.
@@ -52,7 +52,7 @@ class SPCField(BaseNeuralField):
                 A flag which determines if this SPCField supports optimization or not.
                 Toggling optimization off allows for quick creation of SPCField objects.
         """
-        self.octree = octree
+        self.spc_octree = spc_octree
         self.features_dict = features_dict if features_dict is not None else dict()
         self.spc_device = device
         self.base_lod = base_lod
@@ -61,13 +61,19 @@ class SPCField(BaseNeuralField):
         self.grid = None
         self.colors = None
         self.normals = None
-        super().__init__(**kwargs)
+        self.init_grid(spc_octree)
+        super().__init__(grid=self.grid, **kwargs)
 
-    def init_grid(self):
-        """ Uses the OctreeAS / OctreeGrid mechanism to quickly parse the SPC object """
-        # Octree defines the structure of the SPC
-        octree = self.octree
+    def init_grid(self, spc_octree):
+        """ Uses the OctreeAS / OctreeGrid mechanism to quickly parse the SPC object into a Wisp Neural Field.
 
+        Args:
+            spc_octree (torch.ByteTensor):
+                A tensor which holds the topology of the SPC.
+                Each byte represents a single octree cell's occupancy (that is, each bit of that byte represents
+                the occupancy status of a child octree cell), yielding 8 bits for 8 cells.
+                See also https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
+        """
         # Use features, either colors or normals
         spc_features = self.features_dict
         if "colors" in self.features_dict:
@@ -84,9 +90,9 @@ class SPCField(BaseNeuralField):
                 colors = 0.5 * (normals + 1.0)
             else:
                 # manufacture colors from point coordinates
-                lengths = torch.tensor([len(octree)], dtype=torch.int32)
-                level, pyramids, exsum = kaolin_ops_spc.scan_octrees(octree, lengths)
-                point_hierarchies = kaolin_ops_spc.generate_points(octree, pyramids, exsum)
+                lengths = torch.tensor([len(spc_octree)], dtype=torch.int32)
+                level, pyramids, exsum = kaolin_ops_spc.scan_octrees(spc_octree, lengths)
+                point_hierarchies = kaolin_ops_spc.generate_points(spc_octree, pyramids, exsum)
                 # get coordinate of highest level
                 colors = point_hierarchies[pyramids[0,1,level]:]
                 # normalize
@@ -95,34 +101,16 @@ class SPCField(BaseNeuralField):
             self.colors = colors
 
         # By default assume the SPC keeps features only at the highest LOD.
-        # (unless base_lod and num_lods fields are explicitly set)
-        if self.base_lod is None:
-            # Compute the highest LOD if needed
-            _, pyramid, _ = wisp_spc_ops.octree_to_spc(self.octree)
-            max_level = self.pyramid.shape[-1] - 2
-            self.base_lod = max_level
-        if self.num_lods is None:
-            self.num_lods = 1
+        # Compute the highest LOD:
+        _, pyramid, _ = wisp_spc_ops.octree_to_spc(spc_octree)
+        max_level = pyramid.shape[-1] - 2
 
-        self.grid = OctreeGrid(feature_dim=3,
-                               base_lod=self.base_lod,
-                               num_lods=self.num_lods,
-                               interpolation_type=self.interpolation_type,
-                               multiscale_type=self.multiscale_type,
-                               **self.kwargs)
-        # If the SPC shouldn't be optimized, avoiding full grid initialization is faster
-        if self.optimizable:
-            self.grid.init(octree)
-        else:
-            self.grid.blas.init(octree)
-
-    def get_nef_type(self):
-        """Returns a text keyword of the neural field type.
-
-        Returns:
-            (str): The key type
-        """
-        return 'spc'
+        self.grid = OctreeGrid.from_spc(
+            spc_octree=spc_octree,
+            feature_dim=3,
+            base_lod=max_level,
+            num_lods=0  # SPCFields track features internally, avoiding full OctreeGrid initialization is faster
+        )
 
     @property
     def device(self):

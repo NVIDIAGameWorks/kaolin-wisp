@@ -22,8 +22,9 @@ class BaseNeuralField(nn.Module):
 
     TODO(ttakikawa): More complete documentation here.
     """
-    def __init__(self, 
-        grid_type          : str = 'OctreeGrid',
+    def __init__(self,
+        grid,
+        grid_type, # TODO (operel): to be removed in following MR
         interpolation_type : str = 'linear',
         multiscale_type    : str = 'none',
 
@@ -53,7 +54,6 @@ class BaseNeuralField(nn.Module):
     ):
         super().__init__()
 
-        self.grid_type = grid_type
         self.interpolation_type = interpolation_type
         self.raymarch_type = raymarch_type
         self.embedder_type = embedder_type
@@ -78,9 +78,10 @@ class BaseNeuralField(nn.Module):
         self.kwargs = kwargs
 
         self.grid = None
+        self.grid_type = grid_type
         self.decoder = None
         
-        self.init_grid()
+        self.grid = grid
         self.init_embedder()
         self.init_decoder()
         torch.cuda.empty_cache()
@@ -95,11 +96,6 @@ class BaseNeuralField(nn.Module):
 
     def init_decoder(self):
         """Initialize the decoder object.
-        """
-        return
-
-    def init_grid(self):
-        """Initialize the grid object.
         """
         return
 

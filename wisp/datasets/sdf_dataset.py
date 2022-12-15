@@ -60,7 +60,9 @@ class SDFDataset(Dataset):
 
         self.mesh = self.V[self.F]
         self.resample()
-        
+
+    # TODO (operel): grid is only really needed for filtering out points and more efficient 'rand',
+    #  better not store the mesh contents in the extent field
     def init_from_grid(self, grid, samples_per_voxel=32):
         """Initializes the dataset by sampling SDFs from an OctreeGrid created from a mesh.
 
@@ -74,7 +76,7 @@ class SDFDataset(Dataset):
         if grid.__class__.__name__ != "OctreeGrid" and "OctreeGrid" not in [pclass.__name__ for pclass in grid.__class__.__bases__]:
             raise Exception("Only the OctreeGrid class or derivatives are supported for this initialization mode")
     
-        if not hasattr(grid, 'blas') and hasattr(grid.blas, 'V'):
+        if not hasattr(grid, 'blas') and hasattr(grid.blas, 'extent') and 'vertices' in grid.blas.extent:
             raise Exception("Only the OctreeGrid class or derivatives initialized from mesh are supported for this initialization mode")
 
         if self.get_normals:
@@ -82,7 +84,10 @@ class SDFDataset(Dataset):
 
         self.initialization_mode = "grid"
         self.samples_per_voxel = samples_per_voxel
-        
+
+        vertices = grid.blas.extent['vertices']
+        faces = grid.blas.extent['faces']
+
         level = grid.active_lods[-1]
 
         # Here, corners mean "the bottom left corner of the voxel to sample from"
@@ -98,14 +103,14 @@ class SDFDataset(Dataset):
             if mode == "rand":
                 pass
             elif mode == "near":
-                self.pts_.append(mesh_ops.sample_near_surface(grid.blas.V.cuda(), 
-                                                   grid.blas.F.cuda(), 
+                self.pts_.append(mesh_ops.sample_near_surface(vertices.cuda(),
+                                                   faces.cuda(),
                                                    self.pts_[0].shape[0], 
-                                                   variance=1.0/(2**level)).cpu())
+                                                   variance=1.0 / (2 ** level)).cpu())
             elif mode == "trace":
-                self.pts_.append(mesh_ops.sample_surface(grid.blas.V.cuda(),
-                                               grid.blas.F.cuda(),
-                                               self.pts_[0].shape[0])[0].cpu())
+                self.pts_.append(mesh_ops.sample_surface(vertices.cuda(),
+                                 faces.cuda(),
+                                 self.pts_[0].shape[0])[0].cpu())
             else:
                 raise Exception(f"Sampling mode {mode} not implemented")
 
@@ -116,11 +121,13 @@ class SDFDataset(Dataset):
     
         # Sample distances and textures.
         if self.sample_tex:
-            self.rgb_, self.hit_pts_, self.d_ = mesh_ops.closest_tex(grid.blas.V, grid.blas.F, 
-                    grid.blas.texv, grid.blas.texf, grid.blas.mats, self.pts_)
+            texv = grid.blas.extent['texv']
+            texf = grid.blas.extent['texf']
+            mats = grid.blas.extent['mats']
+            self.rgb_, self.hit_pts_, self.d_ = mesh_ops.closest_tex(vertices, faces, texv, texf, mats, self.pts_)
         else:
             log.info(f"Computing SDFs for {self.pts_.shape[0]} samples (may take a while)..")
-            self.d_ = mesh_ops.compute_sdf(grid.blas.V, grid.blas.F, self.pts_)
+            self.d_ = mesh_ops.compute_sdf(vertices, faces, self.pts_)
             assert(self.d_.shape[0] == self.pts_.shape[0])
         
         log.info(f"Total Samples: {self.pts_.shape[0]}")

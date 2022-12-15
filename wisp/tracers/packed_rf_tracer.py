@@ -43,7 +43,6 @@ class PackedRFTracer(BaseTracer):
             step_size (float): The step size between samples. Currently unused, but will be used for a new
                                sampling method in the future.
             bg_color (str): The background color to use.
-            TODO(ttakikawa): Might be able to simplify / remove
         """
         super().__init__(**kwargs)
         self.raymarch_type = raymarch_type
