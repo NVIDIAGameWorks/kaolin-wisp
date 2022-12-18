@@ -6,19 +6,18 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'nglod_nerf.yaml'
+parent: 'nerf_base.yaml'
 
-global:
-    exp_name: 'test-nglod-nerf-interactive'
+grid:
+    grid_type: 'TriplanarGrid'
+    interpolation_type: 'linear'
+    multiscale_type: 'sum'
+    feature_dim: 4
+    feature_std: 0.01
+    feature_bias: 0.0
+    base_lod: 5
+    num_lods: 4
 
-renderer:
-    num_steps: 6
-    render_batch: 50000
-
-dataset:
-    bg_color: 'black'
-
-trainer:
-    save_every: -1
-    render_tb_every: -1
-    valid_every: -1
+tracer:
+    raymarch_type: 'voxel'  # Samples within the triplanar volume (e.g. AABB)
+    num_steps: 512

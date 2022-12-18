@@ -22,7 +22,6 @@ from wisp.core import Rays, RenderBuffer
 
 import wandb
 import numpy as np
-from tqdm import tqdm
 from PIL import Image
 
 class MultiviewTrainer(BaseTrainer):

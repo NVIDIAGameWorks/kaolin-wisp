@@ -6,333 +6,149 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import os
-import sys
 import argparse
-import pprint
-import yaml
-import torch
 import logging
-from wisp.datasets import *
-from wisp.models import Pipeline
-from wisp.models.nefs import *
-from wisp.models.grids import *
-from wisp.tracers import *
-from wisp.datasets.transforms import *
+import os
+import yaml
+import inspect
+import torch
+from typing import Dict, List, Any
 
-str2optim = {m.lower(): getattr(torch.optim, m) for m in dir(torch.optim) if m[0].isupper()}
+from wisp.models import nefs
+from wisp.models import grids
+from wisp import tracers
+from wisp import datasets
+
+# This file contains all the configuration and command-line parsing general to all app
+
+__all__ = [
+    'list_modules',
+    'register_module',
+    'get_module',
+    'get_args_for_function',
+    'get_grouped_args',
+    'parse_args'
+]
+
+# str2mod ("str to module") are registered wisp blocks the config parser is aware of, and is able to dynamically load.
+# You may register additional options by adding them to the dictionary here.
+# ConfigParser expects the following default module categories:
+str2mod = {
+    'optim': {m.lower(): getattr(torch.optim, m) for m in dir(torch.optim) if m[0].isupper()},
+    'dataset': {},
+    'nef': {},
+    'grid': {},
+    'tracer': {}
+}
+
+
+def list_modules(module_type) -> List[str]:
+    """ Returns a list of all available modules from a certain category.
+    Args:
+        type: a str from the following categories: ['nef', 'grid', 'tracer', 'dataset', 'optim']
+    """
+    return list(str2mod[module_type].keys())
+
+
+def register_module(module_type, name, mod):
+    """Register module to be used with config parser.
+    Users should use this class to load their classes by name.
+    """
+    if module_type not in str2mod:
+        raise ValueError(f"'{module_type}' is an unknown type")
+
+    if name in str2mod[module_type]:
+        raise KeyError(f"'{name}' already exist in type '{module_type}'")
+    str2mod[module_type][name] = mod
+
+
+def get_module(name, module_type=None):
+    """Get module class by name, assuming it was registered with `register_module`.'"""
+    types_to_check = []
+    if module_type is None:
+        types_to_check = str2mod
+    else:
+        if module_type not in str2mod:
+            raise ValueError(f"'{module_type}' is an unknown type")
+        types_to_check.append(module_type)
+
+    for t in types_to_check:
+        if name in str2mod[t]:
+            return str2mod[t][name]
+
+    raise ValueError(f"'{name}' is not a known module for any of the types '{types_to_check}'. "
+                     f"registered modules are '{str2mod[module_type].keys()}'")
+
+
+def get_args_for_function(args, func):
+    """ Given a func (for example an __init__(..) function or from_X(..)), and also the parsed args,
+    return the subset of args that func expects and args contains. """
+    has_kwargs = inspect.getfullargspec(func).varkw != None
+    if has_kwargs:
+        collected_args = vars(args)
+    else:
+        parameters = dict(inspect.signature(func).parameters)
+        collected_args = {a: getattr(args, a) for a in parameters if hasattr(args, a)}
+    return collected_args
+
+
+def get_grouped_args(parser, args) -> Dict[str, Any]:
+    """Group args to a grouped hierarchy.
+
+    Args:
+        parser (argparse.parser): Parser object. Needed for the argument groups.
+        args : The parsed arguments. Will compute from the parser if None.
+
+    Returns:
+        args    : The parsed arguments.
+        arg_str : The string to be printed.
+    """
+    args_dict = {}
+    for group in parser._action_groups:
+        group_dict = {a.dest: getattr(args, a.dest, None) for a in group._group_actions}
+        args_dict[group.title] = vars(argparse.Namespace(**group_dict))
+    return args_dict
+
+
+# -- Register all wisp library modules here -- this makes them loadable by specifying the class name to get_module() --
+for name in dir(datasets):
+    mod = getattr(datasets, name)
+    if isinstance(mod, type) and \
+            issubclass(mod, torch.utils.data.Dataset) and \
+            mod != torch.utils.data.Dataset:
+        register_module('dataset', name, mod)
+
+for name in dir(nefs):
+    mod = getattr(nefs, name)
+    if isinstance(mod, type) and \
+            issubclass(mod, nefs.BaseNeuralField) and \
+            mod != nefs.BaseNeuralField:
+        register_module('nef', name, mod)
+
+for name in dir(grids):
+    mod = getattr(grids, name)
+    if isinstance(mod, type) and \
+            issubclass(mod, grids.BLASGrid) and \
+            mod != grids.BLASGrid:
+        register_module('grid', name, mod)
+
+for name in dir(tracers):
+    mod = getattr(tracers, name)
+    if isinstance(mod, type) and \
+            issubclass(mod, tracers.BaseTracer) and \
+            mod != tracers.BaseTracer:
+        register_module('tracer', name, mod)
+
 try:
     import apex
+
     for m in dir(apex.optimizers):
         if m[0].isupper():
-            str2optim[m.lower()] = getattr(apex.optimizers, m)
+            register_module('optim', m.lower(), getattr(apex.optimizers, m))
 except ImportError:
     logger = logging.getLogger(__name__)
     logger.info("Cannot import apex for fused optimizers")
 
-def register_class(cls, name):
-    globals()[name] = cls
-
-def parse_options(return_parser=False):
-    """Function used to parse options.
-    
-    Apps should use these CLI options, and then extend using parser.add_argument_group('app')
-    
-    Args:
-        return_parser : If true, will return the parser object instead of the parsed arguments.
-                        This is useful if you want to keep the parser around to add special argument
-                        groups through app.
-    """
-    
-    # New CLI parser
-    parser = argparse.ArgumentParser(description='ArgumentParser for kaolin-wisp.')
-    
-    ###################
-    # Global arguments
-    ###################
-    global_group = parser.add_argument_group('global')
-    global_group.add_argument('--trainer-type', type=str,
-                              help='Trainer class to use')
-    global_group.add_argument('--exp-name', type=str,
-                              help='Experiment name.')
-    global_group.add_argument('--perf', action='store_true',
-                              help='Use high-level profiling for the trainer.')
-    global_group.add_argument('--detect-anomaly', action='store_true',
-                              help='Turn on anomaly detection.')
-    global_group.add_argument('--config', type=str,
-                              help='Path to config file to replace defaults.')
-
-    ###################
-    # Grid arguments
-    ###################
-    grid_group = parser.add_argument_group('grid')
-    
-    grid_group.add_argument('--grid-type', type=str, default='OctreeGrid',
-                            choices=['None', 'OctreeGrid', 'CodebookOctreeGrid', 'TriplanarGrid', 'HashGrid'],
-                            help='Type of grid to use.')
-    grid_group.add_argument('--interpolation-type', type=str, default='linear',
-                            choices=['linear', 'closest'],
-                            help='SPC interpolation mode.')
-    grid_group.add_argument('--as-type', type=str, default='none', 
-                            choices=['none', 'octree'],
-                            help='Type of accelstruct to use.')
-    grid_group.add_argument('--raymarch-type', type=str, default='voxel',
-                            choices=['voxel', 'ray'],
-                            help='Method of raymarching. `voxel` samples within each primitive, \
-                                  `ray` samples within rays and then filters them with the primitives. \
-                                  See the accelstruct for details.')
-    grid_group.add_argument('--multiscale-type', type=str, default='sum',
-                            choices=['cat', 'sum'],
-                            help='Type of multiscale aggregation function to use.')
-    grid_group.add_argument('--feature-dim', type=int, default=32,
-                            help='Feature map dimension')
-    grid_group.add_argument('--feature-std', type=float, default=0.0,
-                            help='Feature map std')
-    grid_group.add_argument('--feature-bias', type=float, default=0.0,
-                            help='Feature map bias')
-    grid_group.add_argument('--noise-std', type=float, default=0.0,
-                            help='Added noise to features in training.')
-    grid_group.add_argument('--num-lods', type=int, default=1,
-                            help='Number of LODs')
-    grid_group.add_argument('--base-lod', type=int, default=2,
-                            help='Base level LOD')
-    grid_group.add_argument('--max-grid-res', type=int, default=2048,
-                            help='The maximum grid resolution. Used only in geometric initialization.')
-    grid_group.add_argument('--tree-type', type=str, default='quad', 
-                            choices=['quad', 'geometric'],
-                            help='What type of tree to use. `quad` is a quadtree or octree-like growing \
-                                  scheme, whereas geometric is the Instant-NGP growing scheme.')
-    grid_group.add_argument('--codebook-bitwidth', type=int, default=8, 
-                            help='Bitwidth to use for the codebook. The number of vectors will be 2^bitwidth.')
-    grid_group.add_argument('--prune-min-density', type=float, default=(0.01*512)/np.sqrt(3),
-                            help='Minimum density value for pruning')
-    grid_group.add_argument('--prune-density-decay', type=float, default=0.6,
-                            help='The decay applied on the density every pruning')
-
-    ###################
-    # Embedder arguments
-    ###################
-    embedder_group = parser.add_argument_group('embedder')
-    embedder_group.add_argument('--embedder-type', type=str, default='none',
-                                choices=['none', 'positional', 'fourier'])
-    embedder_group.add_argument('--pos-multires', type=int, default=10,
-                                help='log2 of max freq')
-    embedder_group.add_argument('--view-multires', type=int, default=4,
-                                help='log2 of max freq')
-
-    ###################
-    # Decoder arguments (and general global network things)
-    ###################
-    net_group = parser.add_argument_group('net')
-    
-    net_group.add_argument('--nef-type', type=str,
-                          help='The neural field class to be used.')
-    net_group.add_argument('--layer-type', type=str, default='none',
-                            choices=['none', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'])
-    net_group.add_argument('--activation-type', type=str, default='relu',
-                            choices=['relu', 'sin'])
-    net_group.add_argument('--decoder-type', type=str, default='basic',
-                            choices=['none', 'basic'])
-
-    net_group.add_argument('--num-layers', type=int, default=1,
-                          help='Number of layers for the decoder')
-    net_group.add_argument('--hidden-dim', type=int, default=128,
-                          help='Network width')
-    net_group.add_argument('--out-dim', type=int, default=1,
-                          help='output dimension')
-    net_group.add_argument('--skip', type=int, default=None,
-                          help='Layer to have skip connection.')
-    net_group.add_argument('--pretrained', type=str,
-                          help='Path to pretrained model weights.')
-    net_group.add_argument('--position-input', action='store_true',
-                          help='Use position as input.')
-
-    ###################
-    # Arguments for dataset
-    ###################
-    data_group = parser.add_argument_group('dataset')
-
-    data_group.add_argument('--dataset-type', type=str, default=None,
-                            choices=['sdf', 'multiview'],
-                            help='Dataset class to use')
-    data_group.add_argument('--dataset-path', type=str,
-                            help='Path to the dataset')
-    data_group.add_argument('--dataset-num-workers', type=int, default=-1, 
-                            help='Number of workers for dataset preprocessing, if it supports multiprocessing. \
-                                 -1 indicates no multiprocessing.')
-    data_group.add_argument('--dataloader-num-workers', type=int, default=0, 
-                            help='Number of workers for dataloader.')
-
-    # SDF Dataset
-    data_group.add_argument('--sample-mode', type=str, nargs='*', 
-                            default=['rand', 'near', 'near', 'trace', 'trace'],
-                            help='The sampling scheme to be used.')
-    data_group.add_argument('--get-normals', action='store_true',
-                            help='Sample the normals.')
-    data_group.add_argument('--num-samples', type=int, default=100000,
-                            help='Number of samples per mode (or per epoch for SPC)')
-    data_group.add_argument('--num-samples-on-mesh', type=int, default=100000000,
-                            help='Number of samples generated on mesh surface to initialize occupancy structures')
-    data_group.add_argument('--sample-tex', action='store_true',
-                            help='Sample textures')
-    data_group.add_argument('--mode-mesh-norm', type=str, default='sphere',
-                            choices=['sphere', 'aabb', 'planar', 'none'],
-                            help='Normalize the mesh')
-    data_group.add_argument('--samples-per-voxel', type=int, default=256,
-                            help='Number of samples per voxel (for SDF initialization from grid)')
-
-    # Multiview Dataset
-    data_group.add_argument('--multiview-dataset-format', default='standard',
-                            choices=['standard', 'rtmv'],
-                            help='Data format for the transforms')
-    data_group.add_argument('--num-rays-sampled-per-img', type=int, default='4096',
-                            help='Number of rays to sample per image')
-    data_group.add_argument('--bg-color', default='white',
-                            choices=['white', 'black'],
-                            help='Background color')
-    data_group.add_argument('--mip', type=int, default=None, 
-                            help='MIP level of ground truth image')
-
-    ###################
-    # Arguments for optimizer
-    ###################
-    optim_group = parser.add_argument_group('optimizer')
-    optim_group.add_argument('--optimizer-type', type=str, default='adam', choices=list(str2optim.keys()), 
-                             help='Optimizer to be used.')
-    optim_group.add_argument('--lr', type=float, default=0.001, 
-                             help='Learning rate.')
-    optim_group.add_argument('--weight-decay', type=float, default=0, 
-                             help='Weight decay.')
-    optim_group.add_argument('--grid-lr-weight', type=float, default=100.0,
-                             help='Relative LR weighting for the grid')
-    optim_group.add_argument('--rgb-loss', type=float, default=1.0, 
-                            help='Weight of rgb loss')
-
-    ###################
-    # Arguments for training
-    ###################
-    train_group = parser.add_argument_group('trainer')
-    train_group.add_argument('--epochs', type=int, default=250, 
-                             help='Number of epochs to run the training.')
-    train_group.add_argument('--batch-size', type=int, default=512, 
-                             help='Batch size for the training.')
-    train_group.add_argument('--resample', action='store_true', 
-                             help='Resample the dataset after every epoch.')
-    train_group.add_argument('--only-last', action='store_true', 
-                             help='Train only last LOD.')
-    train_group.add_argument('--resample-every', type=int, default=1,
-                             help='Resample every N epochs')
-    train_group.add_argument('--model-format', type=str, default='full',
-                             choices=['full', 'state_dict'],
-                             help='Format in which to save models.')
-    train_group.add_argument('--save-as-new', action='store_true', 
-                             help='Save the model at every epoch (no overwrite).')
-    train_group.add_argument('--save-every', type=int, default=5, 
-                             help='Save the model at every N epochs.')
-    train_group.add_argument('--render-tb-every', type=int, default=5,
-                                help='Render every N iterations')
-    train_group.add_argument('--log-tb-every', type=int, default=5,
-                                help='Render every N epochs')
-    # TODO (ttakikawa): Only used for SDFs, but also should support RGB etc
-    train_group.add_argument('--log-2d', action='store_true', 
-                             help='Log cutting plane renders to TensorBoard.')
-    train_group.add_argument('--log-dir', type=str, default='_results/logs/runs/',
-                             help='Log file directory for checkpoints.')
-    # TODO (ttakikawa): This is only really used in the SDF training but it should be useful for multiview too
-    train_group.add_argument('--grow-every', type=int, default=-1,
-                             help='Grow network every X epochs')
-    train_group.add_argument('--prune-every', type=int, default=-1,
-                             help='Prune every N iterations')
-    # TODO (ttakikawa): Only used in multiview training, combine with the SDF growing schemes.
-    train_group.add_argument('--random-lod', action='store_true',
-                             help='Use random lods to train.')
-    # One by one trains one level at a time. 
-    # Increase starts from [0] and ends up at [0,...,N]
-    # Shrink strats from [0,...,N] and ends up at [N]
-    # Fine to coarse starts from [N] and ends up at [0,...,N]
-    # Only last starts and ends at [N]
-    train_group.add_argument('--growth-strategy', type=str, default='increase',
-                             choices=['onebyone','increase','shrink', 'finetocoarse', 'onlylast'],
-                             help='Strategy for coarse-to-fine training')
-    
-    train_group.add_argument("--wandb-project", type=str, default=None, help="Weights & Biases Project")
-    train_group.add_argument("--wandb-run_name", type=str, default=None, help="Weights & Biases Run Name")
-    train_group.add_argument("--wandb-entity", type=str, default=None, help="Weights & Biases Entity")
-    train_group.add_argument(
-        "--wandb-viz-nerf-angles",
-        type=int,
-        default=20,
-        help="Number of Angles to visualize a scene on Weights & Biases. Set this to 0 to disable 360 degree visualizations."
-    )
-    train_group.add_argument(
-        "--wandb-viz-nerf-distance",
-        type=int,
-        default=3,
-        help="Distance to visualize Scene from on Weights & Biases"
-    )
-
-
-    ###################
-    # Arguments for validation
-    ###################
-    valid_group = parser.add_argument_group('validation')
-    
-    valid_group.add_argument('--valid-only', action='store_true',
-                             help='Run validation only (and do not run training).')
-    valid_group.add_argument('--valid-every', type=int, default=-1,
-                             help='Frequency of running validation.')
-    valid_group.add_argument('--valid-split', type=str, default='val',
-                             help='Split to use for validation.')
-
-    ###################
-    # Arguments for renderer
-    ###################
-    renderer_group = parser.add_argument_group('renderer')
-    renderer_group.add_argument('--render-res', type=int, nargs=2, default=[512, 512], 
-                                help='Width/height to render at.')
-    renderer_group.add_argument('--render-batch', type=int, default=0, 
-                                help='Batch size (in number of rays) for batched rendering.')
-    renderer_group.add_argument('--camera-origin', type=float, nargs=3, default=[-2.8, 2.8, -2.8], 
-                                help='Camera origin.')
-    renderer_group.add_argument('--camera-lookat', type=float, nargs=3, default=[0, 0, 0], 
-                                help='Camera look-at/target point.')
-    renderer_group.add_argument('--camera-fov', type=float, default=30, 
-                                help='Camera field of view (FOV).')
-    renderer_group.add_argument('--camera-proj', type=str, choices=['ortho', 'persp'], default='persp', 
-                                help='Camera projection.')
-    renderer_group.add_argument('--camera-clamp', nargs=2, type=float, default=[0, 10], 
-                                help='Camera clipping bounds.')
-    renderer_group.add_argument('--tracer-type', type=str, default='PackedRFTracer', 
-                                help='The tracer to be used.')
-    
-    # TODO(ttakikawa): In the future the interface will be such that you either select an absolute step size or 
-    #                  you select the number of steps to take. Sphere tracing will take step-scales.
-    renderer_group.add_argument('--num-steps', type=int, default=128,
-                                help='Number of steps for raymarching / spheretracing / etc')
-    renderer_group.add_argument('--step-size', type=float, default=1.0,
-                                help='Scale of step size')
-    
-    # Sphere tracing stuff
-    renderer_group.add_argument('--min-dis', type=float, default=0.0003,
-                                help='Minimum distance away from surface for spheretracing')
-    
-    # TODO(ttakikawa): Shader stuff... will be more modular in future
-    renderer_group.add_argument('--matcap-path', type=str, 
-                                default='data/matcaps/matcap_plastic_yellow.jpg', 
-                                help='Path to the matcap texture to render with.')
-    renderer_group.add_argument('--ao', action='store_true',
-                                help='Use ambient occlusion.')
-    renderer_group.add_argument('--shadow', action='store_true',
-                                help='Use shadowing.')
-    renderer_group.add_argument('--shading-mode', type=str, default='normal',
-                                choices=['matcap', 'rb', 'normal'],
-                                help='Shading mode.')
-
-    # Parse and run
-    if return_parser:
-        return parser
-    else:
-        return argparse_to_str(parser)
 
 def parse_yaml_config(config_path, parser):
     """Parses and sets the parser defaults with a yaml config file.
@@ -349,9 +165,10 @@ def parse_yaml_config(config_path, parser):
     for group in parser._action_groups:
         group_dict = {list_of_valid_fields.append(a.dest) for a in group._group_actions}
     list_of_valid_fields = set(list_of_valid_fields)
-    
+
     defaults_dict = {}
-    
+    defaults_dict_args = {}
+
     # Load the parent config if it exists
     parent_config_path = config_dict.pop("parent", None)
 
@@ -368,8 +185,12 @@ def parse_yaml_config(config_path, parser):
                     raise ValueError(
                         f"ERROR: {field} is not a valid option. Check for typos in the config."
                     )
-                defaults_dict[field] = parent_config_dict[key][field]
-        
+                if isinstance(parent_config_dict[key][field], dict):
+                    defaults_dict_args[field] = parent_config_dict[key][field]
+                    defaults_dict[field] = None
+                else:
+                    defaults_dict[field] = parent_config_dict[key][field]
+
     # Loads child parent and overwrite the parent configs
     # The yaml files assumes the argument groups, which aren't actually nested.
     for key in config_dict:
@@ -378,261 +199,46 @@ def parse_yaml_config(config_path, parser):
                 raise ValueError(
                     f"ERROR: {field} is not a valid option. Check for typos in the config."
                 )
-            defaults_dict[field] = config_dict[key][field]
+            if isinstance(config_dict[key][field], dict):
+                defaults_dict_args[field] = config_dict[key][field]
+                defaults_dict[field] = None
+            else:
+                defaults_dict[field] = config_dict[key][field]
 
     parser.set_defaults(**defaults_dict)
+    return defaults_dict_args
 
-def argparse_to_str(parser, args=None):
-    """Convert parser to string representation for Tensorboard logging.
+
+def parse_args(parser) -> argparse.Namespace:
+    """Parses args by priority into a flat configuration.
+    The various options take the following precedence:
+    1. CLI args, explicitly specified
+    2. YAML configuration, defined with `--config <PATH>.yaml`
+    3. argparse defaults
 
     Args:
         parser (argparse.parser): Parser object. Needed for the argument groups.
-        args : The parsed arguments. Will compute from the parser if None.
-    
-    Returns:
-        args    : The parsed arguments.
-        arg_str : The string to be printed.
-    """
-    
-    if args is None:
-        args = parser.parse_args()
 
-    if args.config is not None:
-        parse_yaml_config(args.config, parser)
+    Returns:
+        args    : The parsed arguments, as a flat configuration.
+    """
 
     args = parser.parse_args()
+    defaults_dict = dict()
 
-    args_dict = {}
-    for group in parser._action_groups:
-        group_dict = {a.dest: getattr(args, a.dest, None) for a in group._group_actions}
-        args_dict[group.title] = vars(argparse.Namespace(**group_dict))
-
-    pp = pprint.PrettyPrinter(indent=2)
-    args_str = pp.pformat(args_dict)
-    args_str = f'```{args_str}```'
-
-    return args, args_str
-
-def get_optimizer_from_config(args):
-    """Utility function to get the optimizer from the parsed config.
-    """
-    optim_cls = str2optim[args.optimizer_type]
-    if args.optimizer_type == 'adam':
-        optim_params = {'eps': 1e-15}
-    elif args.optimizer_type == 'fusedadam':
-        optim_params = {'eps': 1e-15}
-    elif args.optimizer_type == 'sgd':
-        optim_params = {'momentum': 0.8}
-    else:
-        optim_params = {}
-    return optim_cls, optim_params
-
-
-def load_mv_grid(args, dataset: torch.utils.data.Dataset):
-    grid = None
-    # Optimization: For octrees based grids, if dataset contains depth info, initialize only cells known to be occupied
-    has_depth_supervision = getattr(dataset, "coords", None) is not None
-
-    if args.grid_type == "OctreeGrid":
-        if has_depth_supervision:
-            grid = OctreeGrid.from_pointcloud(
-                pointcloud=dataset.coords,
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-            )
-        else:
-            grid = OctreeGrid.make_dense(
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-            )
-    elif args.grid_type == "CodebookOctreeGrid":
-        if has_depth_supervision:
-            grid = CodebookOctreeGrid.from_pointcloud(
-                pointcloud=dataset.coords,
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth
-            )
-        else:
-            grid = CodebookOctreeGrid.make_dense(
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth
-            )
-    elif args.grid_type == "TriplanarGrid":
-        grid = TriplanarGrid(
-            feature_dim=args.feature_dim,
-            base_lod=args.base_lod,
-            num_lods=args.num_lods,
-            interpolation_type=args.interpolation_type,
-            multiscale_type=args.multiscale_type,
-            feature_std=args.feature_std,
-            feature_bias=args.feature_bias,
-        )
-    elif args.grid_type == "HashGrid":
-        # "geometric" - determines the resolution of the grid using geometric sequence initialization from InstantNGP,
-        if args.tree_type == "geometric":
-            grid = HashGrid.from_geometric(
-                feature_dim=args.feature_dim,
-                num_lods=args.num_lods,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth,
-                min_grid_res=16,
-                max_grid_res=args.max_grid_res,
-                blas_level=7
-            )
-        # "quad" - determines the resolution of the grid using an octree sampling pattern.
-        elif args.tree_type == "octree":
-            grid = HashGrid.from_octree(
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth,
-                blas_level=7
-            )
-    else:
-        raise ValueError(f"Unknown grid_type argument: {args.grid_type}")
-    return grid
-
-def load_sdf_grid(args):
-    grid = None
-    if args.grid_type == "OctreeGrid":
-        # For SDF pipelines case, the grid may be initialized from the mesh to speed up the optimization.
-        grid = OctreeGrid.from_mesh(
-            mesh_path=args.dataset_path,
-            num_samples_on_mesh=args.num_samples_on_mesh,
-            feature_dim=args.feature_dim,
-            base_lod=args.base_lod,
-            num_lods=args.num_lods,
-            interpolation_type=args.interpolation_type,
-            multiscale_type=args.multiscale_type,
-            feature_std=args.feature_std,
-            feature_bias=args.feature_bias,
-        )
-    elif args.grid_type == "TriplanarGrid":
-        grid = TriplanarGrid(
-            feature_dim=args.feature_dim,
-            base_lod=args.base_lod,
-            num_lods=args.num_lods,
-            interpolation_type=args.interpolation_type,
-            multiscale_type=args.multiscale_type,
-            feature_std=args.feature_std,
-            feature_bias=args.feature_bias,
-        )
-    elif args.grid_type == "HashGrid":
-        # "geometric" - determines the resolution of the grid using geometric sequence initialization from InstantNGP,
-        if args.tree_type == "geometric":
-            grid = HashGrid.from_geometric(
-                feature_dim=args.feature_dim,
-                num_lods=args.num_lods,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth,
-                min_grid_res=16,
-                max_grid_res=args.max_grid_res,
-                blas_level=7
-            )
-        # "quad" - determines the resolution of the grid using an octree sampling pattern.
-        elif args.tree_type == "octree":
-            grid = HashGrid.from_octree(
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth,
-                blas_level=7
-            )
-    else:
-        raise ValueError(f"Unknown grid_type argument: {args.grid_type}")
-    return grid
-
-def load_dataset(args):
-    if args.dataset_type == "multiview":
-        transform = SampleRays(args.num_rays_sampled_per_img)
-        train_dataset = MultiviewDataset(**vars(args), transform=transform)
-    elif args.dataset_type == "sdf":
-        train_dataset = SDFDataset(args.sample_mode, args.num_samples,
-                                   args.get_normals, args.sample_tex)
-    return train_dataset
-
-def load_nef(args, grid):
-    if args.nef_type == 'NeuralRadianceField':
-        return NeuralRadianceField(
-            grid=grid,
-            pos_embedder=args.embedder_type,
-            view_embedder=args.embedder_type,
-            pos_multires=args.pos_multires,
-            position_input=args.position_input,
-            view_multires=args.view_multires,
-            activation_type=args.activation_type,
-            layer_type=args.layer_type,
-            hidden_dim=args.hidden_dim,
-            num_layers=args.num_layers,
-            prune_density_decay=args.prune_density_decay,
-            prune_min_density=args.prune_min_density
-        )
-    elif args.nef_type == 'NeuralSDF':
-        return NeuralSDF(
-            grid=grid,
-            pos_embedder=args.embedder_type,
-            pos_multires=args.pos_multires,
-            position_input=args.position_input,
-            activation_type=args.activation_type,
-            layer_type=args.layer_type,
-            hidden_dim=args.hidden_dim,
-            num_layers=args.num_layers
-        )
-    else:
-        raise ValueError(f'Neural field {args.nef_type} is temporarily unsupported by the config parser.')
-
-def get_modules_from_config(args):
-    """Utility function to get the modules for training from the parsed config.
-    """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset = load_dataset(args)
-    grid = None
-    if args.dataset_type == "multiview":
-        grid = load_mv_grid(args, train_dataset)
-    elif args.dataset_type == "sdf":
-        grid = load_sdf_grid(args)
-    nef = load_nef(args, grid)
-    tracer = globals()[args.tracer_type](**vars(args))
-    pipeline = Pipeline(nef, tracer)
-    pipeline = pipeline.to(device)
-
-    if args.dataset_type == "sdf":
-        if pipeline.nef.grid is not None:
-            if isinstance(pipeline.nef.grid, OctreeGrid):
-                train_dataset.init_from_grid(pipeline.nef.grid, args.samples_per_voxel)
+    if args.config is not None:
+        config_defaults_dict = parse_yaml_config(args.config, parser)
+        for key, val in config_defaults_dict.items():
+            if key in defaults_dict:
+                defaults_dict[key].update(val)
             else:
-                train_dataset.init_from_mesh(args.dataset_path, args.mode_mesh_norm)
+                defaults_dict[key] = val
+        args = parser.parse_args()
 
-    return pipeline, train_dataset, device
+    for key, val in defaults_dict.items():
+        cmd_line_val = getattr(args, key)
+        if cmd_line_val is not None:
+            val.update(cmd_line_val)
+        setattr(args, key, val)
+
+    return args

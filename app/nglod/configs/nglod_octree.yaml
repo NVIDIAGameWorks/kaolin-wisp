@@ -6,12 +6,14 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'nglod_sdf.yaml'
+parent: 'nglod_base.yaml'
 
-global:
-    exp_name: 'test-nglod-sdf-interactive'
-
-trainer:
-    save_every: -1
-    render_tb_every: -1
-    valid_every: -1
+grid:
+    grid_type: 'OctreeGrid'
+    interpolation_type: 'linear'
+    multiscale_type: 'sum'
+    feature_dim: 16
+    feature_std: 0.01
+    base_lod: 2
+    num_lods: 6
+    num_samples_on_mesh: 100000000  # Number of samples generated on mesh surface to initialize the occupancy grid

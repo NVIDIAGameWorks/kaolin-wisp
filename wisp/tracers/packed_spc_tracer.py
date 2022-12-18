@@ -15,7 +15,7 @@ class PackedSPCTracer(BaseTracer):
     See also: https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html#spc
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         """Set the default trace() arguments. """
         super().__init__()
 

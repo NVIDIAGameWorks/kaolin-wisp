@@ -6,12 +6,21 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'triplanar_sdf.yaml'
+parent: 'nglod_base.yaml'
 
-global:
-    exp_name: 'triplanar-sdf-interactive'
+tracer:
+    num_steps: 256
+    step_size: 0.8
 
-trainer:
-    save_every: -1
-    render_tb_every: -1
-    valid_every: -1
+grid:
+    grid_type: 'HashGrid'
+    interpolation_type: 'linear'
+    multiscale_type: 'cat'
+    feature_dim: 8
+    feature_std: 0.01
+    feature_bias: 0.0
+    num_lods: 4
+    codebook_bitwidth: 19
+    tree_type: 'geometric'
+    min_grid_res: 16
+    max_grid_res: 2048

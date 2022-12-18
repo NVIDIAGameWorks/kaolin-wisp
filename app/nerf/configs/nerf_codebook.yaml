@@ -6,15 +6,15 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'vqad_nerf.yaml'
+parent: 'nerf_base.yaml'
 
-global:
-    exp_name: 'vqad-nerf-interactive'
-
-dataset:
-    bg_color: 'black'
-
-trainer:
-    save_every: -1
-    render_tb_every: -1
-    valid_every: -1
+grid:
+    grid_type: 'CodebookOctreeGrid'
+    interpolation_type: 'linear'
+    multiscale_type: 'sum'
+    feature_dim: 5
+    feature_std: 0.01
+    feature_bias: 0.0
+    base_lod: 5
+    num_lods: 4
+    codebook_bitwidth: 4

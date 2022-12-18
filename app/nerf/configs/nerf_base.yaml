@@ -1,0 +1,51 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
+
+logging:
+    exp_name: 'test-nerf'
+
+dataset:
+    multiview_dataset_format: 'standard'
+    num_rays_sampled_per_img: 4096
+    mip: 2
+    bg_color: 'white'
+
+nef:
+    hidden_dim: 64
+    num_layers: 1
+    pos_embedder: 'none'
+    position_input: False
+    view_embedder: 'positional'
+    view_multires: 4
+
+tracer:
+    raymarch_type: 'ray'
+    num_steps: 1024
+
+optimizer:
+    optimizer_type: 'rmsprop'
+    lr: 0.001
+
+trainer:
+    epochs: 50
+    batch_size: 1
+    model_format: 'full'  # If loading a pretrained pipeline, 'full' = torch.load instead of torch.load_state_dict
+    valid_every: 50
+    save_every: 10
+    render_tb_every: 10
+
+# NOTE: These are OfflineRenderer definitions, used for validation. See WispState for interactive app definitions.
+renderer:
+    render_batch: 4000
+    camera_origin:
+        - -3.0
+        - 0.65
+        - -3.0
+    render_res:
+        - 1024
+        - 1024
