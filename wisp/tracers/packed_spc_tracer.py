@@ -10,11 +10,14 @@ class PackedSPCTracer(BaseTracer):
     The logic of this tracer is straightforward and does not involve any neural operations:
     rays are intersected against the SPC points (cell centers).
     Each ray returns the color of the intersected cell, if such exists.
+
+    See: https://github.com/NVIDIAGameWorks/kaolin-wisp/tree/main/examples/spc_browser
+    See also: https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html#spc
     """
 
     def __init__(self, **kwargs):
         """Set the default trace() arguments. """
-        super().__init__(**kwargs)
+        super().__init__()
 
     def get_supported_channels(self):
         """Returns the set of channel names this tracer may output.

@@ -44,12 +44,12 @@ class PackedRFTracer(BaseTracer):
                                sampling method in the future.
             bg_color (str): The background color to use.
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.raymarch_type = raymarch_type
         self.num_steps = num_steps
         self.step_size = step_size
         self.bg_color = bg_color
-    
+
     def get_supported_channels(self):
         """Returns the set of channel names this tracer may output.
         

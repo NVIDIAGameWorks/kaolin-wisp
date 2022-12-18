@@ -20,6 +20,7 @@ from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from torch.utils.data import DataLoader
 from wisp.utils import PerfTimer
 from wisp.datasets import SDFDataset
+from torch.utils.tensorboard import SummaryWriter
 from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
 
@@ -94,7 +95,7 @@ class SDFTrainer(BaseTrainer):
     def log_cli(self):
         """Override logging.
         """
-        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
         log_text += ' | l2 loss: {:>.3E}'.format(self.log_dict['l2_loss'] / len(self.train_data_loader))
         log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
@@ -104,7 +105,7 @@ class SDFTrainer(BaseTrainer):
         super().render_tb()
 
         self.pipeline.eval()
-        for d in [self.extra_args["num_lods"] - 1]:
+        for d in [self.pipeline.nef.grid.num_lods - 1]:
             if self.extra_args["log_2d"]:
                 out_x = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=0)
                 out_y = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=1)
@@ -146,7 +147,7 @@ class SDFTrainer(BaseTrainer):
                 pred = self.pipeline.nef(coords=pts, lod_idx=lod_idx, channels="sdf")
                 val_dict[metric_name] += [float(compute_sdf_iou(pred, gts))]
 
-        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
 
         for k, v in val_dict.items():
             score_total = 0.0
@@ -155,3 +156,35 @@ class SDFTrainer(BaseTrainer):
                 score_total += score
             log_text += ' | {}: {:.4f}'.format(k, score_total / len(v))
         log.info(log_text)
+
+    def pre_training(self):
+        """
+        Override this function to change the logic which runs before the first training iteration.
+        This function runs once before training starts.
+        """
+
+        # Default TensorBoard Logging
+        self.writer = SummaryWriter(self.log_dir, purge_step=0)
+        self.writer.add_text('Info', self.info)
+
+        if self.using_wandb:
+            wandb_project = self.extra_args["wandb_project"]
+            wandb_run_name = self.extra_args.get("wandb_run_name")
+            wandb_entity = self.extra_args.get("wandb_entity")
+            wandb.init(
+                project=wandb_project,
+                name=self.exp_name if wandb_run_name is None else wandb_run_name,
+                entity=wandb_entity,
+                job_type=self.trainer_mode,
+                config=self.extra_args,
+                sync_tensorboard=True
+            )
+
+    def post_training(self):
+        """
+        Override this function to change the logic which runs after the last training iteration.
+        This function runs once after training ends.
+        """
+        self.writer.close()
+        if self.using_wandb:
+            wandb.finish()

@@ -19,17 +19,23 @@ from wisp.tracers import BaseTracer
 class PackedSDFTracer(BaseTracer):
     """Tracer class for sparse SDFs.
 
-    This tracer class expects the use of a feature grid that has a BLAS (i.e. inherits the BLASGrid
-    class).
+    - Packed: each ray yields a custom number of samples, which are therefore packed in a flat form within a tensor,
+     see: https://kaolin.readthedocs.io/en/latest/modules/kaolin.ops.batch.html#packed
+    - SDF: Signed Distance Function
+    PackedSDFTracer is non-differentiable, and follows the sphere-tracer implementation of
+    Neural Geometric Level of Detail (Takikawa et al. 2021).
+
+    This tracer class expects the neural field to expose a BLASGrid: a Bottom-Level-Acceleration-Structure Grid,
+    i.e. a grid that inherits the BLASGrid class for both a feature structure and an occupancy acceleration structure).
     """
 
     def __init__(self, num_steps=64, step_size=1.0, min_dis=1e-4, **kwargs):
         """Set the default trace() arguments. """
-        super().__init__(**kwargs)
+        super().__init__()
         self.num_steps = num_steps
         self.step_size = step_size
         self.min_dis = min_dis
-    
+
     def get_supported_channels(self):
         """Returns the set of channel names this tracer may output.
         
@@ -46,7 +52,8 @@ class PackedSDFTracer(BaseTracer):
         """
         return {"sdf"}
 
-    def trace(self, nef, channels, extra_channels, rays, lod_idx=None, num_steps=64, step_size=1.0, min_dis=1e-4):
+    def trace(self, nef, channels, extra_channels, rays, lod_idx=None, num_steps=64,
+              step_size=1.0, min_dis=1e-4):
         """Trace the rays against the neural field.
 
         Args:
