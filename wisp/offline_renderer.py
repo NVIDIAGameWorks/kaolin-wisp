@@ -99,7 +99,7 @@ class OfflineRenderer():
         render_res   : list = [1024, 720], # [w, h]
         camera_proj  : str  = 'persp', # one of ['persp', 'ortho']
         render_batch : int  = -1, # -1 for no batching
-        shading_mode : str  = 'matcap', # one of ['matcap', 'rb']
+        shading_mode : str  = 'rb', # one of ['matcap', 'rb']
         matcap_path  : str  = './data/matcap/Pearl.png', # set if shadming mode = matcap
         shadow       : bool = False, 
         ao           : bool = False, 

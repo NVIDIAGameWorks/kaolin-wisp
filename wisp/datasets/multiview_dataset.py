@@ -55,16 +55,14 @@ class MultiviewDataset(Dataset):
         self.dataset_num_workers = dataset_num_workers
         self.transform = transform
 
+        self.coords = self.data = self.img_shape = self.num_imgs = self.coords_center = self.coords_scale = None
+        self.init()
+
     def init(self):
-        """Initializes the dataset.
-        """
-
-        # Get image tensors 
-        
+        """Initializes the dataset. """
+        # Get image tensors
         self.coords = None
-
         self.data = self.get_images()
-
         self.img_shape = self.data["imgs"].shape[1:3]
         self.num_imgs = self.data["imgs"].shape[0]
 
@@ -136,9 +134,11 @@ class MultiviewDataset(Dataset):
         ray_idx = torch.randperm(self.data["imgs"].shape[1])[:batch_size]
 
         out = {}
-        out['rays'] = Rays(origins=self.data["rays"].origins[idx, ray_idx],
-                dirs=self.data["rays"].dirs[idx, ray_idx],
-                dist_min=self.data["rays"].dist_min, dist_max=self.data["rays"].dist_max)
+        out['rays'] = Rays(
+            origins=self.data["rays"].origins[idx, ray_idx],
+            dirs=self.data["rays"].dirs[idx, ray_idx],
+            dist_min=self.data["rays"].dist_min,
+            dist_max=self.data["rays"].dist_max)
         out['imgs'] = self.data["imgs"][idx, ray_idx]
         
         return out

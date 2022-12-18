@@ -18,7 +18,6 @@ import wisp.ops.spc as wisp_spc_ops
 class SDFDataset(Dataset):
     """Base class for single mesh datasets with points sampled only at a given octree sampling region.
     """
-
     def __init__(self, 
         sample_mode       : list = ['rand', 'rand', 'near', 'near', 'trace'],
         num_samples       : int = 100000,
