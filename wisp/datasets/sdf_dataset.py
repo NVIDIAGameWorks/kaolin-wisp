@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import Dataset
 import logging as log
 import kaolin.ops.spc as spc_ops
+from wisp.models.grids import OctreeGrid
 import wisp.ops.mesh as mesh_ops
 import wisp.ops.spc as wisp_spc_ops
 

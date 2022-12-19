@@ -118,35 +118,39 @@ class HashGrid(BLASGrid):
         """
         self.codebook.requires_grad_(False)
 
-    def interpolate(self, coords, lod_idx, pidx=None):
+    def interpolate(self, coords, lod_idx):
         """Query multiscale features.
 
         Args:
-            coords (torch.FloatTensor): coords of shape [batch, num_samples, 3]
-            lod_idx  (int): int specifying the index to ``active_lods`` 
-            pidx (torch.LongTensor): Primitive indices of shape [batch]. Unused here.
+            coords (torch.FloatTensor): coords of shape [batch, num_samples, 3] or [batch, 3]
+                For some grid implementations, specifying num_samples may allow for slightly faster trilinear
+                interpolation. HashGrid doesn't use this optimization, but allows this input type for compatability.
+            lod_idx  (int): int specifying the index to ``active_lods``
 
         Returns:
-            (torch.FloatTensor): interpolated features of shape [batch, num_samples, feature_dim]
+            (torch.FloatTensor): interpolated features of shape
+             [batch, num_samples, feature_dim] or [batch, feature_dim]
         """
-        timer = PerfTimer(activate=False, show_memory=False)
+        # Remember desired output shape
+        output_shape = coords.shape[:-1]
+        if coords.ndim >= 2:
+            coords = coords.reshape(-1, coords.shape[-1])
 
-        batch, num_samples, _ = coords.shape
-        
-        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth,
-                                  lod_idx, self.codebook)
+        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth, lod_idx, self.codebook)
 
         if self.multiscale_type == 'cat':
-            return feats
+            return feats.reshape(*output_shape, feats.shape[-1])
         elif self.multiscale_type == 'sum':
-            return feats.reshape(batch, num_samples, len(self.resolutions), feats.shape[-1] // len(self.resolutions)).sum(-2)
+            return feats.reshape(*output_shape, len(self.resolutions), feats.shape[-1] // len(self.resolutions)).sum(-2)
         else:
             raise NotImplementedError
 
-    def raymarch(self, rays, level=None, num_samples=64, raymarch_type='voxel'):
+    def raymarch(self, rays, num_samples=64, level=None, raymarch_type='voxel'):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays, level=self.blas_level, num_samples=num_samples,
-                                  raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, num_samples=num_samples, level=self.blas_level, raymarch_type=raymarch_type)
+
+    def name(self) -> str:
+        return "Hash Grid"

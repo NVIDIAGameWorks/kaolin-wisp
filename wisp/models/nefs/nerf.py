@@ -104,13 +104,13 @@ class NeuralRadianceField(BaseNeuralField):
                 samples = samples * 2.0 - 1.0
                 sample_views = torch.FloatTensor(sample_unif_sphere(samples.shape[0])).to(points.device)
                 with torch.no_grad():
-                    density = self.forward(coords=samples[:,None], ray_d=sample_views, channels="density")
-                self.grid.occupancy = torch.stack([density[:, 0, 0], self.grid.occupancy], -1).max(dim=-1)[0]
+                    density = self.forward(coords=samples, ray_d=sample_views, channels="density")
+                self.grid.occupancy = torch.stack([density[:, 0], self.grid.occupancy], -1).max(dim=-1)[0]
 
                 mask = self.grid.occupancy > min_density
 
                 _points = points[mask]
-                
+
                 if _points.shape[0] == 0:
                     return
 
@@ -132,43 +132,45 @@ class NeuralRadianceField(BaseNeuralField):
         """
         self._register_forward_function(self.rgba, ["density", "rgb"])
 
-    def rgba(self, coords, ray_d, pidx=None, lod_idx=None):
+    def rgba(self, coords, ray_d, lod_idx=None):
         """Compute color and density [particles / vol] for the provided coordinates.
 
         Args:
-            coords (torch.FloatTensor): tensor of shape [batch, num_samples, 3]
+            coords (torch.FloatTensor): tensor of shape [batch, 3]
             ray_d (torch.FloatTensor): tensor of shape [batch, 3]
-            pidx (torch.LongTensor): SPC point_hierarchy indices of shape [batch].
-                                     Unused in the current implementation.
             lod_idx (int): index into active_lods. If None, will use the maximum LOD.
         
         Returns:
             {"rgb": torch.FloatTensor, "density": torch.FloatTensor}:
-                - RGB tensor of shape [batch, num_samples, 3] 
-                - Density tensor of shape [batch, num_samples, 1]
+                - RGB tensor of shape [batch, 3]
+                - Density tensor of shape [batch, 1]
         """
         if lod_idx is None:
             lod_idx = len(self.grid.active_lods) - 1
-        batch, num_samples, _ = coords.shape
-        
+        batch, _ = coords.shape
+
         # Embed coordinates into high-dimensional vectors with the grid.
         feats = self.grid.interpolate(coords, lod_idx).reshape(-1, self.effective_feature_dim)
         
         if self.position_input:
             raise NotImplementedError
 
-        # Decode high-dimensional vectors to RGBA.
+        # Decode high-dimensional vectors to density features.
         density_feats = self.decoder_density(feats)
-        
-        # Optionally concat the positions to the embedding, and also concatenate embedded view directions.
-        fdir = torch.cat([density_feats,
-            self.view_embedder(-ray_d)[:,None].repeat(1, num_samples, 1).view(-1, self.view_embed_dim)], dim=-1)
+
+        # Concatenate embedded view directions.
+        if self.view_embedder is not None:
+            embedded_dir = self.view_embedder(-ray_d).view(-1, self.view_embed_dim)
+            fdir = torch.cat([density_feats, embedded_dir], dim=-1)
+        else:
+            fdir = density_feats
 
         # Colors are values [0, 1] floats
-        colors = torch.sigmoid(self.decoder_color(fdir)).reshape(batch, num_samples, 3)
+        # colors ~ (batch, 3)
+        colors = torch.sigmoid(self.decoder_color(fdir))
 
         # Density is [particles / meter], so need to be multiplied by distance
-        density = torch.relu(density_feats[...,0:1]).reshape(batch, num_samples, 1)
-        
+        # density ~ (batch, 1)
+        density = torch.relu(density_feats[...,0:1])
         return dict(rgb=colors, density=density)
 

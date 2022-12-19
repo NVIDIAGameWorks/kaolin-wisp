@@ -215,27 +215,32 @@ class OctreeGrid(BLASGrid):
         
         return fs
 
-    def interpolate(self, coords, lod_idx, pidx=None):
+    def interpolate(self, coords, lod_idx):
         """Query multiscale features.
 
         Args:
-            coords (torch.FloatTensor): coords of shape [batch, num_samples, 3]
+            coords (torch.FloatTensor): coords of shape [batch, num_samples, 3] or [batch, 3]
             lod_idx  (int): int specifying the index to ``active_lods`` 
-            pidx (torch.LongTensor): point_hiearchy indices of shape [batch]
+            pidx (torch.LongTensor): Optional, for advanced users only.
+                pidx is the indices of underlying BLAS cells corresponding to the
+                input coords. If specified, can save an "extra query" to the underlying acceleration structure.
+                pidx assumes a tensor of indices of shape [batch] (for example, an OctreeAS
+                should specify the SPC's point_hierarchy indices).
             features (torch.FloatTensor): features to interpolate. If ``None``, will use `self.features`.
 
         Returns:
-            (torch.FloatTensor): interpolated features of shape [batch, num_samples, feature_dim]
+            (torch.FloatTensor): interpolated features of shape
+            [batch, num_samples, feature_dim] or [batch, feature_dim]
         """
-        timer = PerfTimer(activate=False, show_memory=False)
-
-        batch, num_samples, _ = coords.shape
+        # Remember desired output shape, and inflate to (batch, num_samples, 3) format
+        output_shape = coords.shape[:-1]
+        if coords.ndim < 3:
+            coords = coords[:, None]    # (batch, 3) -> (batch, num_samples, 3)
 
         if lod_idx == 0:
-            if pidx is None:
-                pidx = self.blas.query(coords[:,0], self.active_lods[lod_idx], with_parents=False)
+            pidx = self.blas.query(coords[:,0], self.active_lods[lod_idx], with_parents=False)
             feat = self._interpolate(coords, self.features[0], pidx, 0)
-            return feat
+            return feat.reshape(*output_shape, feat.shape[-1])
         else:
             feats = []
             
@@ -268,17 +273,14 @@ class OctreeGrid(BLASGrid):
                 else:
                     feats = feats.sum(-2)
             
-            timer.check("aggregate")
-            
-            return feats.reshape(batch, num_samples, self.feature_dim)
+            return feats.reshape(*output_shape, self.feature_dim)
 
-    def raymarch(self, rays, level=None, num_samples=64, raymarch_type='voxel'):
+    def raymarch(self, rays, num_samples=64, level=None, raymarch_type='voxel'):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays, level=self.base_lod, num_samples=num_samples,
-                                  raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, num_samples=num_samples, level=self.base_lod, raymarch_type=raymarch_type)
 
 class CodebookOctreeGrid(OctreeGrid):
     """This is a multiresolution feature grid where the octree stores indices into a fixed size codebook.
@@ -293,7 +295,7 @@ class CodebookOctreeGrid(OctreeGrid):
             self.points_dual, self.pyramid_dual, self.trinkets, self.parents = \
                     wisp_spc_ops.make_trilinear_spc(self.blas.points, self.blas.pyramid)
             log.info("Built dual octree and trinkets")
-            
+
         # Create the pyramid of features.
         fpyramid = []
         for al in self.active_lods:

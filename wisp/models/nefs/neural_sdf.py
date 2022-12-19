@@ -7,14 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
 import logging as log
-import time
-import math
-
-from wisp.utils import PsDebugger, PerfTimer
 
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
@@ -180,13 +173,11 @@ class NeuralSDF(BaseNeuralField):
         """
         self._register_forward_function(self.sdf, ["sdf"])
 
-    def sdf(self, coords, pidx=None, lod_idx=None):
-        """Computes the RGB + SDF for some samples.
+    def sdf(self, coords, lod_idx=None):
+        """Computes the Signed Distance Function for input samples.
 
         Args:
             coords (torch.FloatTensor): tensor of shape [batch, num_samples, 3]
-            pidx (torch.LongTensor): SPC point_hierarchy indices of shape [batch].
-                                     Unused in the current implementation.
             lod_idx (int): index into active_lods. If None, will use the maximum LOD.
         
         Outputs:
@@ -206,8 +197,7 @@ class NeuralSDF(BaseNeuralField):
             coords = coords[:, None]
         num_samples = coords.shape[1]
 
-        # TODO(ttakikawa): this should return [batch, ns, f] but it returns [batch, f]
-        feats = self.grid.interpolate(coords, lod_idx, pidx=pidx)
+        feats = self.grid.interpolate(coords, lod_idx)
 
         if self.position_input:
             feats = torch.cat([self.pos_embedder(coords.view(-1, 3)).view(-1, num_samples, self.pos_embed_dim), 
