@@ -8,5 +8,6 @@
 
 from .blas_grid import *
 from .octree_grid import *
+from .codebook_grid import *
 from .hash_grid import * 
 from .triplanar_grid import *

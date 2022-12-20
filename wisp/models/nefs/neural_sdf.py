@@ -44,25 +44,6 @@ class NeuralSDFTex(BaseNeuralField):
                                     layer=get_layer_class(self.activation_type), num_layers=self.num_layers,
                                     hidden_dim=self.hidden_dim, skip=[])
 
-    def init_grid(self):
-        """Initialize the grid object.
-        """
-        if self.grid_type == "OctreeGrid":
-            grid_class = OctreeGrid
-        elif self.grid_type == "CodebookOctreeGrid":
-            grid_class = CodebookOctreeGrid
-        elif self.grid_type == "TriplanarGrid":
-            grid_class = TriplanarGrid
-        elif self.grid_type == "HashGrid":
-            grid_class = HashGrid
-        else:
-            raise NotImplementedError
-
-        self.grid = grid_class(self.feature_dim,
-                               base_lod=self.base_lod, num_lods=self.num_lods,
-                               interpolation_type=self.interpolation_type, multiscale_type=self.multiscale_type,
-                               **self.kwargs)
-
     def get_nef_type(self):
         """Returns a text keyword of the neural field type.
 

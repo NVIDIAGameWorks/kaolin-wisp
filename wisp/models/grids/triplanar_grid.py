@@ -6,97 +6,33 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
 import logging as log
-import time
-import math
-
-from wisp.utils import PsDebugger, PerfTimer
-
-import wisp.ops.spc as wisp_spc_ops
-
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from wisp.models.grids import BLASGrid
-from wisp.models.decoders import BasicDecoder
+from wisp.accelstructs import AxisAlignedBBoxAS
 
-from wisp.accelstructs import OctreeAS
-import kaolin.ops.spc as spc_ops
-import kaolin.render.spc as spc_render
-
-class TriplanarFeatureVolume(nn.Module):
-    """Triplanar feature module implemented with a lod of grid_sample swizzling.
-    """
-    def __init__(self, fdim, fsize, std, bias):
-        """Initializes the feature volume.
-
-        Args:
-            fdim (int): The feature dimension.
-            fsize (int): The height and width of the texture map.
-            std (float): The standard deviation for the Gaussian initialization.
-            bias (float): The mean for the Gaussian initialization.
-
-        Returns:
-            (void): Initializes the feature volume.
-        """
-        super().__init__()
-        self.fsize = fsize
-        self.fdim = fdim
-        self.fmx = nn.Parameter(torch.randn(1, fdim, fsize+1, fsize+1) * std + bias)
-        self.fmy = nn.Parameter(torch.randn(1, fdim, fsize+1, fsize+1) * std + bias)
-        self.fmz = nn.Parameter(torch.randn(1, fdim, fsize+1, fsize+1) * std + bias)
-        self.padding_mode = 'reflection'
-
-    def forward(self, x):
-        """Interpolates from the feature volume.
-
-        Args:
-            x (torch.FloatTensor): Coordinates of shape [batch, num_samples, 3] or [batch, 3].
-
-        Returns:
-            (torch.FloatTensor): Features of shape [batch, num_samples, fdim] or [batch, fdim].
-        """
-        # TODO(ttakikawa): Maybe cleaner way of writing this?
-        N = x.shape[0]
-        if len(x.shape) == 3:
-            sample_coords = x.reshape(1, N, x.shape[1], 3) # [N, 1, 1, 3]    
-            samplex = F.grid_sample(self.fmx, sample_coords[...,[1,2]], 
-                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,:].transpose(0,1)
-            sampley = F.grid_sample(self.fmy, sample_coords[...,[0,2]], 
-                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,:].transpose(0,1)
-            samplez = F.grid_sample(self.fmz, sample_coords[...,[0,1]], 
-                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,:].transpose(0,1)
-            sample = torch.stack([samplex, sampley, samplez], dim=1).permute(0,3,1,2)
-        else:
-            sample_coords = x.reshape(1, N, 1, 3) # [N, 1, 1, 3]    
-            samplex = F.grid_sample(self.fmx, sample_coords[...,[1,2]], 
-                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,0].transpose(0,1)
-            sampley = F.grid_sample(self.fmy, sample_coords[...,[0,2]], 
-                                    align_corners=True, padding_modes=self.padding_mode)[0,:,:,0].transpose(0,1)
-            samplez = F.grid_sample(self.fmz, sample_coords[...,[0,1]], 
-                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,0].transpose(0,1)
-            sample = torch.stack([samplex, sampley, samplez], dim=1)
-        return sample
 
 class TriplanarGrid(BLASGrid):
-    """This is a feature grid where the features are defined on a pyramid of multiresolution triplanar maps.
+    """A feature grid where the features are stored on a multiresolution pyramid of triplanes.
+    Each LOD consists of a triplane, e.g. a triplet of orthogonal planes.
 
-    Since the triplanar feature grid means the support region is bounded by an AABB, this uses an AABB
-    as the BLAS. Hence the class is compatible with the usual packed tracers.
+    The shape of the triplanar feature grid means the support region is bounded by an AABB,
+    therefore spatial queries / ray tracing ops can use an AABB as an acceleration structure.
+    Hence the class is compatible with BaseTracer implementations.
     """
 
-    def __init__(self, 
-        feature_dim        : int,
-        base_lod           : int   = 0,
-        num_lods           : int   = 1, 
-        interpolation_type : str   = 'linear',
-        multiscale_type    : str   = 'cat',
-        feature_std        : float = 0.0,
-        feature_bias       : float = 0.0,
-        **kwargs
-    ):
-        """Initialize the octree grid class.
+    def __init__(self,
+                 feature_dim: int,
+                 base_lod: int,
+                 num_lods: int = 1,
+                 interpolation_type: str = 'linear',
+                 multiscale_type: str = 'sum',
+                 feature_std: float = 0.0,
+                 feature_bias: float = 0.0
+                 ):
+        """Constructs an instance of a TriplanarGrid.
 
         Args:
             feature_dim (int): The dimension of the features stored on the grid.
@@ -109,7 +45,7 @@ class TriplanarGrid(BLASGrid):
             feature_std (float): The features are initialized with a Gaussian distribution with the given
                                  standard deviation.
             feature_bias (float): The mean of the Gaussian distribution.
-        
+
         Returns:
             (void): Initializes the class.
         """
@@ -123,31 +59,28 @@ class TriplanarGrid(BLASGrid):
         self.feature_std = feature_std
         self.feature_bias = feature_bias
 
-        # TODO(ttakikawa) The Triplanar API should look more like the ImagePyramid class with 
-        # similar initialization mechanisms since it's not limited to octrees.
+        # TODO(ttakikawa) The Triplanar API should look more like the ImagePyramid class with
+        #   similar initialization mechanisms since it's not limited to octrees.
         self.active_lods = [self.base_lod + x for x in range(self.num_lods)]
         self.max_lod = self.num_lods + self.base_lod - 1
 
         log.info(f"Active LODs: {self.active_lods}")
 
-        self.blas = OctreeAS()
-        self.blas.init_aabb()
+        # The bottom level acceleration structure is an axis aligned bounding box
+        self.blas = AxisAlignedBBoxAS()
+        self.init_feature_structure()
 
-        self._init()
-
-    def _init(self):
-        """Initializes everything that is not the BLAS.
-        """
-
+    def init_feature_structure(self):
+        """ Initializes everything related to the features stored in the triplanar grid structure. """
         self.features = nn.ModuleList([])
         self.num_feat = 0
         for i in self.active_lods:
             self.features.append(
-                    TriplanarFeatureVolume(self.feature_dim//3, 2**i, self.feature_std, self.feature_bias))
-            self.num_feat += ((2**i + 1)**2) * self.feature_dim * 3
+                TriplanarFeatureVolume(self.feature_dim // 3, 2 ** i, self.feature_std, self.feature_bias))
+            self.num_feat += ((2 ** i + 1) ** 2) * self.feature_dim * 3
 
         log.info(f"# Feature Vectors: {self.num_feat}")
-        
+
     def freeze(self):
         """Freezes the feature grid.
         """
@@ -187,8 +120,7 @@ class TriplanarGrid(BLASGrid):
         Inputs:
             coords     : float tensor of shape [batch, num_samples, 3]
             feats : float tensor of shape [num_feats, feat_dim]
-            pidx  : long tensor of shape [batch]
-            lod   : int specifying the lod
+            lod_idx   : int specifying the lod
         Returns:
             float tensor of shape [batch, num_samples, feat_dim]
         """
@@ -201,7 +133,7 @@ class TriplanarGrid(BLASGrid):
 
         return fs
 
-    def raymarch(self, rays, num_samples=64, level=None, raymarch_type='voxel'):
+    def raymarch(self, rays, num_samples, level=None, raymarch_type='voxel'):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: this is just used as an AABB tracer.
@@ -214,3 +146,57 @@ class TriplanarGrid(BLASGrid):
         Important detail: this is just used as an AABB tracer.
         """
         return self.blas.raytrace(rays, level=0, with_exit=with_exit)
+
+    def name(self) -> str:
+        return "Triplanar Grid"
+
+
+class TriplanarFeatureVolume(nn.Module):
+    """Triplanar feature volume represents a single triplane, e.g. a single LOD in a TriplanarGrid. """
+
+    def __init__(self, fdim, fsize, std, bias):
+        """Initializes the feature triplane.
+
+        Args:
+            fdim (int): The feature dimension.
+            fsize (int): The height and width of the texture map.
+            std (float): The standard deviation for the Gaussian initialization.
+            bias (float): The mean for the Gaussian initialization.
+        """
+        super().__init__()
+        self.fsize = fsize
+        self.fdim = fdim
+        self.fmx = nn.Parameter(torch.randn(1, fdim, fsize+1, fsize+1) * std + bias)
+        self.fmy = nn.Parameter(torch.randn(1, fdim, fsize+1, fsize+1) * std + bias)
+        self.fmz = nn.Parameter(torch.randn(1, fdim, fsize+1, fsize+1) * std + bias)
+        self.padding_mode = 'reflection'
+
+    def forward(self, x):
+        """Interpolates from the feature volume.
+
+        Args:
+            x (torch.FloatTensor): Coordinates of shape [batch, num_samples, 3] or [batch, 3].
+
+        Returns:
+            (torch.FloatTensor): Features of shape [batch, num_samples, fdim] or [batch, fdim].
+        """
+        N = x.shape[0]
+        if len(x.shape) == 3:
+            sample_coords = x.reshape(1, N, x.shape[1], 3)  # [N, 1, 1, 3]
+            samplex = F.grid_sample(self.fmx, sample_coords[...,[1,2]], 
+                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,:].transpose(0,1)
+            sampley = F.grid_sample(self.fmy, sample_coords[...,[0,2]], 
+                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,:].transpose(0,1)
+            samplez = F.grid_sample(self.fmz, sample_coords[...,[0,1]], 
+                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,:].transpose(0,1)
+            sample = torch.stack([samplex, sampley, samplez], dim=1).permute(0,3,1,2)
+        else:
+            sample_coords = x.reshape(1, N, 1, 3)  # [N, 1, 1, 3]
+            samplex = F.grid_sample(self.fmx, sample_coords[...,[1,2]], 
+                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,0].transpose(0,1)
+            sampley = F.grid_sample(self.fmy, sample_coords[...,[0,2]], 
+                                    align_corners=True, padding_modes=self.padding_mode)[0,:,:,0].transpose(0,1)
+            samplez = F.grid_sample(self.fmz, sample_coords[...,[0,1]], 
+                                    align_corners=True, padding_mode=self.padding_mode)[0,:,:,0].transpose(0,1)
+            sample = torch.stack([samplex, sampley, samplez], dim=1)
+        return sample
