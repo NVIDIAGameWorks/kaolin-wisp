@@ -9,13 +9,12 @@
 from __future__ import annotations
 from typing import Optional, Dict
 import torch
-from wisp.core import RenderBuffer
+from wisp.core import RenderBuffer, Rays, PrimitivesPack
 from wisp.renderer.core.api import RayTracedRenderer, FramePayload, field_renderer
-from wisp.core import Rays
 from wisp.models.nefs.neural_sdf import NeuralSDF, BaseNeuralField
 from wisp.tracers import PackedSDFTracer
-from wisp.accelstructs import OctreeAS
-from wisp.gfx.datalayers import Datalayers, OctreeDatalayers
+from wisp.accelstructs import OctreeAS, AxisAlignedBBoxAS
+from wisp.gfx.datalayers import Datalayers, OctreeDatalayers, AABBDatalayers
 
 
 @field_renderer(BaseNeuralField, PackedSDFTracer)
@@ -49,10 +48,29 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
 
     @classmethod
     def create_layers_painter(cls, nef: BaseNeuralField) -> Optional[Datalayers]:
-        if nef.grid.__class__.__name__ in ('OctreeGrid', 'CodebookOctreeGrid', 'HashGrid'):
+        """ NeuralSDFPackedRenderer can draw datalayers showing the occupancy status.
+        These depend on the bottom level acceleration structure.
+        """
+        if not hasattr(nef.grid, 'blas'):
+            return None
+        elif isinstance(nef.grid.blas, AxisAlignedBBoxAS):
+            return AABBDatalayers()
+        elif isinstance(nef.grid.blas, OctreeAS):
             return OctreeDatalayers()
         else:
             return None
+
+    def needs_redraw(self) -> bool:
+        if self.layers_painter is not None:
+            return self.layers_painter.needs_redraw(self.nef.grid.blas)
+        else:
+            return True
+
+    def regenerate_data_layers(self) -> Dict[str, PrimitivesPack]:
+        if self.layers_painter is not None:
+            return self.layers_painter.regenerate_data_layers(self.nef.grid.blas)
+        else:
+            return dict()
 
     def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
         super().pre_render(payload)
@@ -99,24 +117,20 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         # (center_x, center_y, center_z, width, height, depth)
         return torch.tensor((0.0, 0.0, 0.0, 2.0, 2.0, 2.0), device=self.device)
 
-    def acceleration_structure(self):
-        if isinstance(self.nef.grid.blas, OctreeAS):
-            return "Octree"
-        else:
+    def acceleration_structure(self) -> str:
+        """ Returns a human readable name of the bottom level acceleration structure used by this renderer """
+        if getattr(self.nef, 'grid') is None or getattr(self.nef.grid, 'blas') is None:
             return "None"
-
-    def features_structure(self):
-        grid_type = self.nef.grid.__class__.__name__
-        if grid_type == "OctreeGrid":
-            return "Octree Grid"
-        elif grid_type == "CodebookOctreeGrid":
-            return "Codebook Grid"
-        elif grid_type == "TriplanarGrid":
-            return "Triplanar Grid"
-        elif grid_type == "HashGrid":
-            return "Hash Grid"
+        elif hasattr(self.nef.grid.blas, 'name'):
+            return self.nef.grid.blas.name()
         else:
             return "Unknown"
 
-
-
+    def features_structure(self) -> str:
+        """ Returns a human readable name of the feature structure used by this renderer """
+        if getattr(self.nef, 'grid') is None:
+            return "None"
+        elif hasattr(self.nef.grid, 'name'):
+            return self.nef.grid.name()
+        else:
+            return "Unknown"

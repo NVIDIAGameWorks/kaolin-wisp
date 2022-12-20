@@ -64,8 +64,10 @@ class SPCRenderer(RayTracedRenderer):
         # (center_x, center_y, center_z, width, height, depth)
         return torch.tensor((0.0, 0.0, 0.0, 2.0, 2.0, 2.0), device=self.device)
 
-    def acceleration_structure(self):
+    def acceleration_structure(self) -> str:
+        """ Returns a human readable name of the bottom level acceleration structure used by this renderer """
         return "Octree"  # Assumes to always use OctreeAS
 
-    def features_structure(self):
+    def features_structure(self) -> str:
+        """ Returns a human readable name of the feature structure used by this renderer """
         return "Octree Grid"  # Assumes to always use OctreeGrid for storing features

@@ -10,7 +10,7 @@ import torch
 from typing import Dict
 import kaolin.ops.spc as spc_ops
 from wisp.core import PrimitivesPack
-from wisp.models.grids.octree_grid import OctreeGrid
+from wisp.accelstructs import OctreeAS
 from wisp.gfx.datalayers import Datalayers
 from wisp.core.colors import soft_blue, soft_red, lime_green, purple, gold
 
@@ -20,13 +20,13 @@ class OctreeDatalayers(Datalayers):
     def __init__(self):
         self._last_state = dict()
 
-    def needs_redraw(self, grid: OctreeGrid) -> True:
+    def needs_redraw(self, blas: OctreeAS) -> True:
         # Pyramids contain information about the number of cells per level,
         # it's a plausible heuristic to determine whether the frame should be redrawn
         return not ('pyramids' in self._last_state and
-                    torch.equal(self._last_state['pyramids'], grid.blas.pyramid))
+                    torch.equal(self._last_state['pyramids'], blas.pyramid))
 
-    def regenerate_data_layers(self, grid: OctreeGrid) -> Dict[str, PrimitivesPack]:
+    def regenerate_data_layers(self, blas: OctreeAS) -> Dict[str, PrimitivesPack]:
         data_layers = dict()
         lod_colors = [
             torch.tensor((*soft_blue, 1.0)),
@@ -36,11 +36,10 @@ class OctreeDatalayers(Datalayers):
             torch.tensor((*gold, 1.0)),
         ]
 
-        for lod in range(grid.blas.max_level):
+        for lod in range(blas.max_level):
             cells = PrimitivesPack()
             
-            level_points = spc_ops.unbatched_get_level_points(grid.blas.points,
-                                                              grid.blas.pyramid, lod)
+            level_points = spc_ops.unbatched_get_level_points(blas.points, blas.pyramid, lod)
             
             corners = spc_ops.points_to_corners(level_points) / (2 ** lod)
             
@@ -58,5 +57,5 @@ class OctreeDatalayers(Datalayers):
 
             data_layers[f'Octree LOD{lod}'] = cells
 
-        self._last_state['pyramids'] = grid.blas.pyramid
+        self._last_state['pyramids'] = blas.pyramid
         return data_layers

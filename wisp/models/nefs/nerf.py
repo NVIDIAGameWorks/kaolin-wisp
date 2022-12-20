@@ -76,7 +76,7 @@ class NeuralRadianceField(BaseNeuralField):
         return embedder, embed_dim
 
     def init_decoders(self, activation_type, layer_type, num_layers, hidden_dim):
-        """Initializes the decoder object. 
+        """Initializes the decoder object.
         """
         decoder_density = BasicDecoder(input_dim=self.density_net_input_dim,
                                        output_dim=16,

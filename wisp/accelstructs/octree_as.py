@@ -255,7 +255,7 @@ class OctreeAS:
                 'ray' - samples num_samples along each ray, and then filters out samples which falls outside of occupied
                     cells.
                     In this scheme, num_hit_samples <= num_rays * num_samples
-
+        
         Returns:
             (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
             torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
@@ -271,16 +271,16 @@ class OctreeAS:
 
         # Samples points along the rays by first tracing it against the SPC object.
         # Then, given each SPC voxel hit, will sample some number of samples in each voxel.
-        # This setting is pretty nice for getting decent outputs from outside-looking-in scenes,
+        # This setting is pretty nice for getting decent outputs from outside-looking-in scenes, 
         # but in general it's not very robust or proper since the ray samples will be weirdly distributed
-        # and or aliased.
+        # and or aliased. 
         if raymarch_type == 'voxel':
             ridx, samples, depth_samples, deltas, boundary = self._raymarch_voxel(rays=rays,
                                                                                   level=level,
                                                                                   num_samples=num_samples)
 
         # Samples points along the rays, and then uses the SPC object the filter out samples that don't hit
-        # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for
+        # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for 
         # inside-looking-out scenes. The camera near and far planes will have to be adjusted carefully, however.
         elif raymarch_type == 'ray':
             ridx, samples, depth_samples, deltas, boundary = self._raymarch_ray(rays=rays,
