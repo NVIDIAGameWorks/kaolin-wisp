@@ -133,12 +133,12 @@ class TriplanarGrid(BLASGrid):
 
         return fs
 
-    def raymarch(self, rays, num_samples, level=None, raymarch_type='voxel'):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: this is just used as an AABB tracer.
         """
-        return self.blas.raymarch(rays, num_samples=num_samples, level=0, raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=0)
 
     def raytrace(self, rays, level=None, with_exit=False):
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.

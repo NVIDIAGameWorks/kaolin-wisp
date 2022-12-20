@@ -390,12 +390,12 @@ class OctreeGrid(BLASGrid):
             
             return feats.reshape(*output_shape, self.feature_dim)
 
-    def raymarch(self, rays, num_samples, level=None, raymarch_type='voxel'):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays, num_samples=num_samples, level=self.base_lod, raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=self.base_lod)
 
     def name(self) -> str:
         return "Octree Grid"

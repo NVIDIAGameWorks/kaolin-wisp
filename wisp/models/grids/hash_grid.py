@@ -229,12 +229,12 @@ class HashGrid(BLASGrid):
         else:
             raise NotImplementedError
 
-    def raymarch(self, rays, num_samples, level=None, raymarch_type='voxel'):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None):
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays, num_samples=num_samples, level=self.blas_level, raymarch_type=raymarch_type)
+        return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=self.blas_level)
 
     def name(self) -> str:
         return "Hash Grid"
