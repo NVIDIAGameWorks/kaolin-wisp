@@ -21,14 +21,15 @@ class OctreeAS:
     """
     
     def __init__(self, octree):
-        """Initializes the acceleration structure from the topology of a sparse Structured Point Cloud (SPC).
-        Structured Point Clouds (SPC) is a sparse octree-based representation that is useful to
-        organize and efficiently pack 3D geometrically sparse information.
-        SPCs can be intuitively described as sparse voxel-grids, quantized point clouds, or voxelized point clouds.
+        """Initializes the acceleration structure from the topology of a sparse octree (Structured Point Cloud).
+        Structured Point Cloud (SPC) is a compact data structure for organizing and efficiently pack sparse 3D geometric
+        information.
+        Intuitively, SPCs can also be described as sparse voxel-grids, quantized point clouds, or
+        voxelized point clouds.
 
         Args:
             octree (torch.ByteTensor): SPC octree tensor, containing the acceleration structure topology.
-            For more details about this compact format, see:
+            For more details about this format, see:
              https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
         """
         self.octree = octree
@@ -136,7 +137,7 @@ class OctreeAS:
             rays.origins, rays.dirs, level, return_depth=True, with_exit=with_exit)
         return ridx, pidx, depth
 
-    def _raymarch_voxel(self, rays, level=None, num_samples=64):
+    def _raymarch_voxel(self, rays, num_samples, level=None):
         """Samples points along the ray inside the SPC structure.
         Raymarch is achieved by intersecting the rays with the SPC cells.
         Then among the intersected cells, each cell is sampled num_samples times.
@@ -145,7 +146,8 @@ class OctreeAS:
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
             level (int) : The level of the octree to raytrace. If None, traces the highest level.
-            num_samples (int) : Number of samples per voxel
+            num_samples (int) : Number of samples generated per voxel. The total number of samples generated will
+                also depend on the number of cells a ray have intersected.
 
         Returns:
             (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
@@ -186,7 +188,7 @@ class OctreeAS:
 
         return ridx, samples, depth_samples, deltas, boundary
 
-    def _raymarch_ray(self, rays, level=None, num_samples=1024):
+    def _raymarch_ray(self, rays, num_samples, level=None):
         """Samples points along the ray inside the SPC structure.
         Raymarch is achieved by sampling num_samples along each ray,
         and then filtering out samples which falls outside of occupied cells.
@@ -197,7 +199,8 @@ class OctreeAS:
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
             level (int) : The level of the octree to raytrace. If None, traces the highest level.
-            num_samples (int) : Number of samples per voxel
+            num_samples (int) : Number of samples generated per ray. The actual number of generated samples may be lower
+                due to samples intersecting empty cells.
 
         Returns:
             (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
@@ -240,14 +243,12 @@ class OctreeAS:
 
         return ridx, samples, depth_samples, deltas, boundary
 
-    def raymarch(self, rays, num_samples, level=None, raymarch_type='voxel'):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None):
         """Samples points along the ray inside the SPC structure.
         The exact algorithm employed for raymarching is determined by `raymarch_type`.
 
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
-            level (int) : The level of the octree to raytrace. If None, traces the highest level.
-            num_samples (int) : Number of samples per voxel
             raymarch_type (str): Sampling strategy to use for raymarch.
                 'voxel' - intersects the rays with the SPC cells. Then among the intersected cells, each cell
                     is sampled num_samples times.
@@ -255,6 +256,9 @@ class OctreeAS:
                 'ray' - samples num_samples along each ray, and then filters out samples which falls outside of occupied
                     cells.
                     In this scheme, num_hit_samples <= num_rays * num_samples
+            num_samples (int) : Number of samples generated per voxel or ray. The exact meaning of this arg depends on
+                the value of `raymarch_type`.
+            level (int) : The level of the octree to raytrace. If None, traces the highest level.
         
         Returns:
             (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
@@ -276,16 +280,16 @@ class OctreeAS:
         # and or aliased. 
         if raymarch_type == 'voxel':
             ridx, samples, depth_samples, deltas, boundary = self._raymarch_voxel(rays=rays,
-                                                                                  level=level,
-                                                                                  num_samples=num_samples)
+                                                                                  num_samples=num_samples,
+                                                                                  level=level)
 
         # Samples points along the rays, and then uses the SPC object the filter out samples that don't hit
         # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for 
         # inside-looking-out scenes. The camera near and far planes will have to be adjusted carefully, however.
         elif raymarch_type == 'ray':
             ridx, samples, depth_samples, deltas, boundary = self._raymarch_ray(rays=rays,
-                                                                                level=level,
-                                                                                num_samples=num_samples)
+                                                                                num_samples=num_samples,
+                                                                                level=level)
 
         else:
             raise TypeError(f"Raymarch sampler type: {raymarch_type} is not supported by OctreeAS.")

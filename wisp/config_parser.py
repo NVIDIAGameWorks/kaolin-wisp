@@ -578,7 +578,6 @@ def load_dataset(args):
     if args.dataset_type == "multiview":
         transform = SampleRays(args.num_rays_sampled_per_img)
         train_dataset = MultiviewDataset(**vars(args), transform=transform)
-        train_dataset.init()
     elif args.dataset_type == "sdf":
         train_dataset = SDFDataset(args.sample_mode, args.num_samples,
                                    args.get_normals, args.sample_tex)
