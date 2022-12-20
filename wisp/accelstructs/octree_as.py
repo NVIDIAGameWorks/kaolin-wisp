@@ -21,14 +21,15 @@ class OctreeAS:
     """
     
     def __init__(self, octree):
-        """Initializes the acceleration structure from the topology of a sparse Structured Point Cloud (SPC).
-        Structured Point Clouds (SPC) is a sparse octree-based representation that is useful to
-        organize and efficiently pack 3D geometrically sparse information.
-        SPCs can be intuitively described as sparse voxel-grids, quantized point clouds, or voxelized point clouds.
+        """Initializes the acceleration structure from the topology of a sparse octree (Structured Point Cloud).
+        Structured Point Cloud (SPC) is a compact data structure for organizing and efficiently pack sparse 3D geometric
+        information.
+        Intuitively, SPCs can also be described as sparse voxel-grids, quantized point clouds, or
+        voxelized point clouds.
 
         Args:
             octree (torch.ByteTensor): SPC octree tensor, containing the acceleration structure topology.
-            For more details about this compact format, see:
+            For more details about this format, see:
              https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
         """
         self.octree = octree
