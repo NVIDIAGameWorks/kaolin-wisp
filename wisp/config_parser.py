@@ -584,6 +584,35 @@ def load_dataset(args):
                                    args.get_normals, args.sample_tex)
     return train_dataset
 
+def load_nef(args, grid):
+    if args.nef_type == 'NeuralRadianceField':
+        return NeuralRadianceField(
+            grid=grid,
+            pos_embedder=args.embedder_type,
+            view_embedder=args.embedder_type,
+            pos_multires=args.pos_multires,
+            view_multires=args.view_multires,
+            activation_type=args.activation_type,
+            layer_type=args.layer_type,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            prune_density_decay=args.prune_density_decay,
+            prune_min_density=args.prune_min_density
+        )
+    elif args.nef_type == 'NeuralSDF':
+        return NeuralSDF(
+            grid=grid,
+            pos_embedder=args.embedder_type,
+            pos_multires=args.pos_multires,
+            position_input=args.position_input,
+            activation_type=args.activation_type,
+            layer_type=args.layer_type,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers
+        )
+    else:
+        raise ValueError(f'Neural field {args.nef_type} is temporarily unsupported by the config parser.')
+
 def get_modules_from_config(args):
     """Utility function to get the modules for training from the parsed config.
     """
@@ -594,7 +623,7 @@ def get_modules_from_config(args):
         grid = load_mv_grid(args, train_dataset)
     elif args.dataset_type == "sdf":
         grid = load_sdf_grid(args)
-    nef = globals()[args.nef_type](grid=grid, **vars(args))
+    nef = load_nef(args, grid)
     tracer = globals()[args.tracer_type](**vars(args))
     pipeline = Pipeline(nef, tracer)
     pipeline = pipeline.to(device)

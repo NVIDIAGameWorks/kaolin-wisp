@@ -6,109 +6,40 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import torch
-import torch.nn.functional as F
 import torch.nn as nn
-import numpy as np
-import logging as log
-import time
-import math
 import inspect
 from abc import abstractmethod
 
 
 class BaseNeuralField(nn.Module):
-    """The base class for Neural Fields.
+    """The base class for all Neural Fields within Wisp.
+    Neural Fields are defined as modules which take coordinates as input and output signals of some form.
+    The term "Neural" is loosely used here to imply these modules are generally subject for optimization.
 
-    TODO(ttakikawa): More complete documentation here.
+    The domain of neural fields in Wisp is flexible, and left up for the user to decide when implementing the subclass.
+    Popular neural fields from the literature, such as Neural Radiance Fields (Mildenhall et al. 2020),
+    and Neural Signed Distance Functions (SDFs) can be implemented by creating and registering
+    the required forward functions (for i.e. rgb, density, sdf values).
+
+    BaseNeuralField subclasses  usually consist of several optional components:
+    - A feature grid (BLASGrid), sometimes also known as 'hybrid representations'.
+      These are responsible for querying and interpolating features, often in the context of some 3D volume
+      (but not limited to).
+      Feature grids often employ some acceleration structure (i.e. OctreeAS),
+      which can be used to accelerate spatial queries or raytracing ops,
+      hence the term "BLAS" (Bottom Level Acceleration Structure).
+    - A decoder (i.e. BasicDecoder) which can feeds on features (or coordinates / pos embeddings) and coverts
+      them to output signals.
+    - Other components such as positional embedders may be employed.
+
+    BaseNeuralFields are generally meant to be compatible with BaseTracers, thus forming a complete pipeline of
+    render-able neural primitives.
     """
-    def __init__(self,
-        grid,
-        grid_type, # TODO (operel): to be removed in following MR
-        interpolation_type : str = 'linear',
-        multiscale_type    : str = 'none',
-
-        as_type            : str = 'octree',
-        raymarch_type      : str = 'voxel',
-
-        decoder_type       : str = 'none',
-        embedder_type      : str = 'none', 
-        activation_type    : str = 'relu',
-        layer_type         : str = 'none',
-
-        base_lod         : int   = 2,
-        num_lods         : int   = 1, 
-
-        # grid args
-        sample_tex       : bool  = False,
-        dilate           : int   = None,
-        feature_dim      : int   = 16,
-
-        # decoder args
-        hidden_dim       : int   = 128,
-        pos_multires     : int   = 10,
-        view_multires    : int   = 4,
-        num_layers       : int   = 1,
-        position_input   : bool  = False,
-        **kwargs
-    ):
+    def __init__(self):
         super().__init__()
-
-        self.interpolation_type = interpolation_type
-        self.raymarch_type = raymarch_type
-        self.embedder_type = embedder_type
-        self.activation_type = activation_type
-        self.layer_type = layer_type
-        self.decoder_type = decoder_type
-        self.multiscale_type = multiscale_type
-
-        self.base_lod = base_lod
-        self.num_lods = num_lods
-
-        self.sample_tex = sample_tex
-        self.dilate = dilate
-        self.feature_dim = feature_dim
-        
-        self.hidden_dim = hidden_dim
-        self.pos_multires = pos_multires
-        self.view_multires = view_multires
-        self.num_layers = num_layers
-        self.position_input = position_input
-
-        self.kwargs = kwargs
-
-        self.grid = None
-        self.grid_type = grid_type
-        self.decoder = None
-        
-        self.grid = grid
-        self.init_embedder()
-        self.init_decoder()
-        torch.cuda.empty_cache()
         self._forward_functions = {}
         self.register_forward_functions()
         self.supported_channels = set([channel for channels in self._forward_functions.values() for channel in channels])
-
-    def init_embedder(self):
-        """Initialize positional embedding objects.
-        """
-        return
-
-    def init_decoder(self):
-        """Initialize the decoder object.
-        """
-        return
-
-    def get_nef_type(self):
-        """Returns a text keyword of the neural field type.
-
-        'default' works in most scenarios, but you can use other keywords to specify
-        custom behaviour from the renderer widgets.
-
-        Returns:
-            (str): The key type
-        """
-        return 'default'
 
     @property
     def device(self):

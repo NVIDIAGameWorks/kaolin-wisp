@@ -49,7 +49,7 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
 
     @classmethod
     def create_layers_painter(cls, nef: BaseNeuralField) -> Optional[Datalayers]:
-        if nef.grid_type in ('OctreeGrid', 'CodebookOctreeGrid', 'HashGrid'):
+        if nef.grid.__class__.__name__ in ('OctreeGrid', 'CodebookOctreeGrid', 'HashGrid'):
             return OctreeDatalayers()
         else:
             return None
@@ -106,13 +106,14 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
             return "None"
 
     def features_structure(self):
-        if self.nef.grid_type == "OctreeGrid":
+        grid_type = self.nef.grid.__class__.__name__
+        if grid_type == "OctreeGrid":
             return "Octree Grid"
-        elif self.nef.grid_type == "CodebookOctreeGrid":
+        elif grid_type == "CodebookOctreeGrid":
             return "Codebook Grid"
-        elif self.nef.grid_type == "TriplanarGrid":
+        elif grid_type == "TriplanarGrid":
             return "Triplanar Grid"
-        elif self.nef.grid_type == "HashGrid":
+        elif grid_type == "HashGrid":
             return "Hash Grid"
         else:
             return "Unknown"

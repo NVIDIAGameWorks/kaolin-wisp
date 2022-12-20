@@ -62,22 +62,19 @@ class PositionalEmbedder(nn.Module):
             encoded = torch.cat([coords, encoded], dim=-1)
         return encoded
 
-def get_positional_embedder(frequencies, active, input_dim=3):
+def get_positional_embedder(frequencies, input_dim=3, include_input=True):
     """Utility function to get a positional encoding embedding.
 
     Args:
         frequencies (int): The number of frequencies used to define the PE:
             [2^0, 2^1, 2^2, ... 2^(frequencies - 1)].
-        active (bool): If false, will return the identity function.
         input_dim (int): The input coordinate dimension.
+        include_input (bool): If true, will concatenate the input coords.
 
     Returns:
         (nn.Module, int):
         - The embedding module
         - The output dimension of the embedding.
     """
-    if not active:
-        return nn.Identity(), input_dim
-    else:
-        encoder = PositionalEmbedder(frequencies, frequencies-1, input_dim=input_dim)
-        return encoder, encoder.out_dim
+    encoder = PositionalEmbedder(frequencies, frequencies-1, input_dim=input_dim, include_input=include_input)
+    return encoder, encoder.out_dim

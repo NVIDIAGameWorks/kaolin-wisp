@@ -69,12 +69,9 @@ class PackedSDFTracer(BaseTracer):
         assert nef.grid is not None and "this tracer requires a grid"
         
         if lod_idx is None:
-            lod_idx = nef.num_lods-1
+            lod_idx = nef.grid.num_lods - 1
 
         timer = PerfTimer(activate=False)
-
-        res = float(2**(lod_idx+nef.base_lod))
-        #invres = 1.0 / res
         invres = 1.0
 
         # Trace SPC
