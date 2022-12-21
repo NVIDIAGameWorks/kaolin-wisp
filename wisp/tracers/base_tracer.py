@@ -28,12 +28,11 @@ class BaseTracer(nn.Module, ABC):
     Tracers are generally expected to be differentiable (e.g. they're part of the training loop),
     though non-differentiable tracers are also allowed.
     """
-    
-    def __init__(self, **kwargs):
-        """Initializes the tracer class and sets the default arguments for trace.
 
+    def __init__(self):
+        """Initializes the tracer class and sets the default arguments for trace.
         This should be overrided and called if you want to pass custom defaults into the renderer.
-        If overrided, it should keep the arguments to `self.trace` in `self.` class variables.
+        If overridden, it should keep the arguments to `self.trace` in `self.` class variables.
         Then, if these variables exist and no function arguments are passed into forward,
         it will override them as the default.
         """
@@ -137,5 +136,4 @@ class BaseTracer(nn.Module, ABC):
                 default_arg = getattr(self, _arg, None)
                 if default_arg is not None:
                     input_args[_arg] = default_arg
-
         return self.trace(nef, requested_channels, requested_extra_channels, **input_args)

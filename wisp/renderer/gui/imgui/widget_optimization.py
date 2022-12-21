@@ -43,12 +43,12 @@ class WidgetOptimization(WidgetImgui):
                 state.optimization.running = False
                 state.renderer.background_tasks_paused = True
         else:
-            if curr_epoch > 0:
-                if imgui.button("Resume Training", width=button_width):
+            if curr_epoch == 1 and curr_iteration == 1:
+                if imgui.button("Start Training", width=button_width):
                     state.optimization.running = True
                     state.renderer.background_tasks_paused = False
             else:
-                if imgui.button("Start Training", width=button_width):
+                if imgui.button("Resume Training", width=button_width):
                     state.optimization.running = True
                     state.renderer.background_tasks_paused = False
 
@@ -57,7 +57,6 @@ class WidgetOptimization(WidgetImgui):
         formatted_time = str(datetime.timedelta(seconds=elapsed_time_seconds))
         formatted_time = formatted_time.split(".")[0]   # Remove microseconds
         imgui.text(f"Elapsed Time: {formatted_time}")
-
 
         if is_training_stopped:
             state.renderer.target_fps = None

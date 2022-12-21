@@ -14,8 +14,8 @@ import random
 import pandas as pd
 import torch
 from lpips import LPIPS
+from torch.utils.tensorboard import SummaryWriter
 from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
-from wisp.utils import PerfTimer
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.core import Rays, RenderBuffer
@@ -44,17 +44,12 @@ class MultiviewTrainer(BaseTrainer):
     def step(self, data):
         """Implement the optimization over image-space loss.
         """
-        timer = PerfTimer(activate=False, show_memory=False)
 
         # Map to device
         rays = data['rays'].to(self.device).squeeze(0)
         img_gts = data['imgs'].to(self.device).squeeze(0)
 
-        timer.check("map to device")
-
         self.optimizer.zero_grad()
-        
-        timer.check("zero grad")
             
         loss = 0
         
@@ -70,7 +65,6 @@ class MultiviewTrainer(BaseTrainer):
 
         with torch.cuda.amp.autocast():
             rb = self.pipeline(rays=rays, lod_idx=lod_idx, channels=["rgb"])
-            timer.check("inference")
 
             # RGB Loss
             #rgb_loss = F.mse_loss(rb.rgb, img_gts, reduction='none')
@@ -79,18 +73,15 @@ class MultiviewTrainer(BaseTrainer):
             rgb_loss = rgb_loss.mean()
             loss += self.extra_args["rgb_loss"] * rgb_loss
             self.log_dict['rgb_loss'] += rgb_loss.item()
-            timer.check("loss")
 
         self.log_dict['total_loss'] += loss.item()
         
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
         self.scaler.update()
-
-        timer.check("backward and step")
         
     def log_cli(self):
-        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
         log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
         
@@ -134,7 +125,7 @@ class MultiviewTrainer(BaseTrainer):
         lpips_total /= len(imgs)  
         ssim_total /= len(imgs)
                 
-        log_text = 'EPOCH {}/{}'.format(self.epoch, self.num_epochs)
+        log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | {}: {:.2f}'.format(f"{name} PSNR", psnr_total)
         log_text += ' | {}: {:.6f}'.format(f"{name} SSIM", ssim_total)
         log_text += ' | {}: {:.6f}'.format(f"{name} LPIPS", lpips_total)
@@ -181,7 +172,10 @@ class MultiviewTrainer(BaseTrainer):
     def validate(self):
         self.pipeline.eval()
 
-        record_dict = self.extra_args
+        # record_dict contains trainer args, but omits torch.Tensor fields which were not explicitly converted to
+        # numpy or some other format. This is required as parquet doesn't support torch.Tensors
+        # (and also for output size considerations)
+        record_dict = {k: v for k, v in self.extra_args.items() if not isinstance(v, torch.Tensor)}
         dataset_name = os.path.splitext(os.path.basename(self.extra_args['dataset_path']))[0]
         model_fname = os.path.abspath(os.path.join(self.log_dir, f'model.pth'))
         record_dict.update({"dataset_name" : dataset_name, "epoch": self.epoch, 
@@ -189,8 +183,9 @@ class MultiviewTrainer(BaseTrainer):
         parent_log_dir = os.path.dirname(self.log_dir)
 
         log.info("Beginning validation...")
-        
-        data = self.dataset.get_images(split=self.extra_args['valid_split'], mip=self.extra_args['mip'])
+
+        validation_split = self.extra_args.get('valid_split', 'val')
+        data = self.dataset.get_images(split=validation_split, mip=self.extra_args['mip'])
         imgs = list(data["imgs"])
 
         img_shape = imgs[0].shape
@@ -216,3 +211,47 @@ class MultiviewTrainer(BaseTrainer):
             df_ = pd.read_parquet(fname)
             df = pd.concat([df_, df])
         df.to_parquet(fname, index=False)
+
+    def pre_training(self):
+        """
+        Override this function to change the logic which runs before the first training iteration.
+        This function runs once before training starts.
+        """
+        # Default TensorBoard Logging
+        self.writer = SummaryWriter(self.log_dir, purge_step=0)
+        self.writer.add_text('Info', self.info)
+
+        if self.using_wandb:
+            wandb_project = self.extra_args["wandb_project"]
+            wandb_run_name = self.extra_args.get("wandb_run_name")
+            wandb_entity = self.extra_args.get("wandb_entity")
+            wandb.init(
+                project=wandb_project,
+                name=self.exp_name if wandb_run_name is None else wandb_run_name,
+                entity=wandb_entity,
+                job_type=self.trainer_mode,
+                config=self.extra_args,
+                sync_tensorboard=True
+            )
+
+            for d in range(self.extra_args["num_lods"]):
+                wandb.define_metric(f"LOD-{d}-360-Degree-Scene")
+                wandb.define_metric(
+                    f"LOD-{d}-360-Degree-Scene",
+                    step_metric=f"LOD-{d}-360-Degree-Scene/step"
+                )
+
+    def post_training(self):
+        """
+        Override this function to change the logic which runs after the last training iteration.
+        This function runs once after training ends.
+        """
+        self.writer.close()
+        wandb_viz_nerf_angles = self.extra_args.get("wandb_viz_nerf_angles", 0)
+        wandb_viz_nerf_distance = self.extra_args.get("wandb_viz_nerf_distance")
+        if self.using_wandb and wandb_viz_nerf_angles != 0:
+            self.render_final_view(
+                num_angles=wandb_viz_nerf_angles,
+                camera_distance=wandb_viz_nerf_distance
+            )
+            wandb.finish()
