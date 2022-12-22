@@ -60,6 +60,7 @@ net:
     hidden_dim: 128
     num_layers: 1
     out_dim: 4
+    position_input: False
 
 embedder:
     embedder_type: 'positional'

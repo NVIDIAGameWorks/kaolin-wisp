@@ -33,6 +33,7 @@ class NeuralRadianceField(BaseNeuralField):
                  view_embedder: str = 'none',
                  pos_multires: int = 10,
                  view_multires: int = 4,
+                 position_input: bool = False,
                  # decoder args
                  activation_type: str = 'relu',
                  layer_type: str = 'none',
@@ -46,7 +47,11 @@ class NeuralRadianceField(BaseNeuralField):
         self.grid = grid
 
         # Init Embedders
-        self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires)
+        self.position_input = position_input
+        if self.position_input:
+            self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires)
+        else:
+            self.pos_embedder, self.pos_embed_dim = None, 0
         self.view_embedder, self.view_embed_dim = self.init_embedder(view_embedder, view_multires)
 
         # Init Decoder

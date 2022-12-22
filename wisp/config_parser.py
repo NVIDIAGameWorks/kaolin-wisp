@@ -590,6 +590,7 @@ def load_nef(args, grid):
             pos_embedder=args.embedder_type,
             view_embedder=args.embedder_type,
             pos_multires=args.pos_multires,
+            position_input=args.position_input,
             view_multires=args.view_multires,
             activation_type=args.activation_type,
             layer_type=args.layer_type,
