@@ -169,7 +169,7 @@ class OctreeAS:
 
         # depth_samples ~ (NUM_INTERSECTIONS, NUM_SAMPLES, 1)
         depth_samples = wisp_spc_ops.sample_from_depth_intervals(depth, num_samples)[..., None]
-        deltas = depth_samples[..., 0].diff(dim=-1, prepend=depth[..., 0:1]).reshape(-1, 1)
+        deltas = depth_samples[..., 0].diff(dim=-1, prepend=depth[..., 0:1]).reshape(num_intersections * num_samples, 1)
 
         # samples ~ (NUM_INTERSECTIONS, NUM_SAMPLES, 1)
         samples = torch.addcmul(rays.origins.index_select(0, ridx)[:, None],
@@ -182,7 +182,7 @@ class OctreeAS:
         # ridx ~ (NUM_INTERSECTIONS * NUM_SAMPLES,)
         # samples ~ (NUM_INTERSECTIONS * NUM_SAMPLES, 3)
         # depth_samples ~ (NUM_INTERSECTIONS * NUM_SAMPLES, 1)
-        ridx = ridx[:,None].expand(num_intersections, num_samples).reshape(-1)
+        ridx = ridx[:,None].expand(num_intersections, num_samples).reshape(num_intersections*num_samples)
         samples = samples.reshape(num_intersections * num_samples, 3)
         depth_samples = depth_samples.reshape(num_intersections * num_samples, 1)
 
@@ -224,10 +224,11 @@ class OctreeAS:
         # Batched generation of samples
         # samples ~ (NUM_RAYS, NUM_SAMPLES, 3)
         # deltas, pidx, mask ~ (NUM_RAYS, NUM_SAMPLES)
+        num_rays = rays.shape[0]
         samples = torch.addcmul(rays.origins[:, None], rays.dirs[:, None], depth[..., None])
         deltas = depth.diff(dim=-1,
                             prepend=(torch.zeros(rays.origins.shape[0], 1, device=depth.device) + rays.dist_min))
-        pidx = self.query(samples.reshape(-1, 3), level=level).reshape(-1, num_samples)
+        pidx = self.query(samples.reshape(num_rays * num_samples, 3), level=level).reshape(num_rays, num_samples)
         mask = pidx > -1
 
         # NUM_HIT_SAMPLES: number of samples sampled within occupied cells
@@ -235,7 +236,8 @@ class OctreeAS:
         # depth_samples, deltas, ridx, boundary ~ (NUM_HIT_SAMPLES,)
         # samples ~ (NUM_HIT_SAMPLES, 3)
         depth_samples = depth[mask][:, None]
-        deltas = deltas[mask].reshape(-1, 1)
+        num_hit_samples = depth_samples.shape[0]
+        deltas = deltas[mask].reshape(num_hit_samples, 1)
         samples = samples[mask]
         ridx = torch.arange(0, pidx.shape[0], device=pidx.device)
         ridx = ridx[..., None].repeat(1, num_samples)[mask]

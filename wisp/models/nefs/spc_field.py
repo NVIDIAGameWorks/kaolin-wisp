@@ -52,6 +52,7 @@ class SPCField(BaseNeuralField):
                 A flag which determines if this SPCField supports optimization or not.
                 Toggling optimization off allows for quick creation of SPCField objects.
         """
+        super().__init__()
         self.spc_octree = spc_octree
         self.features_dict = features_dict if features_dict is not None else dict()
         self.spc_device = device
@@ -62,7 +63,6 @@ class SPCField(BaseNeuralField):
         self.colors = None
         self.normals = None
         self.init_grid(spc_octree)
-        super().__init__(grid=self.grid, **kwargs)
 
     def init_grid(self, spc_octree):
         """ Uses the OctreeAS / OctreeGrid mechanism to quickly parse the SPC object into a Wisp Neural Field.
