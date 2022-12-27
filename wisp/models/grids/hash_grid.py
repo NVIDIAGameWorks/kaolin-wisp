@@ -7,7 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from typing import Set, Type, List
+from typing import Dict, Set, Any, Type, List
 import torch
 import torch.nn as nn
 import numpy as np
@@ -237,3 +237,21 @@ class HashGrid(BLASGrid):
 
     def name(self) -> str:
         return "Hash Grid"
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        parent_properties = super().public_properties()
+        active_lods = None if self.active_lods is None or len(self.active_lods) == 0 else \
+            f'{min(self.active_lods)} - {max(self.active_lods)}'
+        properties = {
+            "Feature Dims": self.feature_dim,
+            "Total LODs": self.max_lod,
+            "Active feature LODs": active_lods,
+            "Interpolation": 'linear',
+            "Multiscale aggregation": self.multiscale_type,
+            "HashTable Size": f"2^{self.codebook_bitwidth}"
+        }
+        return {**parent_properties, **properties}

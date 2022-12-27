@@ -6,14 +6,14 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import numpy as np
+from typing import Dict, Any
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from wisp.core import WispModule
 
 from scipy.stats import ortho_group
 
-class BasicDecoder(nn.Module):
+class BasicDecoder(WispModule):
     """Super basic but super useful MLP class.
     """
     def __init__(self, 
@@ -117,6 +117,27 @@ class BasicDecoder(nn.Module):
             self.layers[i].weight = nn.Parameter(ms[i])
         m = get_weight(self.lout.weight)
         self.lout.weight = nn.Parameter(m)
+
+    def name(self) -> str:
+        """ A human readable name for the given wisp module. """
+        return "BasicDecoder"
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        return {
+            "Input Dim": self.input_dim,
+            "Hidden Dim": self.hidden_dim,
+            "Outpt Dim": self.output_dim,
+            "Num. Layers": self.num_layers,
+            "Layer Type": self.layer.__name__,
+            "Activation": self.activation.__name__,
+            "Bias": self.bias,
+            "Skip Connections": self.skip,
+        }
+
 
 def orthonormal(weight):
     """Initialize the layer as a random orthonormal matrix.

@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import numpy as np
 import torch
 from wisp.models.grids import OctreeGrid
@@ -133,3 +134,13 @@ class SPCField(BaseNeuralField):
 
         colors = self.colors[ridx_hit, :3].unsqueeze(1)
         return dict(rgb=colors)
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        properties = {
+            "Grid": self.grid,
+        }
+        return properties

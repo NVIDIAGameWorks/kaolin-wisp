@@ -7,10 +7,11 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import logging as log
-from typing import Set, Type
+from typing import Dict, Set, Any, Type
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from wisp.core import WispModule
 from wisp.models.grids import BLASGrid
 from wisp.accelstructs import AxisAlignedBBoxAS, BaseAS, ASRaytraceResults, ASRaymarchResults
 
@@ -155,8 +156,26 @@ class TriplanarGrid(BLASGrid):
     def name(self) -> str:
         return "Triplanar Grid"
 
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        parent_properties = super().public_properties()
+        properties = {
+            "Feature Dims": self.feature_dim,
+            "Total LODs": self.max_lod,
+            "Active feature LODs": [str(x) for x in self.active_lods],
+            "Interpolation": self.interpolation_type,
+            "Multiscale aggregation": self.multiscale_type,
+        }
+        for idx, module in enumerate(self.features):
+            properties[f"Pyramid Layer #{idx + 1}"] = module
 
-class TriplanarFeatureVolume(nn.Module):
+        return {**parent_properties, **properties}
+
+
+class TriplanarFeatureVolume(WispModule):
     """Triplanar feature volume represents a single triplane, e.g. a single LOD in a TriplanarGrid. """
 
     def __init__(self, fdim, fsize, std, bias):
@@ -205,3 +224,16 @@ class TriplanarFeatureVolume(nn.Module):
                                     align_corners=True, padding_mode=self.padding_mode)[0,:,:,0].transpose(0,1)
             sample = torch.stack([samplex, sampley, samplez], dim=1)
         return sample
+
+    def name(self) -> str:
+        """ A human readable name for the given wisp module. """
+        return "TriplanarFeatureVolume"
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        return {
+            'Resolution': f'3x{self.fsize}x{self.fsize}'
+        }

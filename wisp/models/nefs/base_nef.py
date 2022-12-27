@@ -6,12 +6,13 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import torch.nn as nn
 import inspect
 from abc import abstractmethod
+from typing import Dict, Any
+from wisp.core import WispModule
 
 
-class BaseNeuralField(nn.Module):
+class BaseNeuralField(WispModule):
     """The base class for all Neural Fields within Wisp.
     Neural Fields are defined as modules which take coordinates as input and output signals of some form.
     The term "Neural" is loosely used here to imply these modules are generally subject for optimization.
@@ -170,3 +171,10 @@ class BaseNeuralField(nn.Module):
             return [return_dict[channel] for channel in channels]
         else:
             return return_dict
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        return dict()

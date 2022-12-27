@@ -9,10 +9,10 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Dict, Set, Tuple
+from typing import Optional, Dict, Set, Tuple, Any
 import torch
 from kaolin.render.camera import Camera
-from wisp.core import RenderBuffer, Rays, PrimitivesPack
+from wisp.core import RenderBuffer, Rays, PrimitivesPack, WispModule
 from wisp.models import Pipeline
 from wisp.models.nefs import BaseNeuralField
 from wisp.gfx.datalayers import Datalayers
@@ -31,11 +31,11 @@ class FramePayload:
     clear_color: Tuple[float, float, float]
     channels: Set[str] # Channels requested for the render.
 
-class BottomLevelRenderer(ABC):
+
+class BottomLevelRenderer(WispModule, ABC):
 
     def __init__(self, *args, **kwargs):
-        self._model_matrix = None
-        self._bbox = None
+        super().__init__()
         self._data_layers = dict()
 
     def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
@@ -84,19 +84,22 @@ class BottomLevelRenderer(ABC):
     def dtype(self) -> torch.dtype:
         raise NotImplementedError('BottomLevelRenderer subclasses must implement dtype')
 
-    @property
-    @abstractmethod
-    def model_matrix(self) -> torch.Tensor:
-        """ torch.Tensor of 4x4 matrix defining how the object local coordinates should transform to world coordinates.
-        """
-        raise NotImplementedError('BottomLevelRenderer subclasses must implement model_matrix() logic.')
+    def acceleration_structure(self) -> Optional[str]:
+        """ Returns a descriptive name of the acceleration structure used by this object, if applicable. """
+        return None
 
-    @property
-    @abstractmethod
-    def aabb(self) -> torch.Tensor:
-        """ torch.Tensor defining the axis-aligned bounding box of object as:
-            (center_x, center_y, center_z, width, height, depth) """
-        raise NotImplementedError('BottomLevelRenderer subclasses must implement bbox() logic.')
+    def features_structure(self) -> Optional[str]:
+        """ Returns a descriptive name of the feature structure used by this object, if applicable. """
+        return None
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+
+        BLASGrids are generally assumed to contain a bottom level acceleration structure.
+        """
+        return dict()
 
 
 class RayTracedRenderer(BottomLevelRenderer):
@@ -142,6 +145,24 @@ class RayTracedRenderer(BottomLevelRenderer):
     @property
     def device(self) -> torch.device:
         return self.nef.device
+
+    def acceleration_structure(self) -> Optional[str]:
+        """ Returns a human readable name of the bottom level acceleration structure used by this renderer """
+        if getattr(self.nef, 'grid') is None or getattr(self.nef.grid, 'blas') is None:
+            return "None"
+        elif hasattr(self.nef.grid.blas, 'name'):
+            return self.nef.grid.blas.name()
+        else:
+            return "Unknown"
+
+    def features_structure(self) -> Optional[str]:
+        """ Returns a human readable name of the feature structure used by this renderer """
+        if getattr(self.nef, 'grid') is None:
+            return "None"
+        elif hasattr(self.nef.grid, 'name'):
+            return self.nef.grid.name()
+        else:
+            return "Unknown"
 
 
 class RasterizedRenderer(BottomLevelRenderer):

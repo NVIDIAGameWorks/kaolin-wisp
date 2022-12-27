@@ -6,12 +6,14 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from typing import Dict, Any
 import torch.nn as nn
 from abc import abstractmethod, ABC
 import inspect
+from wisp.core import WispModule
 
 
-class BaseTracer(nn.Module, ABC):
+class BaseTracer(WispModule, ABC):
     """Base class for all tracers within Wisp.
     Tracers drive the mapping process which takes an input "Neural Field", and outputs a RenderBuffer of pixels.
     Different tracers may employ different algorithms for querying points, or tracing / marching rays through the
@@ -138,3 +140,10 @@ class BaseTracer(nn.Module, ABC):
                 if default_arg is not None:
                     input_args[_arg] = default_arg
         return self.trace(nef, requested_channels, requested_extra_channels, **input_args)
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        return dict()

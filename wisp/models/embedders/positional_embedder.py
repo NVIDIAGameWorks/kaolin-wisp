@@ -6,10 +6,13 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from typing import Dict, Any
 import torch
 import torch.nn as nn
+from wisp.core import WispModule
 
-class PositionalEmbedder(nn.Module):
+
+class PositionalEmbedder(WispModule):
     """PyTorch implementation of regular positional embedding, as used in the original NeRF and Transformer papers.
     """
     def __init__(self, num_freq, max_freq_log2, log_sampling=True, include_input=True, input_dim=3):
@@ -61,6 +64,23 @@ class PositionalEmbedder(nn.Module):
         if self.include_input:
             encoded = torch.cat([coords, encoded], dim=-1)
         return encoded
+
+    def name(self) -> str:
+        """ A human readable name for the given wisp module. """
+        return "Positional Encoding"
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        return {
+            "Output Dim": self.out_dim,
+            "Num. Frequencies": self.num_freq,
+            "Max Frequency": f"2^{self.max_freq_log2}",
+            "Include Input": self.include_input
+        }
+
 
 def get_positional_embedder(frequencies, input_dim=3, include_input=True):
     """Utility function to get a positional encoding embedding.

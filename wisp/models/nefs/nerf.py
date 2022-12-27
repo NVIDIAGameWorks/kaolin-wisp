@@ -7,6 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
+from typing import Dict, Any
 from wisp.ops.geometric import sample_unif_sphere
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
@@ -244,3 +245,21 @@ class NeuralRadianceField(BaseNeuralField):
 
     def color_net_input_dim(self):
         return 16 + self.view_embed_dim
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        properties = {
+            "Grid": self.grid,
+            "Pos. Embedding": self.pos_embedder,
+            "View Embedding": self.view_embedder,
+            "Decoder (density)": self.decoder_density,
+            "Decoder (color)": self.decoder_color
+        }
+        if self.prune_density_decay is not None:
+            properties['Pruning Density Decay'] = self.prune_density_decay
+        if self.prune_min_density is not None:
+            properties['Pruning Min Density'] = self.prune_min_density
+        return properties
