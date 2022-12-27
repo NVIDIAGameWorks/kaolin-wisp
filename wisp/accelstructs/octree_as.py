@@ -7,15 +7,16 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from typing import Tuple
+from typing import List
 import torch
-import wisp.ops.mesh as mesh_ops
-import wisp.ops.spc as wisp_spc_ops
 import kaolin.ops.spc as spc_ops
 import kaolin.render.spc as spc_render
+import wisp.ops.mesh as mesh_ops
+import wisp.ops.spc as wisp_spc_ops
+from wisp.accelstructs.base_as import BaseAS, ASQueryResults, ASRaytraceResults, ASRaymarchResults
 
 
-class OctreeAS:
+class OctreeAS(BaseAS):
     """Octree bottom-level acceleration structure class implemented using Kaolin SPC.
     Can be used to to quickly query cells occupancy, and trace rays against the volume.
     """
@@ -32,6 +33,7 @@ class OctreeAS:
             For more details about this format, see:
              https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
         """
+        super().__init__()
         self.octree = octree
         self.points, self.pyramid, self.prefix = wisp_spc_ops.octree_to_spc(octree)
         self.max_level = self.pyramid.shape[-1] - 2
@@ -108,7 +110,7 @@ class OctreeAS:
         octree = wisp_spc_ops.create_dense_octree(level)
         return OctreeAS(octree)
 
-    def query(self, coords, level=None, with_parents=False) -> torch.LongTensor:
+    def query(self, coords, level=None, with_parents=False) -> ASQueryResults:
         """Returns the ``pidx`` for the sample coordinates (indices of acceleration structure cells returned by
         this query).
 
@@ -118,15 +120,16 @@ class OctreeAS:
             with_parents (bool) : If True, also returns hierarchical parent indices.
         
         Returns:
-            (torch.LongTensor): The indices into the point hierarchy of shape [num_query].
-                If with_parents is True, then the shape will be [num_query, level+1].
+            (ASQueryResults): containing the indices into the point hierarchy of shape [num_query].
+                If with_parents is True, then the query result will be of shape [num_query, level+1].
         """
         if level is None:
             level = self.max_level
         
-        return spc_ops.unbatched_query(self.octree, self.prefix, coords, level, with_parents)
+        pidx = spc_ops.unbatched_query(self.octree, self.prefix, coords, level, with_parents)
+        return ASQueryResults(pidx=pidx)
 
-    def raytrace(self, rays, level=None, with_exit=False) -> Tuple[torch.LongTensor, torch.LongTensor, torch.FloatTensor]:
+    def raytrace(self, rays, level=None, with_exit=False) -> ASRaytraceResults:
         """Traces rays against the SPC structure, returning all intersections along the ray with the SPC points
         (SPC points are quantized, and can be interpreted as octree cell centers or corners).
 
@@ -136,7 +139,7 @@ class OctreeAS:
             with_exit (bool) : If True, also returns exit depth.
 
         Returns:
-            (torch.LongTensor, torch.LongTensor, torch.FloatTensor):
+            (ASRaytraceResults): with fields containing -
                 - Indices into rays.origins and rays.dirs of shape [num_intersections]
                 - Indices into the point_hierarchy of shape [num_intersections]
                 - Depths of shape [num_intersections, 1 or 2]
@@ -147,9 +150,9 @@ class OctreeAS:
         ridx, pidx, depth = spc_render.unbatched_raytrace(
             self.octree, self.points, self.pyramid, self.prefix,
             rays.origins, rays.dirs, level, return_depth=True, with_exit=with_exit)
-        return ridx, pidx, depth
+        return ASRaytraceResults(ridx=ridx, pidx=pidx, depth=depth)
 
-    def _raymarch_voxel(self, rays, num_samples, level=None):
+    def _raymarch_voxel(self, rays, num_samples, level=None) -> ASRaymarchResults:
         """Samples points along the ray inside the SPC structure.
         Raymarch is achieved by intersecting the rays with the SPC cells.
         Then among the intersected cells, each cell is sampled num_samples times.
@@ -162,8 +165,7 @@ class OctreeAS:
             level (int) : The level of the octree to raytrace. If None, traces the highest level.
 
         Returns:
-            (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
-            torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
+            (ASRaymarchResults) with fields containing:
                 - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
                 - Sample coordinates of shape [num_hit_samples, 3]
                 - Sample depths of shape [num_hit_samples, 1]
@@ -175,11 +177,12 @@ class OctreeAS:
         # NUM_INTERSECTIONS can be 0!
         # ridx, pidx ~ (NUM_INTERSECTIONS,)
         # depth ~ (NUM_INTERSECTIONS, 2)
-        ridx, pidx, depth = self.raytrace(rays, level, with_exit=True)
-        ridx = ridx.long()
+        raytrace_results = self.raytrace(rays, level, with_exit=True)
+        ridx = raytrace_results.ridx.long()
         num_intersections = ridx.shape[0]
 
         # depth_samples ~ (NUM_INTERSECTIONS, NUM_SAMPLES, 1)
+        depth = raytrace_results.depth
         depth_samples = wisp_spc_ops.sample_from_depth_intervals(depth, num_samples)[..., None]
         deltas = depth_samples[..., 0].diff(dim=-1, prepend=depth[..., 0:1]).reshape(num_intersections * num_samples, 1)
 
@@ -198,9 +201,15 @@ class OctreeAS:
         samples = samples.reshape(num_intersections * num_samples, 3)
         depth_samples = depth_samples.reshape(num_intersections * num_samples, 1)
 
-        return ridx, samples, depth_samples, deltas, boundary
+        return ASRaymarchResults(
+            ridx=ridx,
+            samples=samples,
+            depth_samples=depth_samples,
+            deltas=deltas,
+            boundary=boundary
+        )
 
-    def _raymarch_ray(self, rays, num_samples, level=None):
+    def _raymarch_ray(self, rays, num_samples, level=None) -> ASRaymarchResults:
         """Samples points along the ray inside the SPC structure.
         Raymarch is achieved by sampling num_samples along each ray,
         and then filtering out samples which falls outside of occupied cells.
@@ -215,8 +224,7 @@ class OctreeAS:
             level (int) : The level of the octree to raytrace. If None, traces the highest level.
 
         Returns:
-            (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
-            torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
+            (ASRaymarchResults) with fields containing:
                 - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
                 - Sample coordinates of shape [num_hit_samples, 3]
                 - Sample depths of shape [num_hit_samples, 1]
@@ -240,7 +248,9 @@ class OctreeAS:
         samples = torch.addcmul(rays.origins[:, None], rays.dirs[:, None], depth[..., None])
         deltas = depth.diff(dim=-1,
                             prepend=(torch.zeros(rays.origins.shape[0], 1, device=depth.device) + rays.dist_min))
-        pidx = self.query(samples.reshape(num_rays * num_samples, 3), level=level).reshape(num_rays, num_samples)
+        query_results = self.query(samples.reshape(num_rays * num_samples, 3), level=level)
+        pidx = query_results.pidx
+        pidx = pidx.reshape(num_rays, num_samples)
         mask = pidx > -1
 
         # NUM_HIT_SAMPLES: number of samples sampled within occupied cells
@@ -255,9 +265,15 @@ class OctreeAS:
         ridx = ridx[..., None].repeat(1, num_samples)[mask]
         boundary = spc_render.mark_pack_boundaries(ridx)
 
-        return ridx, samples, depth_samples, deltas, boundary
+        return ASRaymarchResults(
+            ridx=ridx,
+            samples=samples,
+            depth_samples=depth_samples,
+            deltas=deltas,
+            boundary=boundary
+        )
 
-    def raymarch(self, rays, raymarch_type, num_samples, level=None):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Samples points along the ray inside the SPC structure.
         The exact algorithm employed for raymarching is determined by `raymarch_type`.
 
@@ -275,14 +291,13 @@ class OctreeAS:
             level (int) : The level of the octree to raytrace. If None, traces the highest level.
         
         Returns:
-            (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
-            torch.FloatTensor, torch.FloatTensor, torch.BoolTensor):
-                - Number of samples generated per ray [batch]
+            (ASRaymarchResults) with fields containing:
+                - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
                 - Sample coordinates of shape [num_hit_samples, 3]
                 - Sample depths of shape [num_hit_samples, 1]
                 - Sample depth diffs of shape [num_hit_samples, 1]
-                - Boundary tensor which marks the beginning of each variable-sized sample pack
-                  of shape [num_hit_samples]
+                - Boundary tensor which marks the beginning of each variable-sized
+                  sample pack of shape [num_hit_samples]
         """
         if level is None:
             level = self.max_level
@@ -293,22 +308,26 @@ class OctreeAS:
         # but in general it's not very robust or proper since the ray samples will be weirdly distributed
         # and or aliased. 
         if raymarch_type == 'voxel':
-            ridx, samples, depth_samples, deltas, boundary = self._raymarch_voxel(rays=rays,
-                                                                                  num_samples=num_samples,
-                                                                                  level=level)
+            raymarch_results = self._raymarch_voxel(rays=rays, num_samples=num_samples, level=level)
 
         # Samples points along the rays, and then uses the SPC object the filter out samples that don't hit
         # the SPC objects. This is a much more well-spaced-out sampling scheme and will work well for 
         # inside-looking-out scenes. The camera near and far planes will have to be adjusted carefully, however.
         elif raymarch_type == 'ray':
-            ridx, samples, depth_samples, deltas, boundary = self._raymarch_ray(rays=rays,
-                                                                                num_samples=num_samples,
-                                                                                level=level)
+            raymarch_results = self._raymarch_ray(rays=rays, num_samples=num_samples, level=level)
 
         else:
             raise TypeError(f"Raymarch sampler type: {raymarch_type} is not supported by OctreeAS.")
 
-        return ridx, samples, depth_samples, deltas, boundary
+        return raymarch_results
+
+    def occupancy(self) -> List[int]:
+        """ Returns a list of length [LODs], where each element contains the number of cells occupied in that LOD """
+        return self.pyramid[0, :-2].cpu().numpy()
+
+    def capacity(self) -> List[int]:
+        """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
+        return [8**lod for lod in range(self.max_level)]
 
     def name(self) -> str:
         return "Octree"

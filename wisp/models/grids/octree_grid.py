@@ -7,13 +7,14 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
+import logging as log
+from typing import Set, Type
 import torch
 import torch.nn as nn
-import logging as log
 import wisp.ops.spc as wisp_spc_ops
 from wisp.models.grids import BLASGrid
 import kaolin.ops.spc as spc_ops
-from wisp.accelstructs import OctreeAS
+from wisp.accelstructs import BaseAS, OctreeAS, ASRaymarchResults
 
 
 class OctreeGrid(BLASGrid):
@@ -22,7 +23,7 @@ class OctreeGrid(BLASGrid):
 
     def __init__(
         self,
-        accelstruct,
+        accelstruct: OctreeAS,
         feature_dim         : int,
         base_lod            : int,
         num_lods            : int          = 1,
@@ -51,7 +52,7 @@ class OctreeGrid(BLASGrid):
         Returns:
             (void): Initializes the class.
         """
-        super().__init__()
+        super().__init__(accelstruct)
         self.feature_dim = feature_dim
         self.base_lod = base_lod
         self.num_lods = num_lods
@@ -67,7 +68,6 @@ class OctreeGrid(BLASGrid):
 
         log.info(f"Active LODs: {self.active_lods}")    # TODO(operel): move into trainer
 
-        self.blas = accelstruct
         if self.num_lods > 0:
             self.init_feature_structure()
 
@@ -353,7 +353,8 @@ class OctreeGrid(BLASGrid):
             coords = coords[:, None]    # (batch, 3) -> (batch, num_samples, 3)
 
         if lod_idx == 0:
-            pidx = self.blas.query(coords[:,0], self.active_lods[lod_idx], with_parents=False)
+            query_results = self.blas.query(coords[:,0], self.active_lods[lod_idx], with_parents=False)
+            pidx = query_results.pidx
             feat = self._interpolate(coords, self.features[0], pidx, 0)
             return feat.reshape(*output_shape, feat.shape[-1])
         else:
@@ -366,9 +367,8 @@ class OctreeGrid(BLASGrid):
             # This might look unoptimal since it assumes that samples are _not_ in the same voxel.
             # This is the correct assumption here, because the point samples are from the base_lod,
             # not the highest LOD.
-            pidx = self.blas.query(
-                coords.reshape(-1, 3), self.active_lods[lod_idx], with_parents=True
-            )[...,self.base_lod:]
+            query_results = self.blas.query(coords.reshape(-1, 3), self.active_lods[lod_idx], with_parents=True)
+            pidx = query_results.pidx[...,self.base_lod:]
             pidx = pidx.reshape(-1, coords.shape[1], num_feats)
             pidx = torch.split(pidx, 1, dim=-1)
             
@@ -390,12 +390,16 @@ class OctreeGrid(BLASGrid):
             
             return feats.reshape(*output_shape, self.feature_dim)
 
-    def raymarch(self, rays, raymarch_type, num_samples, level=None):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
         return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=self.base_lod)
+
+    def supported_blas(self) -> Set[Type[BaseAS]]:
+        """ Returns a set of bottom-level acceleration structures this grid type supports """
+        return {OctreeAS}
 
     def name(self) -> str:
         return "Octree Grid"

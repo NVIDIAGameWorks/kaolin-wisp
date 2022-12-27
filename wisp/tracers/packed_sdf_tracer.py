@@ -81,7 +81,11 @@ class PackedSDFTracer(BaseTracer):
         invres = 1.0
 
         # Trace SPC
-        ridx, pidx, depth = nef.grid.raytrace(rays, nef.grid.active_lods[lod_idx], with_exit=True)
+        raytrace_results = nef.grid.raytrace(rays, nef.grid.active_lods[lod_idx], with_exit=True)
+        ridx = raytrace_results.ridx
+        pidx = raytrace_results.pidx
+        depth = raytrace_results.depth
+
         depth[...,0:1] += 1e-5
 
         first_hit = spc_render.mark_pack_boundaries(ridx)
@@ -97,7 +101,7 @@ class PackedSDFTracer(BaseTracer):
         t = depth[first_hit][...,0:1]
         x = torch.addcmul(nug_o, nug_d, t)
         dist = torch.zeros_like(t)
-        
+
         curr_pidx = pidx[first_hit].long()
         
         timer.check("initial")

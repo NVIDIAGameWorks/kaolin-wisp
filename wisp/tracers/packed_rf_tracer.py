@@ -115,7 +115,11 @@ class PackedRFTracer(BaseTracer):
                                              level=nef.grid.active_lods[lod_idx],
                                              num_samples=num_steps,
                                              raymarch_type=raymarch_type)
-        ridx, samples, depths, deltas, boundary = raymarch_results
+        ridx = raymarch_results.ridx
+        samples = raymarch_results.samples
+        deltas = raymarch_results.deltas
+        boundary = raymarch_results.boundary
+        depths = raymarch_results.depth_samples
 
         # Get the indices of the ray tensor which correspond to hits
         ridx_hit = ridx[spc_render.mark_pack_boundaries(ridx.int())]

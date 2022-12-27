@@ -55,7 +55,10 @@ class PackedSPCTracer(BaseTracer):
         if lod_idx is None:
             lod_idx = nef.grid.blas.max_level
 
-        ridx, pidx, depths = nef.grid.blas.raytrace(rays, lod_idx, with_exit=False)
+        raytrace_results = nef.grid.blas.raytrace(rays, lod_idx, with_exit=False)
+        ridx = raytrace_results.ridx
+        pidx = raytrace_results.pidx
+        depths = raytrace_results.depth
 
         timer.check("Raytrace")
 

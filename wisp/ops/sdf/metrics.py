@@ -47,7 +47,8 @@ def compute_sparse_sdf_iou(nef, coords, gts, lod_idx=0):
     if nef.grid is None:
         raise Exception(f"{nef.__class__.__name__} is incompatible with this function.")
     pred = torch.zeros([coords.shape[0], 1])
-    pidx = nef.grid.query(gts, lod_idx=lod_idx)
+    query_results = nef.grid.query(gts, lod_idx=lod_idx)
+    pidx = query_results.pidx
     mask = (pidx != -1)
 
     pred[mask] = nef(coords=gts[mask], pidx=pidx[mask], lod_idx=lod_idx, channels="sdf").cpu()
