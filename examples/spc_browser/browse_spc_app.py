@@ -9,7 +9,7 @@
 import glob
 from typing import List
 from wisp.framework.state import WispState
-from wisp.renderer.gui import WidgetImgui, WidgetRendererProperties, WidgetGPUStats, WidgetSceneGraph
+from wisp.renderer.gui import WidgetImgui, WidgetInteractiveVisualizerProperties, WidgetGPUStats, WidgetSceneGraph
 from wisp.renderer.app.wisp_app import WispApp
 from widget_spc_selector import WidgetSPCSelector
 
@@ -43,7 +43,7 @@ class BrowseSPCApp(WispApp):
         """ Define the list of widgets the gui will display, in order. """
         return [
             WidgetGPUStats(),  # Current FPS, memory occupancy, GPU Model
-            WidgetRendererProperties(),  # Canvas dims, user camera controller & definitions
+            WidgetInteractiveVisualizerProperties(),  # Canvas dims, user camera controller & definitions
             WidgetSPCSelector(),  # Custom widget for selecting which SPC model to show
             WidgetSceneGraph()  # A scene graph tree of the entire hierarchy of objects in the scene
         ]

@@ -134,15 +134,19 @@ class BaseAS(WispModule, ABC):
         """
         raise NotImplementedError(f"{self.name} acceleration structure does not support the 'raymarch' method.")
 
-    @abstractmethod
     def occupancy(self) -> List[int]:
-        """ Returns a list of length [LODs], where each element contains the number of cells occupied in that LOD """
-        raise NotImplementedError('All acceleration structures must implement the "occupancy" function.')
+        """ Returns a list of length [LODs], where each element contains the number of cells occupied in that LOD.
+        Used for logging, debugging and visualization purposes, for acceleration structures with
+        a defined concept of occupancy.
+        """
+        return list()
 
-    @abstractmethod
     def capacity(self) -> List[int]:
-        """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
-        raise NotImplementedError('All acceleration structures must implement the "capacity" function.')
+        """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD.
+        Used for logging, debugging and visualization purposes, for acceleration structures with
+        a defined concept of capacity.
+        """
+        return list()
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.
