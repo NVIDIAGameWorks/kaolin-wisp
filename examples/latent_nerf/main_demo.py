@@ -31,6 +31,8 @@ parser.add_argument('--dataset-path', type=str,
 parser.add_argument('--dataset-num-workers', type=int, default=16,
                     help='Number of workers for dataset preprocessing, if it supports multiprocessing. '
                          '-1 indicates no multiprocessing.')
+parser.add_argument('--epochs', type=int, default=100,
+                    help='Number of epochs to run the training.')
 args = parser.parse_args()
 
 default_log_setup(level=logging.INFO)
@@ -75,7 +77,7 @@ weight_decay = 0
 exp_name = 'siggraph_2022_demo'
 trainer = MultiviewTrainer(pipeline=pipeline,
                            dataset=train_dataset,
-                           num_epochs=100,
+                           num_epochs=args.epochs,
                            batch_size=1,    # 1 image per batch
                            optim_cls=torch.optim.RMSprop,
                            lr=0.001,
@@ -103,9 +105,10 @@ trainer = MultiviewTrainer(pipeline=pipeline,
                                camera_clamp=[0, 10],
                                render_batch=4000,
                                bg_color='black',
-                               valid_every=100,
+                               valid_every=-1,
                                save_as_new=False,
-                               model_format='full'
+                               model_format='full',
+                               mip=0
                            ),
                            render_tb_every=100,
                            save_every=100,
