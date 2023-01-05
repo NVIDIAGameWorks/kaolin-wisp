@@ -124,8 +124,9 @@ class PackedRFTracer(BaseTracer):
         hit_ray_d = rays.dirs.index_select(0, ridx)
 
         # Compute the color and density for each ray and their samples
+        num_samples = samples.shape[0]
         color, density = nef(coords=samples, ray_d=hit_ray_d, lod_idx=lod_idx, channels=["rgb", "density"])
-        density = density.reshape(-1, 1)    # Protect against squeezed return shape
+        density = density.reshape(num_samples, 1)    # Protect against squeezed return shape
         del ridx
 
         # Compute optical thickness
@@ -134,7 +135,7 @@ class PackedRFTracer(BaseTracer):
         ray_colors, transmittance = spc_render.exponential_integration(color, tau, boundary, exclusive=True)
 
         if "depth" in channels:
-            ray_depth = spc_render.sum_reduce(depths.reshape(-1, 1) * transmittance, boundary)
+            ray_depth = spc_render.sum_reduce(depths.reshape(num_samples, 1) * transmittance, boundary)
             depth[ridx_hit, :] = ray_depth
 
         alpha = spc_render.sum_reduce(transmittance, boundary)
@@ -156,7 +157,7 @@ class PackedRFTracer(BaseTracer):
                         channels=channel)
             num_channels = feats.shape[-1]
             ray_feats, transmittance = spc_render.exponential_integration(
-                feats.view(-1, num_channels), tau, boundary, exclusive=True
+                feats.view(num_samples, num_channels), tau, boundary, exclusive=True
             )
             composited_feats = alpha * ray_feats
             out_feats = torch.zeros(N, num_channels, device=feats.device)

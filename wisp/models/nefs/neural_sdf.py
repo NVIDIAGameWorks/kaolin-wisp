@@ -7,8 +7,6 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
-import logging as log
-
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
 from wisp.models.layers import get_layer_class
@@ -56,8 +54,6 @@ class NeuralSDF(BaseNeuralField):
         """
         if embedder_type == 'none':
             embedder, embed_dim = None, 0
-        elif embedder_type == 'identity':
-            embedder, embed_dim = torch.nn.Identity(), 0
         elif embedder_type == 'positional':
             embedder, embed_dim = get_positional_embedder(frequencies=frequencies, position_input=position_input)
         else:
@@ -67,7 +63,7 @@ class NeuralSDF(BaseNeuralField):
     def init_decoder(self, activation_type, layer_type, num_layers, hidden_dim):
         """Initializes the decoder object.
         """
-        decoder = BasicDecoder(input_dim=self.decoder_input_dim,
+        decoder = BasicDecoder(input_dim=self.decoder_input_dim(),
                                output_dim=1,
                                activation=get_activation_class(activation_type),
                                bias=True,
@@ -119,7 +115,6 @@ class NeuralSDF(BaseNeuralField):
             
         return dict(sdf=sdf)
 
-    @property
     def effective_feature_dim(self):
         if self.grid.multiscale_type == 'cat':
             effective_feature_dim = self.grid.feature_dim * self.grid.num_lods
@@ -127,9 +122,8 @@ class NeuralSDF(BaseNeuralField):
             effective_feature_dim = self.grid.feature_dim
         return effective_feature_dim
 
-    @property
     def decoder_input_dim(self):
-        input_dim = self.effective_feature_dim
+        input_dim = self.effective_feature_dim()
         if self.position_input:
             input_dim += self.pos_embed_dim
         return input_dim

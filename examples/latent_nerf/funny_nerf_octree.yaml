@@ -41,7 +41,7 @@ trainer:
     model_format: 'full'
     valid_every: -1
     save_every: -1
-    render_every: -1
+    render_tb_every: -1
 
 grid:
     grid_type: 'OctreeGrid'

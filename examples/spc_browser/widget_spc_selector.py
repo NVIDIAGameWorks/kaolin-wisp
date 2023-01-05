@@ -34,7 +34,7 @@ class WidgetSPCSelector(WidgetImgui):
         features = {k: torch.from_numpy(v).to(device) for k, v in spc_fields.items() if k in ('colors', 'normals')}
 
         neural_field = SPCField(
-            octree=octree,
+            spc_octree=octree,
             features_dict=features,
             device=device
         )

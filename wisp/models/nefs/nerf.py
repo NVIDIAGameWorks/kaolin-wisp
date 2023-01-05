@@ -72,8 +72,6 @@ class NeuralRadianceField(BaseNeuralField):
         """
         if embedder_type == 'none':
             embedder, embed_dim = None, 0
-        elif embedder_type == 'identity':
-            embedder, embed_dim = torch.nn.Identity(), 0
         elif embedder_type == 'positional':
             embedder, embed_dim = get_positional_embedder(frequencies=frequencies)
         else:
@@ -83,7 +81,7 @@ class NeuralRadianceField(BaseNeuralField):
     def init_decoders(self, activation_type, layer_type, num_layers, hidden_dim):
         """Initializes the decoder object.
         """
-        decoder_density = BasicDecoder(input_dim=self.density_net_input_dim,
+        decoder_density = BasicDecoder(input_dim=self.density_net_input_dim(),
                                        output_dim=16,
                                        activation=get_activation_class(activation_type),
                                        bias=True,
@@ -93,7 +91,7 @@ class NeuralRadianceField(BaseNeuralField):
                                        skip=[])
         decoder_density.lout.bias.data[0] = 1.0
 
-        decoder_color = BasicDecoder(input_dim=self.color_net_input_dim,
+        decoder_color = BasicDecoder(input_dim=self.color_net_input_dim(),
                                      output_dim=3,
                                      activation=get_activation_class(activation_type),
                                      bias=True,
@@ -160,11 +158,11 @@ class NeuralRadianceField(BaseNeuralField):
         batch, _ = coords.shape
 
         # Embed coordinates into high-dimensional vectors with the grid.
-        feats = self.grid.interpolate(coords, lod_idx).reshape(-1, self.effective_feature_dim)
+        feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
 
         # Optionally concat the positions to the embedding
         if self.pos_embedder is not None:
-            embedded_pos = self.pos_embedder(coords).view(-1, self.pos_embed_dim)
+            embedded_pos = self.pos_embedder(coords).view(batch, self.pos_embed_dim)
             feats = torch.cat([feats, embedded_pos], dim=-1)
 
         # Decode high-dimensional vectors to density features.
@@ -172,7 +170,7 @@ class NeuralRadianceField(BaseNeuralField):
 
         # Concatenate embedded view directions.
         if self.view_embedder is not None:
-            embedded_dir = self.view_embedder(-ray_d).view(-1, self.view_embed_dim)
+            embedded_dir = self.view_embedder(-ray_d).view(batch, self.view_embed_dim)
             fdir = torch.cat([density_feats, embedded_dir], dim=-1)
         else:
             fdir = density_feats
@@ -186,7 +184,6 @@ class NeuralRadianceField(BaseNeuralField):
         density = torch.relu(density_feats[...,0:1])
         return dict(rgb=colors, density=density)
 
-    @property
     def effective_feature_dim(self):
         if self.grid.multiscale_type == 'cat':
             effective_feature_dim = self.grid.feature_dim * self.grid.num_lods
@@ -194,10 +191,8 @@ class NeuralRadianceField(BaseNeuralField):
             effective_feature_dim = self.grid.feature_dim
         return effective_feature_dim
 
-    @property
     def density_net_input_dim(self):
-        return self.effective_feature_dim + self.pos_embed_dim
+        return self.effective_feature_dim() + self.pos_embed_dim
 
-    @property
     def color_net_input_dim(self):
         return 16 + self.view_embed_dim
