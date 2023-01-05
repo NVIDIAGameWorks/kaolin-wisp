@@ -87,6 +87,18 @@ class OctreeAS:
         return OctreeAS(octree)
 
     @classmethod
+    def from_quantized_points(cls, quantized_points, level) -> OctreeAS:
+        """ Builds the acceleration structure from quantized (integer) point coordinates.
+
+        Args:
+            quantized_points (torch.LongTensor): 3D coordinates of shape [num_coords, 3] in
+                                                 integer coordinate space [0, 2**level]
+            level (int): The depth of the octree.
+        """
+        octree = spc_ops.unbatched_points_to_octree(quantized_points, level, sorted=False)
+        return OctreeAS(octree)
+
+    @classmethod
     def make_dense(cls, level) -> OctreeAS:
         """ Builds the acceleration structure and initializes full occupancy of all cells.
 
