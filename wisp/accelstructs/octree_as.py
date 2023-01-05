@@ -145,9 +145,9 @@ class OctreeAS:
 
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
-            level (int) : The level of the octree to raytrace. If None, traces the highest level.
             num_samples (int) : Number of samples generated per voxel. The total number of samples generated will
                 also depend on the number of cells a ray have intersected.
+            level (int) : The level of the octree to raytrace. If None, traces the highest level.
 
         Returns:
             (torch.LongTensor, torch.LongTensor, torch.FloatTensor,
@@ -198,9 +198,9 @@ class OctreeAS:
 
         Args:
             rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
-            level (int) : The level of the octree to raytrace. If None, traces the highest level.
             num_samples (int) : Number of samples generated per ray. The actual number of generated samples may be lower
                 due to samples intersecting empty cells.
+            level (int) : The level of the octree to raytrace. If None, traces the highest level.
 
         Returns:
             (torch.LongTensor, torch.LongTensor, torch.FloatTensor,

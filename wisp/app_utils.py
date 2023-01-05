@@ -8,6 +8,7 @@
 
 import logging
 import sys
+import pprint
 
 
 def default_log_setup(level=logging.INFO):
@@ -23,7 +24,16 @@ def default_log_setup(level=logging.INFO):
                         handlers=handlers)
 
 
-def add_log_level_flag(parser):
-    parser.add_argument(
-        '--log_level', action='store', type=int, default=logging.INFO,
-        help='Logging level to use globally, DEBUG: 10, INFO: 20, WARN: 30, ERROR: 40.')
+def args_to_log_format(args_dict) -> str:
+    """Convert args hierarchy to string representation suitable for logging (i.e. with Tensorboard).
+
+    Args:
+        args_dict : The parsed arguments, grouped within a dictionary.
+
+    Returns:
+        arg_str : The args encoded in a string format.
+    """
+    pp = pprint.PrettyPrinter(indent=2)
+    args_str = pp.pformat(args_dict)
+    args_str = f'```{args_str}```'
+    return args_str

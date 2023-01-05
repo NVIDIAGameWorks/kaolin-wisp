@@ -95,7 +95,7 @@ def get_layer_class(layer_type):
     Retunrs:
         (nn.Module): The layer to be used for the decoder.
     """
-    if layer_type == 'none' or layer_type=='linear':
+    if layer_type == 'none' or layer_type == 'linear':
         return nn.Linear
     elif layer_type == 'spectral_norm':
         return spectral_norm_

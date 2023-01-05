@@ -20,10 +20,9 @@ class SPCField(BaseNeuralField):
     Feature samples per ray may be collected from each intersected "cell" of the structured point cloud.
     """
 
-    def __init__(self, spc_octree, features_dict=None,
-                 device='cuda', base_lod=None, num_lods=None, optimizable=False, **kwargs):
-        """
-        Creates a new Structured Point Cloud (SPC), represented as a Wisp Field.
+    def __init__(self, spc_octree, features_dict=None, device='cuda'):
+        r"""Creates a new Structured Point Cloud (SPC), represented as a Wisp Field.
+
         In wisp, SPCs are considered neural fields, since their features may be optimized.
         See `examples/spc_browser` for an elaborate description of SPCs.
 
@@ -43,22 +42,11 @@ class SPCField(BaseNeuralField):
                 cloud information to such features.
             device (torch.device):
                 Torch device on which the features and topology of the SPC field will be stored.
-            base_lod (int):
-                Number of levels of detail without features the SPC will use.
-            num_lods (int):
-                Number of levels of detail with features the SPC will use.
-                The total number of levels the SPC will have is `base_lod + num_lods - 1`.
-            optimizable (bool):
-                A flag which determines if this SPCField supports optimization or not.
-                Toggling optimization off allows for quick creation of SPCField objects.
         """
         super().__init__()
         self.spc_octree = spc_octree
         self.features_dict = features_dict if features_dict is not None else dict()
         self.spc_device = device
-        self.base_lod = base_lod
-        self.num_lods = num_lods
-        self.optimizable = optimizable
         self.grid = None
         self.colors = None
         self.normals = None
@@ -138,7 +126,6 @@ class SPCField(BaseNeuralField):
             {"rgb": torch.FloatTensor}:
                 - RGB tensor of shape [batch, 1, 3]
         """
-        # TODO(operel): handle features in mid levels
         # find offset to final level to make indices relative to final level
         level = self.grid.blas.max_level
         offset = self.grid.blas.pyramid[1, level]

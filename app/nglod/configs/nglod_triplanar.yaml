@@ -6,15 +6,17 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'ngp_nerf.yaml'
+parent: 'nglod_base.yaml'
 
-global:
-    exp_name: 'test-ngp-nerf-interactive'
+tracer:
+    num_steps: 256
+    step_size: 0.8
 
-dataset:
-    bg_color: 'black'
-
-trainer:
-    save_every: -1
-    render_tb_every: -1
-    valid_every: -1
+grid:
+    grid_type: 'TriplanarGrid'
+    interpolation_type: 'linear'
+    multiscale_type: 'sum'
+    feature_dim: 4
+    feature_std: 0.01
+    base_lod: 5
+    num_lods: 1

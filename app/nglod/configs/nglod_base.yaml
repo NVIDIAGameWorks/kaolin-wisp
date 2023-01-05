@@ -1,0 +1,55 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
+
+logging:
+    exp_name: 'test-nglod-sdf'
+
+dataset:
+    num_samples: 500000      # Number of samples held in dataset during training
+    samples_per_voxel: 32
+
+nef:
+    hidden_dim: 128
+    num_layers: 1
+    pos_embedder: 'none'
+    position_input: True
+
+optimizer:
+    optimizer_type: 'adam'
+    eps: 1.0e-15
+    lr: 0.001
+    grid_lr_weight: 1.0
+
+trainer:
+    epochs: 10
+    batch_size: 512
+    model_format: 'full'    # If loading a pretrained pipeline, 'full' = torch.load instead of torch.load_state_dict
+    valid_every: 10
+    save_every: 5
+    render_tb_every: 5
+    log_2d: True
+    only_last: True  # Train only last LOD
+    resample: True
+
+# Sphere Tracer is employed during inference only
+tracer:
+    num_steps: 128
+    step_size: 0.8
+
+# NOTE: These are OfflineRenderer definitions, used for validation. See WispState for interactive app definitions.
+renderer:
+    render_batch: 0
+    camera_origin:
+        - -2.8
+        - 2.3
+        - -2.8
+    shading_mode: 'matcap'  # TODO (operel): For the time being, matcaps appear in offline renderings only (TBD)
+    render_res:
+        - 1024
+        - 1024
+    shadow: True

@@ -53,10 +53,10 @@ spec:
       // Train NeRF with octree
       try {
         timeout(time: 260, unit: 'SECONDS') {
-            stage("NGLOD-NeRF") {
+            stage("NeRF-octree rtmv") {
               sh '''
               cd /wisp
-              python app/main.py --config configs/nglod_nerf.yaml --dataset-path /data/V8
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_octree.yaml --dataset-path=/data/V8 --multiview-dataset-format rtmv --mip 2 --bg-color white --num-rays-sampled-per-img 4096 --raymarch-type voxel --num-steps 16
               '''
             }
         }
@@ -64,13 +64,12 @@ spec:
         build_passed = false
         echo e.toString()
       }
-      // Train NGLOD
       try {
-        timeout(time: 140, unit: 'SECONDS') {
-            stage("NGLOD-SDF") {
+        timeout(time: 420, unit: 'SECONDS') {
+            stage("NeRF-octree standard") {
               sh '''
               cd /wisp
-              python app/main.py --config configs/nglod_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_octree.yaml --dataset-path=/data/lego
               '''
             }
         }
@@ -81,24 +80,10 @@ spec:
       // Train NeRF with triplanar feature maps
       try {
         timeout(time: 325, unit: 'SECONDS') {
-            stage("Triplanar-NeRF") {
+            stage("NeRF-triplanar rtmv") {
               sh '''
               cd /wisp
-              python app/main.py --config configs/triplanar_nerf.yaml --dataset-path /data/V8
-              '''
-            }
-        }
-      } catch(e) {
-        build_passed = false
-        echo e.toString()
-      }
-      // Train SDFs with triplanar feature maps
-      try {
-        timeout(time: 325, unit: 'SECONDS') {
-            stage("Triplanar-SDF") {
-              sh '''
-              cd /wisp
-              python app/main.py --config configs/triplanar_sdf.yaml --dataset-path /data/spot/spot_triangulated.obj
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_triplanar.yaml --dataset-path=/data/V8 --multiview-dataset-format rtmv --mip 2 --bg-color white --num-rays-sampled-per-img 4096 --raymarch-type voxel --num-steps 16
               '''
             }
         }
@@ -109,25 +94,10 @@ spec:
       // Train NeRF with VQAD
       try {
         timeout(time: 400, unit: 'SECONDS') {
-            stage("VQAD-NeRF") {
+            stage("NeRF-codebook rtmv") {
               sh '''
               cd /wisp
-              python app/main.py --config configs/vqad_nerf.yaml --dataset-path /data/V8
-              '''
-            }
-        }
-      } catch(e) {
-        build_passed = false
-        echo e.toString()
-      }
-      
-      // Train NeRF with VQAD
-      try {
-        timeout(time: 260, unit: 'SECONDS') {
-            stage("NGP-NeRF") {
-              sh '''
-              cd /wisp
-              python app/main.py --config configs/ngp_nerf.yaml --dataset-path /data/fox --valid-every -1
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_codebook.yaml --dataset-path=/data/V8 --multiview-dataset-format rtmv --mip 2 --bg-color white --num-rays-sampled-per-img 4096 --raymarch-type voxel --num-steps 16
               '''
             }
         }
@@ -136,6 +106,75 @@ spec:
         echo e.toString()
       }
 
+      // Train NeRF with VQAD
+      try {
+        timeout(time: 130, unit: 'SECONDS') {
+            stage("NeRF-hash standard-synthetic") {
+              sh '''
+              cd /wisp
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/lego
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      try {
+        timeout(time: 260, unit: 'SECONDS') {
+            stage("NeRF-hash standard-180") {
+              sh '''
+              cd /wisp
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/fox
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train NGLOD
+      try {
+        timeout(time: 140, unit: 'SECONDS') {
+            stage("SDF-octree") {
+              sh '''
+              cd /wisp
+              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_octree.yaml --dataset-path=/data/spot/spot_triangulated.obj
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train SDFs with triplanar feature maps
+      try {
+        timeout(time: 325, unit: 'SECONDS') {
+            stage("SDF-triplanar") {
+              sh '''
+              cd /wisp
+              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_triplanar.yaml --dataset-path=/data/spot/spot_triangulated.obj
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      // Train SDFs with hash grid
+      try {
+        timeout(time: 325, unit: 'SECONDS') {
+            stage("SDF-hash") {
+              sh '''
+              cd /wisp
+              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_hash.yaml --dataset-path=/data/spot/spot_triangulated.obj
+              '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
 
       if (build_passed) {
           updateGitlabCommitStatus(name: "test-${configName}-${arch}", state: 'success')

@@ -357,12 +357,8 @@ class BaseTrainer(ABC):
         Override this if some very specific training procedure is needed.
         """
         self.is_optimization_running = True
-        self.pre_training()
-
         while self.is_optimization_running:
             self.iterate()
-
-        self.post_training()
 
     #######################
     # Training Events

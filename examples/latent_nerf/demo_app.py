@@ -13,6 +13,7 @@ from wisp.framework import WispState, watch
 from wisp.renderer.app import WispApp
 from wisp.renderer.gui import WidgetImgui
 from wisp.renderer.gizmos import Gizmo
+from wisp.renderer.core.api import request_redraw
 
 
 class DemoApp(WispApp):
@@ -130,11 +131,16 @@ class DemoApp(WispApp):
         """ A custom event defined for this app.
             When an epoch ends, this handler is invoked to force a redraw() and render() of the canvas if needed.
         """
-        self.canvas_dirty = True    # Request a redraw from the renderer core
+        # Request a redraw from the renderer core.
+        # redraw() will:
+        # - Refresh the scene graph (new objects added will be created within the renderer-core if needed)
+        # - Data layers will regenerate according to up-to-date state.
+        request_redraw(self.wisp_state)
 
         # Request a render if:
         # 1. Too much time have elapsed since the last frame
         # 2. Target FPS is 0 (rendering loop is stalled and the renderer only renders when explicitly requested)
+        # render() ensures the most up to date neural field is displayed.
         if self.is_time_to_render() or self.wisp_state.renderer.target_fps == 0:
             self.render()
 
