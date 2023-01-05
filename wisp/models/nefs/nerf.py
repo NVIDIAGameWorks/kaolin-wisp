@@ -14,9 +14,6 @@ from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
 from wisp.models.grids import BLASGrid, HashGrid
-from wisp.accelstructs import OctreeAS
-import kaolin.ops.spc as spc_ops
-
 
 class NeuralRadianceField(BaseNeuralField):
     """Model for encoding Neural Radiance Fields (Mildenhall et al. 2020), e.g., density and view dependent color.
@@ -177,9 +174,12 @@ class NeuralRadianceField(BaseNeuralField):
                 if _points.shape[0] == 0:
                     return
 
-                # TODO (operel): This will soon change to support other blas types
-                octree = spc_ops.unbatched_points_to_octree(_points, self.grid.blas_level, sorted=True)
-                self.grid.blas = OctreeAS(octree)
+                if hasattr(self.grid.blas.__class__, "from_quantized_points"):
+                    self.grid.blas = self.grid.blas.__class__.from_quantized_points(_points, self.grid.blas_level)
+                else:
+                    raise Exception(f"The BLAS {self.grid.blas.__class__.__name__} does not support initialization " 
+                                     "from_quantized_points, which is required for pruning.")
+
             else:
                 raise NotImplementedError(f'Pruning not implemented for grid type {self.grid}')
 
