@@ -216,23 +216,8 @@ class MultiviewTrainer(BaseTrainer):
         Override this function to change the logic which runs before the first training iteration.
         This function runs once before training starts.
         """
-        # Default TensorBoard Logging
-        self.writer = SummaryWriter(self.log_dir, purge_step=0)
-        self.writer.add_text('Info', self.info)
-
+        super().pre_training()
         if self.using_wandb:
-            wandb_project = self.extra_args["wandb_project"]
-            wandb_run_name = self.extra_args.get("wandb_run_name")
-            wandb_entity = self.extra_args.get("wandb_entity")
-            wandb.init(
-                project=wandb_project,
-                name=self.exp_name if wandb_run_name is None else wandb_run_name,
-                entity=wandb_entity,
-                job_type=self.trainer_mode,
-                config=self.extra_args,
-                sync_tensorboard=True
-            )
-
             for d in range(self.extra_args["num_lods"]):
                 wandb.define_metric(f"LOD-{d}-360-Degree-Scene")
                 wandb.define_metric(
@@ -245,7 +230,6 @@ class MultiviewTrainer(BaseTrainer):
         Override this function to change the logic which runs after the last training iteration.
         This function runs once after training ends.
         """
-        self.writer.close()
         wandb_viz_nerf_angles = self.extra_args.get("wandb_viz_nerf_angles", 0)
         wandb_viz_nerf_distance = self.extra_args.get("wandb_viz_nerf_distance")
         if self.using_wandb and wandb_viz_nerf_angles != 0:
@@ -253,4 +237,4 @@ class MultiviewTrainer(BaseTrainer):
                 num_angles=wandb_viz_nerf_angles,
                 camera_distance=wandb_viz_nerf_distance
             )
-            wandb.finish()
+        super().post_training()
