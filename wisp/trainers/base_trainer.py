@@ -11,6 +11,7 @@ import logging as log
 from datetime import datetime
 from abc import ABC, abstractmethod
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from wisp.offline_renderer import OfflineRenderer
 from wisp.framework import WispState, BottomLevelRendererState
@@ -369,14 +370,31 @@ class BaseTrainer(ABC):
         Override this function to change the logic which runs before the first training iteration.
         This function runs once before training starts.
         """
-        pass
+        # Default TensorBoard Logging
+        self.writer = SummaryWriter(self.log_dir, purge_step=0)
+        self.writer.add_text('Info', self.info)
+        
+        if self.using_wandb:
+            wandb_project = self.extra_args["wandb_project"]
+            wandb_run_name = self.extra_args.get("wandb_run_name")
+            wandb_entity = self.extra_args.get("wandb_entity")
+            wandb.init(
+                project=wandb_project,
+                name=self.exp_name if wandb_run_name is None else wandb_run_name,
+                entity=wandb_entity,
+                job_type=self.trainer_mode,
+                config=self.extra_args,
+                sync_tensorboard=True
+            )
 
     def post_training(self):
         """
         Override this function to change the logic which runs after the last training iteration.
         This function runs once after training ends.
         """
-        pass
+        self.writer.close()
+        if self.using_wandb:
+            wandb.finish()
 
     def pre_epoch(self):
         """

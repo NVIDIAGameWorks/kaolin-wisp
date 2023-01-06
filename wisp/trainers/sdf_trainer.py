@@ -20,7 +20,6 @@ from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from torch.utils.data import DataLoader
 from wisp.utils import PerfTimer
 from wisp.datasets import SDFDataset
-from torch.utils.tensorboard import SummaryWriter
 from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
 
@@ -156,35 +155,3 @@ class SDFTrainer(BaseTrainer):
                 score_total += score
             log_text += ' | {}: {:.4f}'.format(k, score_total / len(v))
         log.info(log_text)
-
-    def pre_training(self):
-        """
-        Override this function to change the logic which runs before the first training iteration.
-        This function runs once before training starts.
-        """
-
-        # Default TensorBoard Logging
-        self.writer = SummaryWriter(self.log_dir, purge_step=0)
-        self.writer.add_text('Info', self.info)
-
-        if self.using_wandb:
-            wandb_project = self.extra_args["wandb_project"]
-            wandb_run_name = self.extra_args.get("wandb_run_name")
-            wandb_entity = self.extra_args.get("wandb_entity")
-            wandb.init(
-                project=wandb_project,
-                name=self.exp_name if wandb_run_name is None else wandb_run_name,
-                entity=wandb_entity,
-                job_type=self.trainer_mode,
-                config=self.extra_args,
-                sync_tensorboard=True
-            )
-
-    def post_training(self):
-        """
-        Override this function to change the logic which runs after the last training iteration.
-        This function runs once after training ends.
-        """
-        self.writer.close()
-        if self.using_wandb:
-            wandb.finish()
