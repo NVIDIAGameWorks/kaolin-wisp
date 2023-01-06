@@ -11,6 +11,7 @@ import logging as log
 from datetime import datetime
 from abc import ABC, abstractmethod
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from wisp.offline_renderer import OfflineRenderer
 from wisp.framework import WispState, BottomLevelRendererState

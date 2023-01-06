@@ -14,7 +14,6 @@ import random
 import pandas as pd
 import torch
 from lpips import LPIPS
-from torch.utils.tensorboard import SummaryWriter
 from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim

@@ -20,7 +20,6 @@ from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from torch.utils.data import DataLoader
 from wisp.utils import PerfTimer
 from wisp.datasets import SDFDataset
-from torch.utils.tensorboard import SummaryWriter
 from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
 
