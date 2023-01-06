@@ -143,9 +143,12 @@ hashgrid_interpolate_backward_cuda_kernel(
     const int32_t resolution,
     const int32_t lod_idx,
     const int32_t num_lods,
+    const bool require_grad_coords,
     const float* __restrict__ coords,
+    const scalar_t* __restrict__ codebook,
     const scalar_t* __restrict__ grad_output, // N, feature_dim*num_lods
-    scalar_t* __restrict__ grad_codebook // codebook_size, feature_dim
+    scalar_t* __restrict__ grad_codebook, // codebook_size, feature_dim
+    float* __restrict__ grad_coords // N, 3
 ){
     uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
     int64_t stride = blockDim.x*gridDim.x;
@@ -205,6 +208,54 @@ hashgrid_interpolate_backward_cuda_kernel(
                 }
             }
         }
+        
+        if (require_grad_coords) {
+            for (uint64_t j=0; j<feature_dim; ++j) {
+                float _grad_output = static_cast<float>(grad_output[i*num_lods*feature_dim+j]);
+
+                grad_coords[i*3 + 0] += _grad_output * 
+                    ((_x.y * _x.z) * 
+                    (static_cast<float>(codebook[corner_idx[4]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[0]*feature_dim+j])) +
+                    (_x.y * x_.z) * 
+                    (static_cast<float>(codebook[corner_idx[5]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[1]*feature_dim+j])) +
+                     (x_.y * _x.z) * 
+                    (static_cast<float>(codebook[corner_idx[6]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[2]*feature_dim+j])) +
+                     (x_.y * x_.z) * 
+                    (static_cast<float>(codebook[corner_idx[7]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[3]*feature_dim+j])));
+                
+                grad_coords[i*3 + 1] += _grad_output * 
+                    ((_x.x * _x.z) * 
+                    (static_cast<float>(codebook[corner_idx[2]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[0]*feature_dim+j])) +
+                    (_x.x * x_.z) * 
+                    (static_cast<float>(codebook[corner_idx[3]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[1]*feature_dim+j])) +
+                     (x_.x * _x.z) * 
+                    (static_cast<float>(codebook[corner_idx[6]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[4]*feature_dim+j])) +
+                     (x_.x * x_.z) * 
+                    (static_cast<float>(codebook[corner_idx[7]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[6]*feature_dim+j])));
+                
+                grad_coords[i*3 + 2] += _grad_output * 
+                    ((_x.x * _x.y) * 
+                    (static_cast<float>(codebook[corner_idx[1]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[0]*feature_dim+j])) +
+                    (_x.x * x_.y) * 
+                    (static_cast<float>(codebook[corner_idx[3]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[2]*feature_dim+j])) +
+                     (x_.x * _x.y) * 
+                    (static_cast<float>(codebook[corner_idx[5]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[4]*feature_dim+j])) +
+                     (x_.x * x_.y) * 
+                    (static_cast<float>(codebook[corner_idx[7]*feature_dim+j]) -
+                     static_cast<float>(codebook[corner_idx[6]*feature_dim+j])));
+            }   
+        }
     }
 }
 
@@ -215,9 +266,12 @@ void hashgrid_interpolate_backward_cuda_impl(
     int32_t resolution,
     int32_t lod_idx,
     int32_t num_lods,
+    bool require_grad_coords,
     at::Tensor coords,
+    at::Tensor codebook,
     at::Tensor grad_output,
-    at::Tensor grad_codebook){
+    at::Tensor grad_codebook,
+    at::Tensor grad_coords){
 
     int num_threads = 512;
 
@@ -231,9 +285,12 @@ void hashgrid_interpolate_backward_cuda_impl(
             resolution,
             lod_idx,
             num_lods,
+            require_grad_coords,
             coords.data_ptr<float>(),
+            codebook.data_ptr<scalar_t>(),
             grad_output.data_ptr<scalar_t>(),
-            grad_codebook.data_ptr<scalar_t>()
+            grad_codebook.data_ptr<scalar_t>(),
+            grad_coords.data_ptr<float>()
         );
     }));
 }

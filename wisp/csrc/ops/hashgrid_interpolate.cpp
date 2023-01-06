@@ -32,9 +32,12 @@ void hashgrid_interpolate_backward_cuda_impl(
     int32_t resolution,
     int32_t lod_idx,
     int32_t num_lods,
+    bool require_grad_coords,
     at::Tensor coords,
+    at::Tensor codebook,
     at::Tensor grad_output,
-    at::Tensor grad_codebook);
+    at::Tensor grad_codebook,
+    at::Tensor grad_coords);
 
 at::Tensor hashgrid_interpolate_cuda(
     at::Tensor coords,
@@ -62,10 +65,12 @@ at::Tensor hashgrid_interpolate_cuda(
 std::vector<at::Tensor> hashgrid_interpolate_backward_cuda(
     at::Tensor coords,
     at::Tensor grad_output,
+    std::vector<at::Tensor> codebook,
     std::vector<int32_t> resolution,
     std::vector<int32_t> codebook_shapes,
     int32_t codebook_bitwidth,
-    int32_t feature_dim) {
+    int32_t feature_dim,
+    bool require_grad_coords) {
 #ifdef WITH_CUDA
     int64_t num_coords = coords.size(0);  
     int32_t num_lods = resolution.size();
@@ -76,9 +81,17 @@ std::vector<at::Tensor> hashgrid_interpolate_backward_cuda(
     }
     int32_t codebook_size = pow(2, codebook_bitwidth);
 
+    at::Tensor grad_coords;
+    if (require_grad_coords) {
+        grad_coords = at::zeros({num_coords, 3}, coords.options());
+    } else {
+        grad_coords = at::empty({0}, coords.options());
+    }
+
     for (int32_t i=0; i < resolution.size(); ++i) {
-        hashgrid_interpolate_backward_cuda_impl(num_coords, codebook_size, feature_dim, resolution[i], i, num_lods, 
-                coords, grad_output, grad_codebook[i]);
+        hashgrid_interpolate_backward_cuda_impl(num_coords, codebook_size, feature_dim, 
+                resolution[i], i, num_lods, require_grad_coords,
+                coords, codebook[i], grad_output, grad_codebook[i], grad_coords);
     }
     return grad_codebook;
 #else
