@@ -72,7 +72,7 @@ Want to run the Wisp apps with different options? Our configuration system makes
 Wisp apps use a mixture of config files and CLI arguments, which take higher precedence.
 For example, if you want to run NeRF with a different number of levels of details:
 ```
-python3 /app/nerf/main_nerf.py --config /app/nerf/configs/nerf_octree.yaml --dataset-path /path/to/lego --num-lods 1
+python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_octree.yaml --dataset-path /path/to/lego --num-lods 1
 ```
 
 Arg values not specified through yaml or CLI will resort to the default value the main script specifies, when available.
@@ -103,7 +103,7 @@ tensorboard --logdir _results/logs/runs
 
 To run the apps interactively using the renderer engine, run:
 ```
-WISP_HEADLESS=0 python3 app/main_nerf.py -config /app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
+WISP_HEADLESS=0 python3 app/main_nerf.py -config app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
 ```
 
 To disable interactive mode, and run wisp _without_ loading the graphics API, set the env variable:
