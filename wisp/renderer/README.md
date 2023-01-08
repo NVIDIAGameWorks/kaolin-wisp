@@ -6,8 +6,14 @@ This folder contains the logic for Wisp's interactive visualizer.
 
 ## For Beginners
 
+<img src="../../media/wisp_app.jpg" alt="WispApp" width="750"/>
+
+The app controls which gui widgets are created and how visual properties of the canvas are customized. 
+It can also register event handlers due to changes within the shared `WispState` object.
+The scene graph can also be manipulated here.
+
 To create your own interactive app, simply subclass `WispApp` from `wisp/renderer/app/wisp_app.py` and customize its behaviour.
-See `templates/template_app.py` for a working example (it's recommended to clone and modify this template).
+See `wisp/renderer/app/optimization_app.py` for a working example (it's recommended to clone and modify this file).
 App modifications are possible by manipulating the `WispState` object, or overriding specific `WispApp` methods.
 
 Wisp is already packed with an app for interactive visualization of optimizations. 
@@ -19,8 +25,7 @@ The interactive visualizer gui and canvas can be extended with new components:
 * `widgets` control the behaviour of the gui. New widgets can be added by implementing `WidgetImgui` using the `imgui`.
 * `gizmos` are painted over the canvas. New gizmos can be added by implementing `Gizmo` with `glumpy` and `OpenGL`.
 
-Newly added `widgets` and `gizmos` can be directly added to the `WispApp`. 
-See examples for such extensions within `templates/template_app.py`.
+Newly added `widgets` and `gizmos` can be directly added to the `WispApp`.
 
 ## The SceneGraph
 

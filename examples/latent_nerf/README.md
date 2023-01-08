@@ -11,9 +11,6 @@ A full video walkthrough is [available here](https://www.nvidia.com/en-us/on-dem
 
 <img src="../../media/example_latentnerf.jpg" alt="Latent NeRF" width="750"/>
 
-For a quick start, clone `templates/template_neural_field.py` and compare with the required modifications in
-`funny_neural_field.py`.
-
 ## Running the Demo
 
 The simplest configuration uses an Octree grid: 

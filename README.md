@@ -51,12 +51,13 @@ Have a feature request? Leave a GitHub issue!
 The following links contain additional information about various aspects of the library:
 * [wisp](wisp) The core library, containing various building blocks useful for optimizing & building neural field based pipelines.
   * [wisp/model](wisp/models) is a subpackage containing modules to construct neural fields.
+  * [wisp/trainers](wisp/trainers) is a subpackage containing default trainers which are useful to extend.
   * [wisp/renderer](wisp/renderer) is a subpackage containing logic related to the interactive renderer.
 
 ## Applications: Training & Rendering with Wisp
 
 The Wisp repository includes:
-* `app/` - Complete implementations of papers & projects using Wisp components.
+* [app](app) - Complete implementations of papers & projects using Wisp components.
   * [app/nerf](app/nerf) is the Wisp's upgraded NeRF app, with support for various grids types.
   * [app/nerf](app/nglod) is an implementation of the paper _Neural Geometric Level of Detail ([Takikawa et al. 2021](https://nv-tlabs.github.io/nglod/)).
 * `examples/` - Smaller demos demonstrating specific features & use cases of Wisp.
