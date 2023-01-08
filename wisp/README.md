@@ -34,4 +34,4 @@ The architecture figure describes how the major Wisp components relate to each o
 
 <img src="../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
 
-See also further descriptions accompanying the [Templates](../templates/) folder.
+See also further README files accompanying the various wisp folders.
