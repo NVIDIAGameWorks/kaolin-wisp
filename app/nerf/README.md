@@ -105,7 +105,7 @@ The additional arguments below ensure a raymarcher which considers the pre-prune
 **NeRF (Octree)**
 ```
 cd kaolin-wisp
-python3 app/main_nerf.py --config app/nerf/configs/nerf_octree.yaml --multiview-dataset-format rtmv --mip 2  --bg-color white --raymarch-type voxel --num-steps 16 --num-rays-sampled-per-img 4096 --dataset-num-workers 4 --dataset-path /path/to/V8
+python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_octree.yaml --multiview-dataset-format rtmv --mip 2  --bg-color white --raymarch-type voxel --num-steps 16 --num-rays-sampled-per-img 4096 --dataset-num-workers 4 --dataset-path /path/to/V8
 ```
 
 **NeRF (Codebook)**
