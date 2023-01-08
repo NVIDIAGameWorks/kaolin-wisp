@@ -103,7 +103,7 @@ tensorboard --logdir _results/logs/runs
 
 To run the apps interactively using the renderer engine, run:
 ```
-WISP_HEADLESS=0 python3 app/main_nerf.py --config configs/nerf/nglod_nerf_interactive.yaml --dataset-path /path/to/V8 --dataset-num-workers 4
+WISP_HEADLESS=0 python3 app/main_nerf.py -config /app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
 ```
 
 To disable interactive mode, and run wisp _without_ loading the graphics API, set the env variable:
