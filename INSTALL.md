@@ -4,7 +4,42 @@ NVIDIA Kaolin Wisp can be installed either manually or using Docker.
 
 ## Manual Installation
 
-### 1. Create an anaconda environment
+### Prerequisite
+
+Install OpenEXR on Ubuntu:
+
+```
+sudo apt-get update
+sudo apt-get install libopenexr-dev 
+```
+
+Install OpenEXR on Windows:
+
+```
+pip install pipwin
+pipwin install openexr
+```
+
+### Quick Start
+Full installation with interactive visualizer, for torch 1.12.1, cuda 11.3 and kaolin 0.12.0:
+```
+conda create -n wisp python=3.9
+git clone git@github.com:NVIDIAGameWorks/kaolin-wisp.git
+cd kaolin-wisp
+pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
+pip install kaolin==0.12.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-1.12.1_cu113.html
+pip install -r requirements.txt
+pip install -r requirements_app.txt
+python setup.py develop
+```
+Test the NeRF app with lego data (download separately):
+``` 
+python app/nerf/main_nerf.py --dataset-path data/lego --config app/nerf/configs/nerf_hash.yaml
+```
+
+### Installation Steps in Detail
+
+#### 1. Create an anaconda environment
 
 The easiest way to get started is to create a virtual Python 3.8 Anaconda environment:
 ```
@@ -13,54 +48,37 @@ conda activate wisp
 pip install --upgrade pip
 ```
 
-### 2. Install OpenEXR
-
-On Ubuntu:
-
-```
-sudo apt-get update
-sudo apt-get install libopenexr-dev 
-```
-
-On Windows:
-
-```
-pip install pipwin
-pipwin install openexr
-```
-
-### 3. Install PyTorch
+#### 2. Install PyTorch
 
 You should first install PyTorch by following the [official instructions](https://pytorch.org/). The code has been tested with `1.9.1` to `1.12.0` on Ubuntu 20.04. 
 
-### 4. Install Kaolin
+#### 3. Install Kaolin
 
-You should also install Kaolin, following the [instructions here](https://kaolin.readthedocs.io/en/latest/notes/installation.html). **WARNING:** The minimum required version of Kaolin is `0.12.0`. If you have any issues specifically with Camera classes not existing, make sure you have an up-to-date version of Kaolin. 
-
-### 5. Install the rest of the dependencies
-
-Install the rest of the dependencies from [requirements](requirements.txt):
+kaolin can be installed with pip (use the correct torch + cuda version):
 ```
-pip install -r requirements.txt
+pip install kaolin==0.12.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-${TORCH_VER}_cu${CUDA_VER}.html
 ```
 
-### 6. Installing the interactive renderer (optional)
+For example, for torch 1.12.1 + cuda 11.3:
+```
+pip install kaolin==0.12.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-1.12.1_cu113.html
+```
 
-If you wish to use the interactive renderer and training visualizer, you will need additional dependencies. 
+See the [Kaolin Installation Doc](https://kaolin.readthedocs.io/en/latest/notes/installation.html) for additional methods.
+
+_The minimum required version of Kaolin is `0.12.0`._  
+
+#### 4. Installing Wisp
+
+Install the rest of the dependencies from [requirements](requirements.txt).
+
+If you wish to use the interactive renderer and training visualizer, you will need [additional dependencies](requirements_app.txt).
 Note that you need to have OpenGL available on your system.
 
-To install (**make sure you have the CUDA_HOME environment variable set!**):
-
 ```
-git clone --recursive https://github.com/inducer/pycuda
-cd pycuda
-python configure.py --cuda-root=$CUDA_HOME --cuda-enable-gl
-python setup.py develop
-cd ..
+pip install -r requirements.txt
 pip install -r requirements_app.txt
 ```
-
-### 7. Installing Wisp
 
 To install wisp, simply execute:
 ```

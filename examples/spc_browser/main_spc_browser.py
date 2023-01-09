@@ -14,8 +14,6 @@ Assumes SPCs are stored as *.npz files, with an "octree" entry and some feature 
 Usage: python examples/spc_browser/main_spc_browser.py --dataset-dir <PATH_TO_SPC_FOLDER>
 """
 
-from wisp.cuda_guard import setup_cuda_context
-setup_cuda_context()  # Must be called before any torch operations take place
 
 import argparse
 import torch

@@ -7,9 +7,6 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 
-from wisp.cuda_guard import setup_cuda_context
-setup_cuda_context()  # Must be called before any torch operations take place
-
 import os
 import argparse
 import logging

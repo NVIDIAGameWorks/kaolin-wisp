@@ -9,32 +9,21 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from contextlib import contextmanager
 from abc import ABC
 import numpy as np
 import torch
-import pycuda
-import pycuda.gl as pycuda_gl
 from glumpy import app, gloo, gl, ext
 import imgui
 from typing import Optional, Type, Callable, Dict, List, Tuple
 from kaolin.render.camera import Camera
 from wisp.framework import WispState, watch
 from wisp.renderer.core import RendererCore
+from wisp.renderer.core import cuda_register_gl_image, cuda_map_resource, cuda_2d_memcpy, cuda_unregister_resource
 from wisp.renderer.core.control import CameraControlMode, WispKey, WispMouseButton
 from wisp.renderer.core.control import FirstPersonCameraMode, TrackballCameraMode, TurntableCameraMode
 from wisp.renderer.core.api import add_pipeline_to_scene_graph
 from wisp.renderer.gizmos import Gizmo, WorldGrid, AxisPainter, PrimitivesPainter
 from wisp.renderer.gui import WidgetInteractiveVisualizerProperties, WidgetGPUStats, WidgetSceneGraph, WidgetImgui
-
-@contextmanager
-def cuda_activate(img):
-    """Context manager simplifying use of pycuda_gl.RegisteredImage.
-    Boilerplate code based in part on pytorch-glumpy.
-    """
-    mapping = img.map()
-    yield mapping.array(0, 0)
-    mapping.unmap()
 
 
 class WispApp(ABC):
@@ -104,8 +93,8 @@ class WispApp(ABC):
         self.canvas_dirty = False
         self.redraw_every_frame = False
 
-        # Note: Normally pycuda_gl.autoinit should be invoked here after the window is created,
-        # but wisp already initializes it when the library first loads. See wisp.app.cuda_guard.py
+        # Tell torch to initialize the CUDA context
+        torch.cuda.init()
 
         # Initialize applicative renderer, which independently paints images for the main canvas
         render_core = RendererCore(self.wisp_state)
@@ -119,11 +108,20 @@ class WispApp(ABC):
         self._was_interacting_prev_frame = False
 
         # The initialization of these fields is deferred util "on_resize" is first prompted.
-        # There we generate a simple billboard GL program with a shared CUDA resource
+        # There we generate a simple billboard GL program (normally with a shared CUDA resource)
         # Canvas content will be blitted onto it
-        self.cuda_buffer: Optional[pycuda_gl.RegisteredImage] = None    # CUDA buffer, as a shared resource with OpenGL
-        self.depth_cuda_buffer: Optional[pycuda_gl.RegisteredImage] = None
-        self.canvas_program: Optional[gloo.Program] = None              # GL program used to paint a single billboard
+        self.canvas_program: Optional[gloo.Program] = None   # GL program used to paint a single billboard
+        self.cugl_rgb_handle = None                              # CUDA buffer, as a shared resource with OpenGL
+        self.cugl_depth_handle = None
+
+        try:
+            # WSL does not support CUDA-OpenGL interoperability, fallback to device2host2device copy instead
+            from platform import uname
+            is_wsl = 'microsoft-standard' in uname().release
+            self.blitdevice2device = not is_wsl
+        except Exception:
+            # By default rendering results copy directly from torch/cuda mem to OpenGL Texture
+            self.blitdevice2device = True
 
         self.user_mode: CameraControlMode = None    # Camera controller object (first person, trackball or turntable)
 
@@ -162,7 +160,6 @@ class WispApp(ABC):
             gizmo (wisp.renderer.gizmos.Gizmo): The gizmo to add.
         """
         self.gizmos[name] = gizmo
-
 
     def init_wisp_state(self, wisp_state: WispState) -> None:
         """ A hook for applications to initialize specific fields inside the wisp state object.
@@ -306,20 +303,27 @@ class WispApp(ABC):
         return canvas
 
     @staticmethod
-    def _create_cugl_shared_texture(res_h, res_w, channel_depth, map_flags=pycuda_gl.graphics_map_flags.WRITE_DISCARD,
-                                    dtype=np.uint8):
-        """ Create and return a Texture2D with gloo and pycuda views. """
+    def _create_screen_texture(res_h, res_w, channel_depth, dtype=np.uint8):
+        """ Create and return a Texture2D with gloo and a cuda handle. """
         if issubclass(dtype, np.integer):
             tex = np.zeros((res_h, res_w, channel_depth), dtype).view(gloo.Texture2D)
         elif issubclass(dtype, np.floating):
             tex = np.zeros((res_h, res_w, channel_depth), dtype).view(gloo.TextureFloat2D)
         else:
-            raise ValueError(f'_create_cugl_shared_texture invoked with unsupported texture dtype: {dtype}')
-        tex.activate()  # Force gloo to create on GPU
+            raise ValueError(f'_register_cugl_shared_texture invoked with unsupported texture dtype: {dtype}')
+        # Force gloo to create GL object on GPU
+        tex.activate()
         tex.deactivate()
-        cuda_buffer = pycuda_gl.RegisteredImage(int(tex.handle), tex.target,
-                                                map_flags)  # Create shared GL / CUDA resource
-        return tex, cuda_buffer
+        return tex
+
+    def _register_cugl_shared_texture(self, tex):
+        if self.blitdevice2device:
+            # Create shared GL / CUDA resource
+            handle = cuda_register_gl_image(image=int(tex.handle), target=tex.target)
+        else:
+            # No shared resource required, as we copy from cuda buffer -> cpu -> GL texture
+            handle = None
+        return handle
 
     def _reposition_gui_menu(self, menu_width, main_menu_height):
         window_height = self.window.height
@@ -382,30 +386,22 @@ class WispApp(ABC):
 
         return img, depth_img
 
-    def _blit_to_gl_renderbuffer(self, img, depth_img, canvas_program, cuda_buffer, depth_cuda_buffer, height):
-        shared_tex = canvas_program['tex']
-        shared_tex_depth = canvas_program['depth_tex']
+    def _blit_to_gl_renderbuffer(self, img, depth_img, canvas_program, cugl_rgb_handle, cugl_depth_handle, height):
+        if self.blitdevice2device:
+            # Device to device copy: Copy CUDA buffer to GL Texture mem
+            shared_tex = canvas_program['tex']
+            shared_tex_depth = canvas_program['depth_tex']
 
-        # copy from torch into buffer
-        assert shared_tex.nbytes == img.numel() * img.element_size()
-        assert shared_tex_depth.nbytes == depth_img.numel() * depth_img.element_size()    # TODO: using a 4d tex
-        cpy = pycuda.driver.Memcpy2D()
-        with cuda_activate(cuda_buffer) as ary:
-            cpy.set_src_device(img.data_ptr())
-            cpy.set_dst_array(ary)
-            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = shared_tex.nbytes // height
-            cpy.height = height
-            cpy(aligned=False)
-        torch.cuda.synchronize()
-        # TODO (operel): remove double synchronize after depth debug
-        cpy = pycuda.driver.Memcpy2D()
-        with cuda_activate(depth_cuda_buffer) as ary:
-            cpy.set_src_device(depth_img.data_ptr())
-            cpy.set_dst_array(ary)
-            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = shared_tex_depth.nbytes // height
-            cpy.height = height
-            cpy(aligned=False)
-        torch.cuda.synchronize()
+            # copy from torch into buffer
+            assert shared_tex.nbytes == img.numel() * img.element_size()
+            assert shared_tex_depth.nbytes == depth_img.numel() * depth_img.element_size()    # TODO: using a 4d tex
+            cuda_2d_memcpy(resource_handle=cugl_rgb_handle, shared_tex=shared_tex, img=img, height=height)
+            cuda_2d_memcpy(resource_handle=cugl_depth_handle, shared_tex=shared_tex_depth, img=depth_img, height=height)
+            torch.cuda.synchronize()
+        else:
+            # Device to host to device copy: Move torch tensors to cpu and upload as texture data
+            canvas_program['tex'] = img.cpu().numpy()
+            canvas_program['depth_tex'] = depth_img.cpu().numpy()
 
         canvas_program.draw(gl.GL_TRIANGLE_STRIP)
 
@@ -491,9 +487,9 @@ class WispApp(ABC):
         img, depth_img = self.render_canvas(self.render_core, dt, self.canvas_dirty)
 
         # glumpy code injected within the pyimgui render loop to blit the renderer core output to the actual canvas
-        # The torch buffers are copied by pycuda to CUDA buffers, connected as shared resources as 2d GL textures
-        self._blit_to_gl_renderbuffer(img, depth_img, self.canvas_program, self.cuda_buffer,
-                                      self.depth_cuda_buffer, self.height)
+        # The torch buffers are copied by with cuda, connected as shared resources as 2d GL textures
+        self._blit_to_gl_renderbuffer(img, depth_img, self.canvas_program, self.cugl_rgb_handle,
+                                      self.cugl_depth_handle, self.height)
 
         # Finally, render OpenGL gizmos on the canvas.
         # This may include the world grid, or vectorial lines / points belonging to data layers
@@ -536,14 +532,17 @@ class WispApp(ABC):
         self.width = width
         self.height = height
 
-        # Handle pycuda shared resources
-        if self.cuda_buffer is not None:
-            del self.cuda_buffer    # TODO(operel): is this proper pycuda deallocation?
-            del self.depth_cuda_buffer
-        tex, cuda_buffer = self._create_cugl_shared_texture(height, width, self.channel_depth)
-        depth_tex, depth_cuda_buffer = self._create_cugl_shared_texture(height, width, 4, dtype=np.float32)   # TODO: Single channel
-        self.cuda_buffer = cuda_buffer
-        self.depth_cuda_buffer = depth_cuda_buffer
+        # Handle deallocation of shared resources
+        if self.cugl_rgb_handle is not None:
+            cuda_unregister_resource(self.cugl_rgb_handle)
+            self.cugl_rgb_handle = None
+        if self.cugl_depth_handle is not None:
+            cuda_unregister_resource(self.cugl_depth_handle)
+            self.cugl_depth_handle = None
+        tex = self._create_screen_texture(height, width, self.channel_depth, dtype=np.uint8)
+        depth_tex = self._create_screen_texture(height, width, 4, dtype=np.float32)  # TODO: Single channel
+        self.cugl_rgb_handle = self._register_cugl_shared_texture(tex)
+        self.cugl_depth_handle = self._register_cugl_shared_texture(depth_tex)
         if self.canvas_program is None:
             self.canvas_program = self._create_gl_depth_billboard_program(texture=tex, depth_texture=depth_tex)
         else:
