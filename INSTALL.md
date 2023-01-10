@@ -124,13 +124,13 @@ docker run --rm -it --gpus=all --net=host --ipc=host -e DISPLAY=$DISPLAY wisp
 2. Extracted the data somewhere
 3. You can train a NeRF using [NGLOD](https://nv-tlabs.github.io/nglod/) with:
 ```
-WISP_HEADLESS=0 python3 app/main_nerf.py -config /app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
+WISP_HEADLESS=1 python3 app/main_nerf.py -config /app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
 
 ```
 
 4. To run training with the interactive renderering engine, run:
 ```
-WISP_HEADLESS=1 python3 app/main_nerf.py -config /app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
+python3 app/main_nerf.py -config /app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
 ```
 
 See `README.md` for an elaborate explanation about running wisp.

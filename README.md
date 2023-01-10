@@ -59,8 +59,8 @@ The following links contain additional information about various aspects of the 
 The Wisp repository includes:
 * [app](app) - Complete implementations of papers & projects using Wisp components.
   * [app/nerf](app/nerf) is the Wisp's upgraded NeRF app, with support for various grids types.
-  * [app/nerf](app/nglod) is an implementation of the paper _Neural Geometric Level of Detail ([Takikawa et al. 2021](https://nv-tlabs.github.io/nglod/)).
-* `examples/` - Smaller demos demonstrating specific features & use cases of Wisp.
+  * [app/nglod](app/nglod) is an implementation of the paper _Neural Geometric Level of Detail ([Takikawa et al. 2021](https://nv-tlabs.github.io/nglod/)).
+* [examples](examples) - Smaller demos demonstrating specific features & use cases of Wisp.
   * [examples/latent_nerf](examples/latent_nerf) - demonstrates how to add a new NeuralField module, which exposess the latent dimensions as output & visualizes it.
   * [examples/spc_browser](examples/spc_browser) - an app for converting meshes to [Structured Point Clouds](https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html), and visualizing them.
 
