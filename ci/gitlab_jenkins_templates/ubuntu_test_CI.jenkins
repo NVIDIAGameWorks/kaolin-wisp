@@ -50,55 +50,119 @@ spec:
         build_passed = false
         echo e.toString()
       }
+      // Test NeRF with hashgrid
+      try {
+          timeout(time: 900, unit: 'SECONDS') {
+              stage("NeRF-hashgrid lego (quick)") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_hashgrid_lego_quick \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
+              }
+          }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      try {
+          timeout(time: 1200, unit: 'SECONDS') {
+              stage("NeRF-hashgrid lego (best)") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_hashgrid_lego_best \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
+              }
+          }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+      try {
+          timeout(time: 1500, unit: 'SECONDS') {
+              stage("NeRF-hashgrid V8") {
+                  sh '''
+                  cd /wisp
+                  WISP_HEADLESS=1 python app/nerf/main_nerf.py \
+                    --config app/nerf/configs/nerf_hash.yaml \
+                    --dataset-path=/data/V8 \
+                    --multiview-dataset-format rtmv \
+                    --mip 2 \
+                    --num-steps 16 \
+                    --raymarch-type voxel \
+                    --optimizer-type adam \
+                    --hidden-dim 64 \
+                    --epochs 5 \
+                    --valid-every -1 \
+                    --save-every -1 \
+                    --render-tb-every -1
+                  '''
+              }
+          }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+        // Check front facing hash-grid scene runs
+        try {
+        timeout(time: 260, unit: 'SECONDS') {
+            stage("NeRF-hash standard-180") {
+              sh '''
+              cd /wisp
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/fox --epochs 5
+              '''
+            }
+        }
+        } catch(e) {
+        build_passed = false
+        echo e.toString()
+        }
+
       // Train NeRF with octree
       try {
-        timeout(time: 260, unit: 'SECONDS') {
-            stage("NeRF-octree rtmv") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_octree.yaml --dataset-path=/data/V8 --multiview-dataset-format rtmv --mip 2 --bg-color white --num-rays-sampled-per-img 4096 --raymarch-type voxel --num-steps 16
-              '''
+        timeout(time: 1500, unit: 'SECONDS') {
+            stage("NeRF-octree lego") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_octree_lego \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
             }
         }
       } catch(e) {
         build_passed = false
         echo e.toString()
       }
+      // Train NeRF with octree
       try {
-        timeout(time: 420, unit: 'SECONDS') {
-            stage("NeRF-octree standard") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_octree.yaml --dataset-path=/data/lego
-              '''
-            }
-        }
-      } catch(e) {
-        build_passed = false
-        echo e.toString()
-      }
-      // Train NeRF with triplanar feature maps
-      try {
-        timeout(time: 325, unit: 'SECONDS') {
-            stage("NeRF-triplanar rtmv") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_triplanar.yaml --dataset-path=/data/V8 --multiview-dataset-format rtmv --mip 2 --bg-color white --num-rays-sampled-per-img 4096 --raymarch-type voxel --num-steps 16
-              '''
-            }
-        }
-      } catch(e) {
-        build_passed = false
-        echo e.toString()
-      }
-      // Train NeRF with VQAD
-      try {
-        timeout(time: 400, unit: 'SECONDS') {
-            stage("NeRF-codebook rtmv") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_codebook.yaml --dataset-path=/data/V8 --multiview-dataset-format rtmv --mip 2 --bg-color white --num-rays-sampled-per-img 4096 --raymarch-type voxel --num-steps 16
-              '''
+        timeout(time: 900, unit: 'SECONDS') {
+            stage("NeRF-octree V8") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_octree_V8 \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
             }
         }
       } catch(e) {
@@ -106,33 +170,47 @@ spec:
         echo e.toString()
       }
 
+      // Train NeRF with triplanar feature maps
+      try {
+        timeout(time: 1500, unit: 'SECONDS') {
+            stage("NeRF-triplanar lego") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_triplanar_lego \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
       // Train NeRF with VQAD
       try {
-        timeout(time: 130, unit: 'SECONDS') {
-            stage("NeRF-hash standard-synthetic") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/lego
-              '''
+        timeout(time: 1500, unit: 'SECONDS') {
+            stage("NeRF-codebook V8") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_codebook_V8 \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
             }
         }
       } catch(e) {
         build_passed = false
         echo e.toString()
       }
-      try {
-        timeout(time: 260, unit: 'SECONDS') {
-            stage("NeRF-hash standard-180") {
-              sh '''
-              cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/fox
-              '''
-            }
-        }
-      } catch(e) {
-        build_passed = false
-        echo e.toString()
-      }
+
       // Train NGLOD
       try {
         timeout(time: 140, unit: 'SECONDS') {
@@ -169,6 +247,26 @@ spec:
               cd /wisp
               WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_hash.yaml --dataset-path=/data/spot/spot_triangulated.obj
               '''
+            }
+        }
+      } catch(e) {
+        build_passed = false
+        echo e.toString()
+      }
+
+      // Example: latent_nerf
+      try {
+        timeout(time: 1500, unit: 'SECONDS') {
+            stage("examples/latent_nerf") {
+                  sh '''
+                  cd /wisp
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_latent_nerf.py \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
+                  '''
             }
         }
       } catch(e) {
