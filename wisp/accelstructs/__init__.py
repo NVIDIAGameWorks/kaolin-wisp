@@ -6,5 +6,6 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from .base_as import BaseAS, ASQueryResults, ASRaytraceResults, ASRaymarchResults
 from .octree_as import OctreeAS
 from .aabb_as import AxisAlignedBBoxAS

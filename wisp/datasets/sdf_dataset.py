@@ -131,7 +131,8 @@ class SDFDataset(Dataset):
 
         # Filter out points which do not belong to the narrowband
         self.pts_ = torch.cat(self.pts_, dim=0)
-        self.pidx = grid.query(self.pts_.cuda(), 0)
+        query_results = grid.query(self.pts_.cuda(), 0)
+        self.pidx = query_results.pidx
         self.pts_ = self.pts_[self.pidx>-1]
     
         # Sample distances and textures.

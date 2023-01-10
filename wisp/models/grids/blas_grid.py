@@ -7,7 +7,9 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from abc import ABC, abstractmethod
+from typing import Set, Type
 import torch.nn as nn
+from wisp.accelstructs import BaseAS, ASQueryResults, ASRaytraceResults, ASRaymarchResults
 
 
 class BLASGrid(nn.Module, ABC):
@@ -24,17 +26,23 @@ class BLASGrid(nn.Module, ABC):
     Grids are usually employed as building blocks within neural fields (see: BaseNeuralField),
     possibly paired with decoders to form a neural field.
     """
-    def raymarch(self, *args, **kwargs):
+
+    def __init__(self, blas: BaseAS):
+        """ BLASGrids are generally assumed to contain bottom level acceleration structures. """
+        super().__init__()
+        self.blas = blas
+
+    def raymarch(self, *args, **kwargs) -> ASRaymarchResults:
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.
         """
         return self.blas.raymarch(*args, **kwargs)
 
-    def raytrace(self, *args, **kwargs):
+    def raytrace(self, *args, **kwargs) -> ASRaytraceResults:
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.
         """
         return self.blas.raytrace(*args, **kwargs)
 
-    def query(self, *args, **kwargs):
+    def query(self, *args, **kwargs) -> ASQueryResults:
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.
         """
         return self.blas.query(*args, **kwargs)
@@ -48,6 +56,10 @@ class BLASGrid(nn.Module, ABC):
         """
         raise NotImplementedError('A BLASGrid should implement the interpolation functionality according to '
                                   'the grid structure.')
+
+    def supported_blas(self) -> Set[Type[BaseAS]]:
+        """ Returns a set of bottom-level acceleration structures this grid type supports """
+        return set()
 
     def name(self) -> str:
         """

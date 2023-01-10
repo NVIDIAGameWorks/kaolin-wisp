@@ -10,6 +10,7 @@ import torch.nn as nn
 from abc import abstractmethod, ABC
 import inspect
 
+
 class BaseTracer(nn.Module, ABC):
     """Base class for all tracers within Wisp.
     Tracers drive the mapping process which takes an input "Neural Field", and outputs a RenderBuffer of pixels.

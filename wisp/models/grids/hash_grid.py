@@ -7,13 +7,13 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from typing import List
+from typing import Set, Type, List
 import torch
 import torch.nn as nn
 import numpy as np
 import kaolin.ops.spc as spc_ops
 import wisp.ops.grid as grid_ops
-from wisp.accelstructs import OctreeAS
+from wisp.accelstructs import OctreeAS, BaseAS, ASRaymarchResults
 from wisp.models.grids import BLASGrid
 
 
@@ -52,11 +52,10 @@ class HashGrid(BLASGrid):
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
             blas_level (int): The level of the octree to be used as the BLAS (bottom level acceleration structure).
         """
-        super().__init__()
-
         # Occupancy Structure
         self.blas_level = blas_level
-        self.blas = OctreeAS.make_dense(level=self.blas_level)
+        blas = OctreeAS.make_dense(level=blas_level)
+        super().__init__(blas)
         self.dense_points = spc_ops.unbatched_get_level_points(self.blas.points,
                                                                self.blas.pyramid,
                                                                self.blas_level).clone()
@@ -225,12 +224,16 @@ class HashGrid(BLASGrid):
         else:
             raise NotImplementedError
 
-    def raymarch(self, rays, raymarch_type, num_samples, level=None):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
         return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=self.blas_level)
+
+    def supported_blas(self) -> Set[Type[BaseAS]]:
+        """ Returns a set of bottom-level acceleration structures this grid type supports """
+        return {OctreeAS}
 
     def name(self) -> str:
         return "Hash Grid"

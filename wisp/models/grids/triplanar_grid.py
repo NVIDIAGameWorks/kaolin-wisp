@@ -7,11 +7,12 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import logging as log
+from typing import Set, Type
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from wisp.models.grids import BLASGrid
-from wisp.accelstructs import AxisAlignedBBoxAS
+from wisp.accelstructs import AxisAlignedBBoxAS, BaseAS, ASRaytraceResults, ASRaymarchResults
 
 
 class TriplanarGrid(BLASGrid):
@@ -49,7 +50,8 @@ class TriplanarGrid(BLASGrid):
         Returns:
             (void): Initializes the class.
         """
-        super().__init__()
+        # The bottom level acceleration structure is an axis aligned bounding box
+        super().__init__(blas=AxisAlignedBBoxAS())
         # The actual feature_dim is multiplied by 3 because of the triplanar maps.
         self.feature_dim = feature_dim * 3
         self.base_lod = base_lod
@@ -66,8 +68,7 @@ class TriplanarGrid(BLASGrid):
 
         log.info(f"Active LODs: {self.active_lods}")
 
-        # The bottom level acceleration structure is an axis aligned bounding box
-        self.blas = AxisAlignedBBoxAS()
+        self.num_feat = 0
         self.init_feature_structure()
 
     def init_feature_structure(self):
@@ -133,19 +134,23 @@ class TriplanarGrid(BLASGrid):
 
         return fs
 
-    def raymarch(self, rays, raymarch_type, num_samples, level=None):
+    def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.
 
         Important detail: this is just used as an AABB tracer.
         """
         return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=0)
 
-    def raytrace(self, rays, level=None, with_exit=False):
+    def raytrace(self, rays, level=None, with_exit=False) -> ASRaytraceResults:
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.
 
         Important detail: this is just used as an AABB tracer.
         """
         return self.blas.raytrace(rays, level=0, with_exit=with_exit)
+
+    def supported_blas(self) -> Set[Type[BaseAS]]:
+        """ Returns a set of bottom-level acceleration structures this grid type supports """
+        return {AxisAlignedBBoxAS}
 
     def name(self) -> str:
         return "Triplanar Grid"

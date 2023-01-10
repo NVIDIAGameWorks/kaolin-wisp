@@ -64,7 +64,7 @@ class BasicDecoder(nn.Module):
             if i == 0: 
                 layers.append(self.layer(self.input_dim, self.hidden_dim, bias=self.bias))
             elif i in self.skip:
-                layers.append(self.layer(self.hidden_dim+input_dim, self.hidden_dim, bias=self.bias))
+                layers.append(self.layer(self.hidden_dim+self.input_dim, self.hidden_dim, bias=self.bias))
             else:
                 layers.append(self.layer(self.hidden_dim, self.hidden_dim, bias=self.bias))
         self.layers = nn.ModuleList(layers)
