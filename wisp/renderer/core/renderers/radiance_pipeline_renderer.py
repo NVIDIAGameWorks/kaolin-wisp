@@ -114,29 +114,9 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
     def dtype(self) -> torch.dtype:
         return torch.float32
 
-    @property
-    def model_matrix(self) -> torch.Tensor:
-        return torch.eye(4, device=self.device)
-
-    @property
-    def aabb(self) -> torch.Tensor:
-        # (center_x, center_y, center_z, width, height, depth)
-        return torch.tensor((0.0, 0.0, 0.0, 2.0, 2.0, 2.0), device=self.device)
-
-    def acceleration_structure(self) -> str:
-        """ Returns a human readable name of the bottom level acceleration structure used by this renderer """
-        if getattr(self.nef, 'grid') is None or getattr(self.nef.grid, 'blas') is None:
-            return "None"
-        elif hasattr(self.nef.grid.blas, 'name'):
-            return self.nef.grid.blas.name()
-        else:
-            return "Unknown"
-
-    def features_structure(self) -> str:
-        """ Returns a human readable name of the feature structure used by this renderer """
-        if getattr(self.nef, 'grid') is None:
-            return "None"
-        elif hasattr(self.nef.grid, 'name'):
-            return self.nef.grid.name()
-        else:
-            return "Unknown"
+    def name(self) -> str:
+        """
+        Returns:
+            (str) A a meaningful, human readable name representing the object this renderer paints.
+        """
+        return "Neural Radiance Field"

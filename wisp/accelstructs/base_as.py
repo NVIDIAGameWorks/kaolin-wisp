@@ -8,9 +8,10 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import torch
+from wisp.core import WispModule
 
 
 @dataclass
@@ -79,7 +80,7 @@ class ASRaymarchResults:
     """
 
 
-class BaseAS(ABC):
+class BaseAS(WispModule, ABC):
     """
     A base interface for all acceleration structures within Wisp.
     """
@@ -143,10 +144,16 @@ class BaseAS(ABC):
         """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
         raise NotImplementedError('All acceleration structures must implement the "capacity" function.')
 
-    def name(self) -> str:
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+
+        Acceleration structures are encouraged to report:
+        - 'occupancy' - a list of length [LODs], where each element contains the number of cells occupied in that LOD
+        - 'capacity' - a list of length [LODs], where each element contains the total cell capacity in that LOD
         """
-        Returns:
-            (str) A BaseAS should be given a meaningful, human readable name.
-            By default, the class name is used.
-        """
-        return type(self).__name__
+        return {
+            '#Used Cells (LOD)': self.occupancy(),
+            '#Capacity (LOD)': self.capacity()
+        }

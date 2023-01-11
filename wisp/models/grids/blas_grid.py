@@ -7,12 +7,12 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from abc import ABC, abstractmethod
-from typing import Set, Type
-import torch.nn as nn
+from typing import Dict, Any, Set, Type
+from wisp.core import WispModule
 from wisp.accelstructs import BaseAS, ASQueryResults, ASRaytraceResults, ASRaymarchResults
 
 
-class BLASGrid(nn.Module, ABC):
+class BLASGrid(WispModule, ABC):
     """
     BLASGrids (commonly referred in documentation as simply "grids"), represent feature grids in Wisp.
     BLAS: "Bottom Level Acceleration Structure", to signify this structure is the backbone that captures
@@ -61,9 +61,13 @@ class BLASGrid(nn.Module, ABC):
         """ Returns a set of bottom-level acceleration structures this grid type supports """
         return set()
 
-    def name(self) -> str:
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+
+        BLASGrids are generally assumed to contain a bottom level acceleration structure.
         """
-        Returns:
-            (str) A BLASGrid should be given a meaningful, human readable name.
-        """
-        return type(self).__name__
+        return {
+            "Acceleration Structure": self.blas
+        }

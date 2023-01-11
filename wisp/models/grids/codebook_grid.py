@@ -7,6 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
+from typing import Dict, Any
 import logging as log
 import torch
 import torch.nn as nn
@@ -306,3 +307,14 @@ class CodebookOctreeGrid(OctreeGrid):
 
     def name(self) -> str:
         return "Codebook Grid"
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        parent_properties = super().public_properties()
+        properties = {
+            "Bitwidth": self.bitwidth
+        }
+        return {**parent_properties, **properties}

@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 import logging as log
-from typing import Set, Type
+from typing import Dict, Set, Any, Type
 import torch
 import torch.nn as nn
 import wisp.ops.spc as wisp_spc_ops
@@ -403,3 +403,18 @@ class OctreeGrid(BLASGrid):
 
     def name(self) -> str:
         return "Octree Grid"
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        parent_properties = super().public_properties()
+        properties = {
+            "Feature Dims": self.feature_dim,
+            "Total LODs": self.max_lod,
+            "Active feature LODs": [str(x) for x in self.active_lods],
+            "Interpolation": self.interpolation_type,
+            "Multiscale aggregation": self.multiscale_type
+        }
+        return {**parent_properties, **properties}

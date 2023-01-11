@@ -7,6 +7,8 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
+from typing import Dict, Any
+
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
 from wisp.models.layers import get_layer_class
@@ -164,3 +166,15 @@ class NeuralSDF(BaseNeuralField):
         if self.position_input:
             input_dim += self.pos_embed_dim
         return input_dim
+
+    def public_properties(self) -> Dict[str, Any]:
+        """ Wisp modules expose their public properties in a dictionary.
+        The purpose of this method is to give an easy table of outwards facing attributes,
+        for the purpose of logging, gui apps, etc.
+        """
+        properties = {
+            "Grid": self.grid,
+            "Pos. Embedding": self.pos_embedder,
+            "Decoder (sdf)": self.decoder,
+        }
+        return properties
