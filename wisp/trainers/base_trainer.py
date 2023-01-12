@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 from wisp.offline_renderer import OfflineRenderer
 from wisp.framework import WispState, BottomLevelRendererState
 from wisp.datasets import default_collate
+from wisp.renderer.core.api import add_to_scene_graph
 
 import wandb
 import numpy as np
@@ -138,7 +139,11 @@ class BaseTrainer(ABC):
         self.batch_size = batch_size
         self.exp_name = exp_name if exp_name else "unnamed_experiment"
 
-        self.scene_state.graph.neural_pipelines[self.exp_name] = self.pipeline
+        # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
+        # batch_size is an optional setup arg here which hints the visualizer how many rays can be processed at once
+        # (e.g. this is the pipeline's batch_size used for inference time)
+        add_to_scene_graph(state=self.scene_state, name=self.exp_name, obj=self.pipeline, batch_size=2**14)
+        # Update optimization state about the current train set used
         self.scene_state.optimization.train_data.append(dataset)
 
         if hasattr(self.dataset, "data"):

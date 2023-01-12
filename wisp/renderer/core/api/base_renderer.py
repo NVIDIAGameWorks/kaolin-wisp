@@ -13,9 +13,6 @@ from typing import Optional, Dict, Set, Tuple, Any
 import torch
 from kaolin.render.camera import Camera
 from wisp.core import RenderBuffer, Rays, PrimitivesPack, WispModule
-from wisp.models import Pipeline
-from wisp.models.nefs import BaseNeuralField
-from wisp.gfx.datalayers import Datalayers
 
 
 @dataclass
@@ -100,69 +97,6 @@ class BottomLevelRenderer(WispModule, ABC):
         BLASGrids are generally assumed to contain a bottom level acceleration structure.
         """
         return dict()
-
-
-class RayTracedRenderer(BottomLevelRenderer):
-    def __init__(self, nef: BaseNeuralField, *args, **kwargs):
-        super().__init__(nef, *args, **kwargs)
-        self.nef = nef.eval()
-        self.layers_painter = self.create_layers_painter(self.nef)
-
-    @classmethod
-    def from_pipeline(cls, pipeline: Pipeline, *args, **kwargs):
-        """ Builds a bottom level renderer from the building block of a pipeline. """
-        # Build the renderer using the pipeline's tracer args
-        # The renderer is protected against extra **kwargs that may exist inside the tracer
-        tracer_args = pipeline.tracer.__dict__
-
-        # Allow the constructor to override the tracer's args with **kwargs specified manually
-        tracer_args.update(**kwargs)
-        tracer_args['tracer_type'] = type(pipeline.tracer)
-        return cls(nef=pipeline.nef, *args, **tracer_args)
-
-    @classmethod
-    @abstractmethod
-    def create_layers_painter(cls, nef: BaseNeuralField) -> Optional[Datalayers]:
-        return None
-
-    def needs_redraw(self) -> bool:
-        return True
-
-    def regenerate_data_layers(self) -> Dict[str, PrimitivesPack]:
-        return dict()
-
-    def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
-        """ Prepare primary rays to render """
-        pass
-
-    @abstractmethod
-    def render(self, rays: Optional[Rays] = None) -> RenderBuffer:
-        pass
-
-    def post_render(self) -> None:
-        pass
-
-    @property
-    def device(self) -> torch.device:
-        return self.nef.device
-
-    def acceleration_structure(self) -> Optional[str]:
-        """ Returns a human readable name of the bottom level acceleration structure used by this renderer """
-        if getattr(self.nef, 'grid') is None or getattr(self.nef.grid, 'blas') is None:
-            return "None"
-        elif hasattr(self.nef.grid.blas, 'name'):
-            return self.nef.grid.blas.name()
-        else:
-            return "Unknown"
-
-    def features_structure(self) -> Optional[str]:
-        """ Returns a human readable name of the feature structure used by this renderer """
-        if getattr(self.nef, 'grid') is None:
-            return "None"
-        elif hasattr(self.nef.grid, 'name'):
-            return self.nef.grid.name()
-        else:
-            return "Unknown"
 
 
 class RasterizedRenderer(BottomLevelRenderer):

@@ -73,8 +73,8 @@ class DemoApp(WispApp):
         """ -- wisp_state.renderer holds the interactive renderer configuration, let's explore it: -- """
 
         # Set the initial window dimensions
-        wisp_state.renderer.canvas_width = 1600
-        wisp_state.renderer.canvas_height = 1600
+        wisp_state.renderer.canvas_width = 1200
+        wisp_state.renderer.canvas_height = 800
 
         # Set which world grid planes should be displayed on the canvas.
         # Options: any combination of 'xy', 'xz', 'yz'. Use [] to turn off the grid.

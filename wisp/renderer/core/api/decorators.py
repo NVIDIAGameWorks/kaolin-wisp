@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import Type
 from wisp.models.nefs import BaseNeuralField
 from wisp.tracers import BaseTracer
-from wisp.renderer.core.api import BottomLevelRenderer, register_neural_field_type
+from wisp.renderer.core.api.base_renderer import BottomLevelRenderer
+from wisp.renderer.core.api.renderers_factory import register_neural_field_type
 
 
 def field_renderer(field_type: Type[BaseNeuralField], tracer_type: Type[BaseTracer]):
