@@ -11,10 +11,11 @@ import imgui
 from typing import Optional
 from kaolin.render.camera import Camera
 from wisp.framework import WispState
-from .widget_imgui import WidgetImgui
+from .widget_imgui import WidgetImgui, widget, get_widget
 from .widget_property_editor import WidgetPropertyEditor
 
 
+@widget(Camera)
 class WidgetCameraProperties(WidgetImgui):
     def __init__(self, camera_id: Optional[str] = None):
         super().__init__()

@@ -101,10 +101,10 @@ class DemoApp(WispApp):
 
     def create_widgets(self) -> List[WidgetImgui]:
         """ Customizes the gui: Defines which widgets the gui will display, in order. """
-        from wisp.renderer.gui import WidgetRendererProperties, WidgetGPUStats, WidgetSceneGraph, WidgetOptimization
+        from wisp.renderer.gui import WidgetInteractiveVisualizerProperties, WidgetGPUStats, WidgetSceneGraph, WidgetOptimization
         widgets = [WidgetGPUStats(),            # Current FPS, memory occupancy, GPU Model
                    WidgetOptimization(),        # Live status of optimization, epochs / iterations count, loss curve
-                   WidgetRendererProperties(),  # Canvas dims, user camera controller & definitions
+                   WidgetInteractiveVisualizerProperties(),  # Canvas dims, user camera controller & definitions
                    WidgetSceneGraph()]          # A scene graph tree with the objects hierarchy and their properties
 
         return widgets

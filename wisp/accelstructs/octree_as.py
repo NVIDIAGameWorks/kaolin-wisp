@@ -329,5 +329,13 @@ class OctreeAS(BaseAS):
         """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
         return [8**lod for lod in range(self.max_level)]
 
+    def occupancy(self) -> List[int]:
+        """ Returns a list of length [LODs], where each element contains the number of cells occupied in that LOD """
+        return self.pyramid[0, :-2].cpu().numpy()
+
+    def capacity(self) -> List[int]:
+        """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
+        return [8**lod for lod in range(self.max_level)]
+
     def name(self) -> str:
         return "Octree"

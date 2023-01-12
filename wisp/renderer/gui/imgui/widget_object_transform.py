@@ -9,9 +9,10 @@
 import imgui
 from wisp.framework import WispState
 from wisp.core.transforms import ObjectTransform
-from .widget_imgui import WidgetImgui
+from .widget_imgui import WidgetImgui, widget
 
 
+@widget(ObjectTransform)
 class WidgetObjectTransform(WidgetImgui):
 
     def __init__(self):

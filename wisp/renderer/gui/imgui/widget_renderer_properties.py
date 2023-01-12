@@ -7,14 +7,15 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import imgui
-from .widget_imgui import WidgetImgui
+from .widget_imgui import WidgetImgui, widget
 from .widget_cameras import WidgetCameraProperties
 from wisp.core.colors import black, white, dark_gray
-from wisp.framework import WispState
+from wisp.framework import WispState, InteractiveRendererState
 from wisp.renderer.core.control import FirstPersonCameraMode, TrackballCameraMode, TurntableCameraMode
 
 
-class WidgetRendererProperties(WidgetImgui):
+@widget(InteractiveRendererState)
+class WidgetInteractiveVisualizerProperties(WidgetImgui):
     def __init__(self):
         super().__init__()
         self.camera_properties = WidgetCameraProperties(camera_id="User Camera")

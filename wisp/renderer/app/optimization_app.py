@@ -9,7 +9,7 @@
 from __future__ import annotations
 from typing import Callable, Dict, List
 from wisp.renderer.gui import WidgetImgui
-from wisp.renderer.gui import WidgetRendererProperties, WidgetGPUStats, WidgetSceneGraph, WidgetOptimization
+from wisp.renderer.gui import WidgetInteractiveVisualizerProperties, WidgetGPUStats, WidgetSceneGraph, WidgetOptimization
 from wisp.renderer.gizmos.gizmo import Gizmo
 from wisp.renderer.app.wisp_app import WispApp
 from wisp.renderer.core.api import request_redraw
@@ -60,7 +60,7 @@ class OptimizationApp(WispApp):
         """ Returns the list of widgets the gui will display, in order. """
         return [WidgetGPUStats(),            # Current FPS, memory occupancy, GPU Model
                 WidgetOptimization(),        # Live status of optimization, epochs / iterations count, loss curve
-                WidgetRendererProperties(),  # Canvas dims, user camera controller & definitions
+                WidgetInteractiveVisualizerProperties(),  # Canvas dims, user camera controller & definitions
                 WidgetSceneGraph()]          # A scene graph tree of the entire hierarchy of objects in the scene
                                              # and their properties
 

@@ -6,6 +6,7 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from typing import List, Tuple
 
 white = (1.0, 1.0, 1.0)
 black = (0.0, 0.0, 0.0)
@@ -26,3 +27,30 @@ soft_red = (1.0, 0.0, 0.085)
 lime_green = (0.519, 0.819, 0.0)
 purple = (0.667, 0.0, 0.429)
 gold = (1.0, 0.804, 0.0)
+
+
+def color_wheel():
+    """ Returns:
+        (list) a list of all colors defined in the color module.
+        Each entry is a tuple of 3 floats (RGB values).
+    """
+    return [
+        white, black, dark_gray, light_purple, lime, red, green, blue, orange, light_cyan, light_pink,
+        light_yellow, light_teal, gray, soft_blue, soft_red, lime_green, purple, gold
+    ]
+
+
+def colors_generator(skip_colors: List = None) -> Tuple[float, float, float]:
+    """ Generates the next color in the color wheel on each invocation.
+        This generator repeats the color wheel cyclically when exhausted.
+
+    Args:
+        skip_colors
+    """
+    if skip_colors is None:
+        skip_colors = []
+    while True:
+        for color in color_wheel():
+            if color in skip_colors:
+                continue
+            yield color
