@@ -17,8 +17,7 @@ from kaolin.render.camera import Camera, PinholeIntrinsics, OrthographicIntrinsi
 from wisp.framework import WispState, BottomLevelRendererState
 from wisp.core import RenderBuffer, Rays, PrimitivesPack, create_default_channel, ObjectTransform
 from wisp.ops.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
-from wisp.renderer.core.api import BottomLevelRenderer, RayTracedRenderer, create_neural_field_renderer
-from wisp.renderer.core.api import FramePayload
+from wisp.renderer.core.api import BottomLevelRenderer, RayTracedRenderer, FramePayload, create_neural_field_renderer
 from wisp.gfx.datalayers import CameraDatalayers
 
 

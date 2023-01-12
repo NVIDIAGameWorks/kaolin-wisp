@@ -8,11 +8,13 @@
 
 from __future__ import annotations
 from collections import defaultdict, deque
-from typing import Type
+from typing import Type, TYPE_CHECKING
 from wisp.models import Pipeline
 from wisp.models.nefs import BaseNeuralField
 from wisp.tracers import BaseTracer
-from wisp.renderer.core.api.base_renderer import BottomLevelRenderer, RayTracedRenderer
+if TYPE_CHECKING:  # Prevent circular imports mess due to typed annotations
+    from wisp.renderer.core.api.base_renderer import BottomLevelRenderer
+    from wisp.renderer.core.api.raytraced_renderer import RayTracedRenderer
 
 # All renderers supported by the interactive renderer should be registered here
 # Registration can be quickly achieved via the @field_renderer decorator.

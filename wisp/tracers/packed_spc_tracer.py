@@ -35,14 +35,14 @@ class PackedSPCTracer(BaseTracer):
         """
         return {"rgb"}
 
-    def trace(self, nef, channels, extra_channels, rays, lod_idx=None):
+    def trace(self, nef, rays, channels, extra_channels, lod_idx=None):
         """Trace the rays against the neural field.
 
         Args:
             nef (nn.Module): A neural field that uses a grid class.
+            rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
             channels (set): The set of requested channels. The trace method can return channels that
                             were not requested since those channels often had to be computed anyways.
-            rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
             lod_idx (int): LOD index to render at.
 
         Returns:

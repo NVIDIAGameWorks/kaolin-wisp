@@ -65,7 +65,7 @@ class PackedRFTracer(BaseTracer):
         """
         return {"rgb", "density"}
 
-    def trace(self, nef, channels, extra_channels, rays,
+    def trace(self, nef, rays, channels, extra_channels,
               lod_idx=None, raymarch_type='voxel', num_steps=64, step_size=1.0, bg_color='white'):
         """Trace the rays against the neural field.
 

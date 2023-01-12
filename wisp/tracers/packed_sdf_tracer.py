@@ -51,18 +51,18 @@ class PackedSDFTracer(BaseTracer):
         """
         return {"sdf"}
 
-    def trace(self, nef, channels, extra_channels, rays, lod_idx=None, num_steps=64,
+    def trace(self, nef, rays, channels, extra_channels, lod_idx=None, num_steps=64,
               step_size=1.0, min_dis=1e-4):
         """Trace the rays against the neural field.
 
         Args:
             nef (nn.Module): A neural field that uses a grid class.
-            channels (set): The set of requested channels. The trace method can return channels that 
+            rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
+            channels (set): The set of requested channels. The trace method can return channels that
                             were not requested since those channels often had to be computed anyways.
             extra_channels (set): If there are any extra channels requested, this tracer will by default
                                   query those extra channels at surface intersection points.
-            rays (wisp.core.Rays): Ray origins and directions of shape [N, 3]
-            lod_idx (int): LOD index to render at. 
+            lod_idx (int): LOD index to render at.
             num_steps (int): The number of steps to use for sphere tracing.
             step_size (float): The multiplier for the sphere tracing steps. 
                                Use a value <1.0 for conservative tracing.

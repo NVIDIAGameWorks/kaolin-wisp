@@ -8,5 +8,6 @@
 
 from .renderers_factory import *
 from .base_renderer import *
+from .raytraced_renderer import *
 from .decorators import *
 from .scenegraph import *

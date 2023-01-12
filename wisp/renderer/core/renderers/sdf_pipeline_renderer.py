@@ -7,14 +7,9 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from typing import Optional, Dict
-import torch
-from wisp.core import RenderBuffer, Rays, PrimitivesPack
 from wisp.renderer.core.api import RayTracedRenderer, FramePayload, field_renderer
 from wisp.models.nefs.neural_sdf import NeuralSDF, BaseNeuralField
 from wisp.tracers import PackedSDFTracer
-from wisp.accelstructs import OctreeAS, AxisAlignedBBoxAS
-from wisp.gfx.datalayers import Datalayers, OctreeDatalayers, AABBDatalayers
 
 
 @field_renderer(BaseNeuralField, PackedSDFTracer)
@@ -24,93 +19,20 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         subclasses which use the PackedSDFTracer and don't implement a dedicated renderer.
     """
 
-    def __init__(self, nef: NeuralSDF, tracer_type=None,
-                 samples_per_ray=None, min_distance=None, raymarch_type=None, *args, **kwargs):
-        super().__init__(nef, *args, **kwargs)
-        if min_distance is None:
-            min_distance = 0.0003
-        if samples_per_ray is None:
-            samples_per_ray = 32
+    def __init__(self, nef: NeuralSDF, tracer: PackedSDFTracer, samples_per_ray=32, *args, **kwargs):
+        super().__init__(nef, tracer, *args, **kwargs)
         self.samples_per_ray = samples_per_ray
-        if raymarch_type is None:
-            raymarch_type = 'voxel'
-
-        self.tracer = tracer_type() if tracer_type is not None else PackedSDFTracer()
-        self.render_res_x = None
-        self.render_res_y = None
-        self.output_width = None
-        self.output_height = None
-        self.far_clipping = None
-        self.channels = None
         self._last_state = dict()
-
-        self._data_layers = self.regenerate_data_layers()
-
-    @classmethod
-    def create_layers_painter(cls, nef: BaseNeuralField) -> Optional[Datalayers]:
-        """ NeuralSDFPackedRenderer can draw datalayers showing the occupancy status.
-        These depend on the bottom level acceleration structure.
-        """
-        if not hasattr(nef.grid, 'blas'):
-            return None
-        elif isinstance(nef.grid.blas, AxisAlignedBBoxAS):
-            return AABBDatalayers()
-        elif isinstance(nef.grid.blas, OctreeAS):
-            return OctreeDatalayers()
-        else:
-            return None
-
-    def needs_redraw(self) -> bool:
-        if self.layers_painter is not None:
-            return self.layers_painter.needs_redraw(self.nef.grid.blas)
-        else:
-            return True
-
-    def regenerate_data_layers(self) -> Dict[str, PrimitivesPack]:
-        if self.layers_painter is not None:
-            return self.layers_painter.regenerate_data_layers(self.nef.grid.blas)
-        else:
-            return dict()
-
-    def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
-        super().pre_render(payload)
-        self.render_res_x = payload.render_res_x
-        self.render_res_y = payload.render_res_y
-        self.output_width = payload.camera.width
-        self.output_height = payload.camera.height
-        self.far_clipping = payload.camera.far
-        self.tracer.num_steps = self.samples_per_ray
-        self.tracer.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
-        self.channels = payload.channels
 
     def needs_refresh(self, payload: FramePayload, *args, **kwargs) -> bool:
         return self._last_state.get('num_steps', 0) < self.samples_per_ray or \
                self._last_state.get('channels') != self.channels
 
-    def render(self, rays: Optional[Rays] = None) -> RenderBuffer:
-        rb = self.tracer(self.nef, channels=self.channels, rays=rays)
-
-        # Rescale renderbuffer to original size
-        rb = rb.reshape(self.render_res_y, self.render_res_x, -1)
-        if self.render_res_x != self.output_width or self.render_res_y != self.output_height:
-            rb = rb.scale(size=(self.output_height, self.output_width))
-        return rb
+    def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
+        super().pre_render(payload)
+        self.tracer.num_steps = self.samples_per_ray
+        self.tracer.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
 
     def post_render(self) -> None:
         self._last_state['num_steps'] = self.tracer.num_steps
         self._last_state['channels'] = self.channels
-
-    @property
-    def device(self) -> torch.device:
-        return next(self.nef.parameters()).device
-
-    @property
-    def dtype(self) -> torch.dtype:
-        return torch.float32
-
-    def name(self) -> str:
-        """
-        Returns:
-            (str) A a meaningful, human readable name representing the object this renderer paints.
-        """
-        return "Neural Signed Distance Field"

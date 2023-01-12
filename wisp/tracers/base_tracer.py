@@ -6,25 +6,26 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-from typing import Dict, Any
-import torch.nn as nn
 from abc import abstractmethod, ABC
+from typing import Dict, Any
 import inspect
+import torch.nn as nn
+from wisp.core import Rays
 from wisp.core import WispModule
 
 
 class BaseTracer(WispModule, ABC):
     """Base class for all tracers within Wisp.
     Tracers drive the mapping process which takes an input "Neural Field", and outputs a RenderBuffer of pixels.
-    Different tracers may employ different algorithms for querying points, or tracing / marching rays through the
+    Different tracers may employ different algorithms for querying points, tracing and marching rays through the
     neural field.
     A common paradigm for tracers to employ is as follows:
-    1. Take input in the form of rays or coordinates
+    1. Take input in the form of rays
     2. Generate samples by tracing / marching rays, or querying coordinates over the neural field.
        Possibly make use of the neural field spatial structure for high performance.
-    2. Invoke neural field's methods to decode sample features into actual channel values, such as color, density,
+    3. Invoke neural field's methods to decode sample features into actual channel values, such as color, density,
        signed distance, and so forth.
-    3. Aggregate the sample values to decide on the final pixel value.
+    4. Aggregate the sample values to decide on the final pixel value.
        The exact output may depend on the requested channel type, blending mode or other parameters.
     Wisp tracers are therefore flexible, and designed to be compatible with specific neural fields,
     depending on the forward functions they support and internal grid structures they use.
@@ -66,15 +67,21 @@ class BaseTracer(WispModule, ABC):
         pass
 
     @abstractmethod
-    def trace(self, nef, channels, extra_channels, *args, **kwargs):
+    def trace(self, nef, rays, channels, extra_channels, *args, **kwargs):
         """Apply the forward map on the nef. 
 
-        This is the function to implement to implement a custom
-        This can take any number of arguments, but `nef` always needs to be the first argument and 
-        `channels` needs to be the second argument.
+        Tracers are required to implement this function, which commonly follows these paradigm:
+        1. Take input in the form of rays
+        2. Generate samples by tracing / marching rays, or querying coordinates over the neural field.
+           Possibly make use of the neural field spatial structure for high performance.
+        3. Invoke neural field's methods to decode sample features into actual channel values, such as color, density,
+           signed distance, and so forth.
+        4. Aggregate the sample values to decide on the final pixel value.
+           The exact output may depend on the requested channel type, blending mode or other parameters.
         
         Args:
             nef (nn.Module): A neural field that uses a grid class.
+            rays (Rays): Pack of rays to trace through the neural field.
             channels (set): The set of requested channels. The trace method can return channels that 
                             were not requested since those channels often had to be computed anyways.
             extra_channels (set): Requested extra channels, which are not first class channels supported by
@@ -85,11 +92,15 @@ class BaseTracer(WispModule, ABC):
         """
         pass
 
-    def forward(self, nef, channels=None, **kwargs):
+    def forward(self, nef, rays: Rays, channels=None, **kwargs):
         """Queries the tracer with channels.
 
         Args:
-            channels (str or list of str or set of str): Requested channels.
+            nef (BaseNeuralField): Neural field to be traced. The nef will be queried for decoded sample values.
+            rays (Rays): Pack of rays to trace through the neural field.
+            channels (str or list of str or set of str): Requested channel names.
+            This list should include at least all channels in tracer.get_supported_channels(),
+            and may include extra channels in addition.
             kwargs: Any keyword argument passed in will be passed into the respective forward functions.
 
         Returns:
@@ -120,8 +131,8 @@ class BaseTracer(WispModule, ABC):
 
         argspec = inspect.getfullargspec(self.trace)
 
-        # Skip self, nef, channel, extra_channels
-        required_args = argspec.args[:-len(argspec.defaults)][4:] 
+        # Skip self, nef, rays, channel, extra_channels
+        required_args = argspec.args[:-len(argspec.defaults)][5:]   # TODO (operel): this is brittle
         optional_args = argspec.args[-len(argspec.defaults):]
         
         input_args = {}
@@ -139,7 +150,7 @@ class BaseTracer(WispModule, ABC):
                 default_arg = getattr(self, _arg, None)
                 if default_arg is not None:
                     input_args[_arg] = default_arg
-        return self.trace(nef, requested_channels, requested_extra_channels, **input_args)
+        return self.trace(nef, rays, requested_channels, requested_extra_channels, **input_args)
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.
