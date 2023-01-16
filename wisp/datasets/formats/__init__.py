@@ -6,5 +6,8 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-from .rtmv import *
-from .nerf_standard import *
+from .rtmv_dataset import *
+from .nerf_standard_dataset import *
+from .mesh_sdf_dataset import *
+from .octree_sdf_dataset import *
+from .random_view_dataset import *

@@ -7,6 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 import torch
+from wisp.datasets.batch import MultiviewBatch
 
 
 class SampleRays:
@@ -15,11 +16,14 @@ class SampleRays:
         self.num_samples = num_samples
 
     @torch.cuda.nvtx.range("SampleRays")
-    def __call__(self, inputs):
-        ray_idx = torch.randint(0, inputs['imgs'].shape[0], [self.num_samples],
-            device=inputs['imgs'].device)
+    def __call__(self, inputs: MultiviewBatch):
+        device = inputs['rays'].origins.device
+        ray_idx = torch.randint(0, inputs['rays'].shape[0], [self.num_samples], device=device)
 
         out = {}
         out['rays'] = inputs['rays'][ray_idx].contiguous()
-        out['imgs'] = inputs['imgs'][ray_idx].contiguous()
+
+        # Loop over ray values in this batch
+        for channel_name, ray_value in inputs.ray_values().items():
+            out[channel_name] = ray_value[ray_idx].contiguous()
         return out

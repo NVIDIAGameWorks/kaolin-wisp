@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from wisp.offline_renderer import OfflineRenderer
 from wisp.framework import WispState, BottomLevelRendererState
-from wisp.datasets import default_collate
+from wisp.datasets import WispDataset, default_collate
 from wisp.renderer.core.api import add_to_scene_graph
 
 import wandb
@@ -71,15 +71,15 @@ class BaseTrainer(ABC):
     # Initialization
     #######################
 
-    def __init__(self, pipeline, dataset, num_epochs, batch_size,
+    def __init__(self, pipeline, train_dataset: WispDataset, num_epochs, batch_size,
                  optim_cls, lr, weight_decay, grid_lr_weight, optim_params, log_dir, device,
-                 exp_name=None, info=None, scene_state=None, extra_args=None,
+                 exp_name=None, info=None, scene_state=None, extra_args=None, validation_dataset: WispDataset = None,
                  render_tb_every=-1, save_every=-1, trainer_mode='validate', using_wandb=False):
         """Constructor.
         
         Args:
             pipeline (wisp.core.Pipeline): The pipeline with tracer and neural field to train.
-            dataset (torch.Dataset): The dataset to use for training.
+            train_dataset (wisp.datasets.WispDataset): Dataset to used for generating training batches.
             num_epochs (int): The number of epochs to run the training for.
             batch_size (int): The batch size used in training.
             optim_cls (torch.optim): The Optimizer object to use
@@ -93,6 +93,7 @@ class BaseTrainer(ABC):
             scene_state (wisp.core.State): Use this to inject a scene state from the outside to be synced
                                            elsewhere.
             extra_args (dict): Optional dict of extra_args for easy prototyping.
+            validation_dataset (wisp.datasets.WispDataset): Validation dataset used for evaluating metrics.
             render_tb_every (int): The number of epochs between renders for tensorboard logging. -1 = no rendering.
             save_every (int): The number of epochs between model saves. -1 = no saving.
             trainer_mode (str): 'train' or 'validate' for choosing running training or validation only modes.
@@ -122,7 +123,8 @@ class BaseTrainer(ABC):
 
         self.init_renderer()
 
-        self.dataset = dataset
+        self.train_dataset = train_dataset
+        self.validation_dataset = validation_dataset
 
         # Optimizer params
         self.optim_cls = optim_cls
@@ -139,22 +141,16 @@ class BaseTrainer(ABC):
         self.batch_size = batch_size
         self.exp_name = exp_name if exp_name else "unnamed_experiment"
 
-        # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
-        # batch_size is an optional setup arg here which hints the visualizer how many rays can be processed at once
-        # (e.g. this is the pipeline's batch_size used for inference time)
-        add_to_scene_graph(state=self.scene_state, name=self.exp_name, obj=self.pipeline, batch_size=2**14)
+        self.populate_scenegraph()
         # Update optimization state about the current train set used
-        self.scene_state.optimization.train_data.append(dataset)
-
-        if hasattr(self.dataset, "data"):
-            self.scene_state.graph.cameras = self.dataset.data.get("cameras", dict())
+        self.scene_state.optimization.train_data.append(train_dataset)
 
         self.scaler = torch.cuda.amp.GradScaler()
 
         # In-training variables
         self.train_data_loader_iter = None
         self.val_data_loader = None
-        self.dataset_size = None
+        self.train_dataset_size = None
         self.log_dict = {}
         self.init_dataloader()
 
@@ -169,8 +165,17 @@ class BaseTrainer(ABC):
         self.save_every = save_every
         self.using_wandb = using_wandb
 
+    def populate_scenegraph(self):
+        """ Updates the scenegraph with information about available objects.
+        Doing so exposes these objects to other components, like visualizers and loggers.
+        """
+        # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
+        # batch_size is an optional setup arg here which hints the visualizer how many rays can be processed at once
+        # (e.g. this is the pipeline's batch_size used for inference time)
+        add_to_scene_graph(state=self.scene_state, name=self.exp_name, obj=self.pipeline, batch_size=2 ** 14)
+
     def init_dataloader(self):
-        self.train_data_loader = DataLoader(self.dataset,
+        self.train_data_loader = DataLoader(self.train_dataset,
                                             batch_size=self.batch_size,
                                             collate_fn=default_collate,
                                             shuffle=True, pin_memory=True,
@@ -242,9 +247,9 @@ class BaseTrainer(ABC):
         Args:
             (torch.utils.data.Dataset): Training dataset.
         """
-        if hasattr(self.dataset, 'resample'):
+        if hasattr(self.train_dataset, 'resample'):
             log.info("Reset DataLoader")
-            self.dataset.resample()
+            self.train_dataset.resample()
             self.init_dataloader()
         else:
             raise ValueError("resample=True but the dataset doesn't have a resample method")
@@ -417,7 +422,7 @@ class BaseTrainer(ABC):
         if self.extra_args["only_last"]:
             self.loss_lods = self.loss_lods[-1:]
 
-        if self.extra_args["resample"] and self.epoch % self.extra_args["resample_every"] == 0:
+        if self.extra_args["resample"] and self.epoch % self.extra_args["resample_every"] == 0 and self.epoch > 1:
             self.resample_dataset()
 
         self.pipeline.train()

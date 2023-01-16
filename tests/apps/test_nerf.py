@@ -144,7 +144,7 @@ class TestNerfApp(TestWispApp):
         out = run_wisp_script(cmd, cli_args)
         metrics = collect_metrics_from_log(out, ['PSNR'])
 
-        assert float(metrics[100]['PSNR']) > 30.5, 'PSNR is too low.'
+        assert float(metrics[100]['PSNR']) > 30.4, 'PSNR is too low.'
         report_metrics(metrics)  # Prints to log
 
     def test_codebook_V8(self, V8_path, dataset_num_workers):

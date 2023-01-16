@@ -14,7 +14,8 @@ import torch
 from wisp.app_utils import default_log_setup, args_to_log_format
 import wisp.config_parser as config_parser
 from wisp.framework import WispState
-from wisp.datasets import SDFDataset
+from wisp.datasets import SDFDataset, MeshSampledSDFDataset, OctreeSampledSDFDataset
+from wisp.accelstructs import OctreeAS
 from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid
 from wisp.tracers import BaseTracer, PackedSDFTracer
 from wisp.models.nefs import BaseNeuralField, NeuralSDF
@@ -237,24 +238,31 @@ def parse_args():
     return args, args_dict
 
 
-def load_dataset(args, pipeline: Pipeline) -> torch.utils.data.Dataset:
+def load_dataset(args, pipeline: Pipeline) -> SDFDataset:
     """ Loads a dataset of SDF samples generated over the surface of a mesh. """
-    if isinstance(pipeline.nef.grid, OctreeGrid):
-        train_dataset = SDFDataset.from_grid(
+    if OctreeSampledSDFDataset.supports_blas(pipeline.nef.grid.blas):
+        # The current grid representation uses a bottom-level acceleration structure which can be used for faster
+        # and more precise resampling of sdf values
+        train_dataset = OctreeSampledSDFDataset(
+            occupancy_struct=pipeline.nef.grid.blas,
+            split='train',
+            transform=None,
             sample_mode=args.sample_mode,
             num_samples=args.num_samples,
-            get_normals=args.get_normals,
             sample_tex=args.sample_tex,
-            grid=pipeline.nef.grid,
-            samples_per_voxel=args.samples_per_voxel)
+            samples_per_voxel=args.samples_per_voxel
+        )
     else:
-        train_dataset = SDFDataset.from_mesh(
+        train_dataset = MeshSampledSDFDataset(
+            dataset_path=args.dataset_path,
+            split='train',
+            transform=None,
             sample_mode=args.sample_mode,
             num_samples=args.num_samples,
             get_normals=args.get_normals,
             sample_tex=args.sample_tex,
-            dataset_path=args.dataset_path,
-            mode_norm=args.mode_mesh_norm)
+            mode_norm=args.mode_mesh_norm
+        )
     return train_dataset
 
 
@@ -380,7 +388,7 @@ def load_trainer(pipeline, train_dataset, device, scene_state, args, args_dict) 
     optimizer_cls = config_parser.get_module(name=args.optimizer_type)
     optimizer_params = config_parser.get_args_for_function(args, optimizer_cls)
     trainer = SDFTrainer(pipeline=pipeline,
-                         dataset=train_dataset,
+                         train_dataset=train_dataset,
                          num_epochs=args.epochs,
                          batch_size=args.batch_size,
                          optim_cls=optimizer_cls,

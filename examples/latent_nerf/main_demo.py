@@ -13,8 +13,7 @@ import logging
 import torch
 from wisp.app_utils import default_log_setup, args_to_log_format
 from wisp.framework import WispState
-from wisp.datasets import MultiviewDataset
-from wisp.datasets.transforms import SampleRays
+from wisp.datasets import NeRFSyntheticDataset, SampleRays
 from wisp.trainers import MultiviewTrainer
 from wisp.models.grids import OctreeGrid
 from wisp.models.pipeline import Pipeline
@@ -37,12 +36,12 @@ default_log_setup(level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # NeRF is trained with a MultiviewDataset, which knows how to generate RGB rays from a set of images + cameras
-train_dataset = MultiviewDataset(
+train_dataset = NeRFSyntheticDataset(
     dataset_path=args.dataset_path,
-    multiview_dataset_format='standard',
+    split='train',
     mip=0,
     bg_color='black',
-    dataset_num_workers=-1,
+    dataset_num_workers=0,
     transform=SampleRays(
         num_samples=4096
     )
@@ -74,7 +73,7 @@ lr = 0.001
 weight_decay = 0
 exp_name = 'siggraph_2022_demo'
 trainer = MultiviewTrainer(pipeline=pipeline,
-                           dataset=train_dataset,
+                           train_dataset=train_dataset,
                            num_epochs=args.epochs,
                            batch_size=1,    # 1 image per batch
                            optim_cls=torch.optim.RMSprop,

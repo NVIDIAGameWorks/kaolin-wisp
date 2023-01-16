@@ -6,23 +6,12 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import os
-import sys
-import numpy as np
-import torch
-
-import argparse
-import glob
 import logging as log
-
-
+import torch
 from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
-from torch.utils.data import DataLoader
-from wisp.datasets import SDFDataset
+from wisp.datasets import MeshSampledSDFDataset, OctreeSampledSDFDataset, SDFBatch
 from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
-
-import wandb
 
 
 class SDFTrainer(BaseTrainer):
@@ -35,14 +24,14 @@ class SDFTrainer(BaseTrainer):
         self.log_dict['l2_loss'] = 0
 
     @torch.cuda.nvtx.range("SDFTrainer.step")
-    def step(self, data):
+    def step(self, data: SDFBatch):
         """Implement training from ground truth TSDF.
         """
         # Map to device
-        pts = data[0].to(self.device)
-        gts = data[1].to(self.device)
+        pts = data['coords'].to(self.device)
+        gts = data['sdf'].to(self.device)
         if self.extra_args["sample_tex"]:
-            rgb = data[2].to(self.device) 
+            rgb = data['rgb'].to(self.device)
 
         # Prepare for inference
         batch_size = pts.shape[0]
@@ -124,12 +113,10 @@ class SDFTrainer(BaseTrainer):
     def validate(self):
         """Implement validation. Just computes IOU.
         """
-            
         # Same as training since we're overfitting
-        metric_name = None
-        if self.dataset.initialization_mode == "mesh":
+        if isinstance(self.train_dataset, MeshSampledSDFDataset):
             metric_name = "volumetric_iou"
-        elif self.dataset.initialization_mode == "grid":
+        elif isinstance(self.train_dataset, OctreeSampledSDFDataset):
             metric_name = "narrowband_iou"
         else:
             raise NotImplementedError
@@ -140,10 +127,9 @@ class SDFTrainer(BaseTrainer):
         # Uniform points metrics
         for n_iter, data in enumerate(self.train_data_loader):
 
-            pts = data[0].to(self.device)
-            gts = data[1].to(self.device)
-            nrm = data[2].to(self.device) if self.extra_args["get_normals"] else None
-                
+            pts = data['coords'].to(self.device)
+            gts = data['sdf'].to(self.device)
+            nrm = data['normals'].to(self.device) if data.get('normals') is not None else None
 
             for lod_idx in self.loss_lods:
                 # TODO(ttakkawa): Currently the SDF metrics computed for sparse grid-based SDFs are not entirely proper

@@ -13,17 +13,25 @@ from tqdm import tqdm
 import random
 import pandas as pd
 import torch
-from torch.utils.tensorboard import SummaryWriter
 from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
+from wisp.datasets import MultiviewDataset
 from wisp.core import Rays, RenderBuffer
 
 import wandb
 import numpy as np
 from PIL import Image
 
+
 class MultiviewTrainer(BaseTrainer):
+
+    def populate_scenegraph(self):
+        """ Updates the scenegraph with information about available objects.
+        Doing so exposes these objects to other components, like visualizers and loggers.
+        """
+        super().populate_scenegraph()
+        self.scene_state.graph.cameras = self.train_dataset.cameras
 
     def pre_step(self):
         """Override pre_step to support pruning.
@@ -47,7 +55,7 @@ class MultiviewTrainer(BaseTrainer):
         """
         # Map to device
         rays = data['rays'].to(self.device).squeeze(0)
-        img_gts = data['imgs'].to(self.device).squeeze(0)
+        img_gts = data['rgb'].to(self.device).squeeze(0)
 
         self.optimizer.zero_grad()
         loss = 0
@@ -87,24 +95,23 @@ class MultiviewTrainer(BaseTrainer):
         
         log.info(log_text)
 
-    def evaluate_metrics(self, rays, imgs, lod_idx, name=None, lpips_model=None):
-        
-        ray_os = list(rays.origins)
-        ray_ds = list(rays.dirs)
+    def evaluate_metrics(self, dataset: MultiviewDataset, lod_idx, name=None, lpips_model=None):
+
+        img_count = len(dataset)
+        img_shape = dataset.img_shape
 
         psnr_total = 0.0
         lpips_total = 0.0
         ssim_total = 0.0
         with torch.no_grad():
-            for idx, (img, ray_o, ray_d) in tqdm(enumerate(zip(imgs, ray_os, ray_ds))):
-                
-                rays = Rays(ray_o, ray_d, dist_min=rays.dist_min, dist_max=rays.dist_max)
-                rays = rays.reshape(-1, 3)
-                rays = rays.to('cuda')
+            for idx, full_batch in tqdm(enumerate(dataset)):
+                gts = full_batch['rgb'].to('cuda')
+                rays = full_batch['rays'].to('cuda')
                 rb = self.renderer.render(self.pipeline, rays, lod_idx=lod_idx)
-                rb = rb.reshape(*img.shape[:2], -1)
-                
-                gts = img.cuda()
+
+                gts = gts.reshape(*img_shape, -1)
+                rb = rb.reshape(*img_shape, -1)
+
                 psnr_total += psnr(rb.rgb[...,:3], gts[...,:3])
                 if lpips_model:
                     lpips_total += lpips(rb.rgb[...,:3], gts[...,:3], lpips_model)
@@ -112,7 +119,7 @@ class MultiviewTrainer(BaseTrainer):
                 
                 out_rb = RenderBuffer(rgb=rb.rgb, depth=rb.depth, alpha=rb.alpha,
                                       gts=gts, err=(gts[..., :3] - rb.rgb[..., :3])**2)
-                exrdict = out_rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
+                exrdict = out_rb.reshape(*img_shape, -1).cpu().exr_dict()
                 
                 out_name = f"{idx}"
                 if name is not None:
@@ -128,22 +135,22 @@ class MultiviewTrainer(BaseTrainer):
                         log.info("Skipping EXR logging since pyexr is not found.")
                 write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb)
 
-        psnr_total /= len(imgs)
-        lpips_total /= len(imgs)  
-        ssim_total /= len(imgs)
-        
+        psnr_total /= img_count
+        lpips_total /= img_count
+        ssim_total /= img_count
+
         metrics_dict = {"psnr": psnr_total, "ssim": ssim_total}
 
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | {}: {:.2f}'.format(f"{name} PSNR", psnr_total)
         log_text += ' | {}: {:.6f}'.format(f"{name} SSIM", ssim_total)
-        
+
         if lpips_model:
             log_text += ' | {}: {:.6f}'.format(f"{name} LPIPS", lpips_total)
             metrics_dict["lpips"] = lpips_total
         log.info(log_text)
  
-        return {"psnr" : psnr_total, "ssim": ssim_total}
+        return metrics_dict
 
     def render_final_view(self, num_angles, camera_distance):
         angles = np.pi * 0.1 * np.array(list(range(num_angles + 1)))
@@ -188,20 +195,16 @@ class MultiviewTrainer(BaseTrainer):
         # numpy or some other format. This is required as parquet doesn't support torch.Tensors
         # (and also for output size considerations)
         record_dict = {k: v for k, v in self.extra_args.items() if not isinstance(v, torch.Tensor)}
-        dataset_name = os.path.splitext(os.path.basename(self.extra_args['dataset_path']))[0]
+        dataset_name = os.path.splitext(os.path.basename(self.validation_dataset.dataset_path))[0]
         model_fname = os.path.abspath(os.path.join(self.log_dir, f'model.pth'))
         record_dict.update({"dataset_name" : dataset_name, "epoch": self.epoch, 
                             "log_fname" : self.log_fname, "model_fname": model_fname})
         parent_log_dir = os.path.dirname(self.log_dir)
 
         log.info("Beginning validation...")
-
-        validation_split = self.extra_args.get('valid_split', 'val')
-        data = self.dataset.get_images(split=validation_split, mip=self.extra_args['mip'])
-        imgs = list(data["imgs"])
-
-        img_shape = imgs[0].shape
-        log.info(f"Loaded validation dataset with {len(imgs)} images at resolution {img_shape[0]}x{img_shape[1]}")
+        img_shape = self.validation_dataset.img_shape
+        log.info(f"Running validation on dataset with {len(self.validation_dataset)} images "
+                 f"at resolution {img_shape[0]}x{img_shape[1]}")
 
         self.valid_log_dir = os.path.join(self.log_dir, "val")
         log.info(f"Saving validation result to {self.valid_log_dir}")
@@ -219,8 +222,8 @@ class MultiviewTrainer(BaseTrainer):
             else:
                 self.lpips_exception = True
                 log.info("Skipping LPIPS since lpips is not found.")
-        evaluation_results = self.evaluate_metrics(data["rays"], imgs, lods[-1], 
-                                                    f"lod{lods[-1]}", lpips_model=lpips_model)
+        evaluation_results = self.evaluate_metrics(self.validation_dataset, lods[-1],
+                                                   f"lod{lods[-1]}", lpips_model=lpips_model)
         record_dict.update(evaluation_results)
         if self.using_wandb:
             for key in evaluation_results:
