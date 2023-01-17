@@ -8,7 +8,12 @@
 
 from __future__ import annotations
 from typing import Union
+
+import numpy as np
 import torch
+
+
+PI = torch.pi if hasattr(torch, 'pi') else np.pi  # Fallback for older torch versions
 
 
 class ObjectTransform:
@@ -63,7 +68,7 @@ class ObjectTransform:
     def permute(self, permutation):
         """
         Args:
-            permutation (list[int]): The permutation of the axis. 
+            permutation (list[int]): The permutation of the axis.
                                      For example, [1, 0, 2] will swap the x and y axis.
         """
         permutation = torch.tensor(permutation, device=self.device, dtype=torch.long)
@@ -196,7 +201,7 @@ class ObjectTransform:
         # Transformations applied in order of
         # Translation @ Rotation @ Scale
         scale_mat = self._scale_mat(self._scale)
-        rotation_rads = self._rotation.div(180.0).mul(torch.pi)
+        rotation_rads = self._rotation.div(180.0).mul(PI)
         rotation_mat = self._rotation_mat(*rotation_rads)
         translation_mat = self._translation_mat(self._translation)
         model_mat = translation_mat @ rotation_mat @ scale_mat @ self._permutation
@@ -213,7 +218,7 @@ class ObjectTransform:
         # Transformations applied in order of
         # Scale^(-1) @ Rotation^(-1) @ Translation^(-1)
         scale_mat = self._inv_scale_mat(self._scale)
-        rotation_rads = self._rotation.div(180.0).mul(torch.pi)
+        rotation_rads = self._rotation.div(180.0).mul(PI)
         rotation_mat = self._inv_rotation_mat(*rotation_rads)
         translation_mat = self._inv_translation_mat(self._translation)
         inv_mat = self._permutation @ scale_mat @ rotation_mat @ translation_mat

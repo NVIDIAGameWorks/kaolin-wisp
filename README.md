@@ -16,6 +16,7 @@ For an overview on neural fields, we recommend you check out the EG STAR report:
 
 ## Latest Updates
 
+* _17/01/23_ `pycuda` replaced with `cuda-python`. Wisp can be installed from pip now  (If you pull, run **pip install -r requirements_app.txt**)
 * _05/01/23_ Mains are now introduced as standalone apps, for easier support of new pipelines (**breaking change**) 
 * _21/12/22_ Most modules have been cleaned, reorganized and documented. 
 
