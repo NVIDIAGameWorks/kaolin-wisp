@@ -57,7 +57,8 @@ class MultiviewTrainer(BaseTrainer):
         rays = data['rays'].to(self.device).squeeze(0)
         img_gts = data['rgb'].to(self.device).squeeze(0)
 
-        self.optimizer.zero_grad()
+        self.optimizer.zero_grad(set_to_none=True)
+            
         loss = 0
         
         if self.extra_args["random_lod"]:

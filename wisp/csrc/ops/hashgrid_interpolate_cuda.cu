@@ -55,10 +55,14 @@ hashgrid_interpolate_cuda_kernel(
     const int32_t num_lods,
     const float* __restrict__ coords,
     const scalar_t* __restrict__ codebook,
+    const int32_t *codebook_first_idx,
     scalar_t* __restrict__ feats
 ){
     uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
     int64_t stride = blockDim.x*gridDim.x;
+
+    codebook = codebook + codebook_first_idx[lod_idx] * feature_dim; 
+
     for (int64_t i=tidx; i<num_coords; i+=stride) { 
         
         float3 x = make_float3(clamp(resolution * (coords[i*3+0] * 0.5 + 0.5), 0, resolution-1-1e-5), 
@@ -113,6 +117,7 @@ void hashgrid_interpolate_cuda_impl(
     int32_t num_lods,
     at::Tensor coords,
     at::Tensor codebook,
+    at::Tensor codebook_first_idx,
     at::Tensor feats){
 
     int num_threads = 512;
@@ -129,6 +134,7 @@ void hashgrid_interpolate_cuda_impl(
             num_lods,
             coords.data_ptr<float>(),
             codebook.data_ptr<scalar_t>(),
+            codebook_first_idx.data_ptr<int32_t>(),
             feats.data_ptr<scalar_t>()
         );
     }));
@@ -146,12 +152,17 @@ hashgrid_interpolate_backward_cuda_kernel(
     const bool require_grad_coords,
     const float* __restrict__ coords,
     const scalar_t* __restrict__ codebook,
+    const int32_t *__restrict__ codebook_first_idx,
     const scalar_t* __restrict__ grad_output, // N, feature_dim*num_lods
     scalar_t* __restrict__ grad_codebook, // codebook_size, feature_dim
     float* __restrict__ grad_coords // N, 3
 ){
     uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
     int64_t stride = blockDim.x*gridDim.x;
+
+    grad_codebook = grad_codebook + codebook_first_idx[lod_idx] * feature_dim;
+    codebook = codebook + codebook_first_idx[lod_idx] * feature_dim; 
+
     for (int64_t i=tidx; i<num_coords; i+=stride) { 
         
         float3 x = make_float3(clamp(resolution * (coords[i*3+0] * 0.5 + 0.5), 0, resolution-1-1e-5), 
@@ -269,6 +280,7 @@ void hashgrid_interpolate_backward_cuda_impl(
     bool require_grad_coords,
     at::Tensor coords,
     at::Tensor codebook,
+    at::Tensor codebook_first_idx,
     at::Tensor grad_output,
     at::Tensor grad_codebook,
     at::Tensor grad_coords){
@@ -288,6 +300,7 @@ void hashgrid_interpolate_backward_cuda_impl(
             require_grad_coords,
             coords.data_ptr<float>(),
             codebook.data_ptr<scalar_t>(),
+            codebook_first_idx.data_ptr<int32_t>(),
             grad_output.data_ptr<scalar_t>(),
             grad_codebook.data_ptr<scalar_t>(),
             grad_coords.data_ptr<float>()

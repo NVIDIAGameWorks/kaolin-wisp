@@ -122,7 +122,7 @@ class PackedRFTracer(BaseTracer):
         depths = raymarch_results.depth_samples
 
         # Get the indices of the ray tensor which correspond to hits
-        ridx_hit = ridx[spc_render.mark_pack_boundaries(ridx.int())]
+        ridx_hit = ridx[boundary]
         # Compute the color and density for each ray and their samples
         hit_ray_d = rays.dirs.index_select(0, ridx)
 
