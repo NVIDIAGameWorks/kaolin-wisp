@@ -30,7 +30,9 @@ class MultiviewTrainer(BaseTrainer):
         """
         super().pre_step()
         
-        if self.extra_args["prune_every"] > -1 and self.iteration > 0 and self.iteration % self.extra_args["prune_every"] == 0:
+        if self.extra_args["prune_every"] > -1 and \
+           self.total_iterations > 1 and \
+           self.total_iterations % self.extra_args["prune_every"] == 0:
             self.pipeline.nef.prune()
 
     def init_log_dict(self):
@@ -42,7 +44,6 @@ class MultiviewTrainer(BaseTrainer):
     def step(self, data):
         """Implement the optimization over image-space loss.
         """
-
         # Map to device
         rays = data['rays'].to(self.device).squeeze(0)
         img_gts = data['imgs'].to(self.device).squeeze(0)
