@@ -134,7 +134,7 @@ class BaseTrainer(ABC):
 
         # Training params
         self.epoch = 1
-        self.iteration = 1
+        self.iteration = 0
         self.max_epochs = num_epochs
         self.batch_size = batch_size
         self.exp_name = exp_name if exp_name else "unnamed_experiment"
@@ -584,7 +584,7 @@ class BaseTrainer(ABC):
         """ Total iteration steps the trainer took so far, for all epochs.
             Starts at 1 and ends at max_iterations
         """
-        return (self.epoch - 1) * self.iterations_per_epoch + self.iteration - 1
+        return (self.epoch - 1) * self.iterations_per_epoch + self.iteration
 
     @property
     def max_epochs(self) -> int:
