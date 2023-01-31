@@ -10,11 +10,8 @@ import os
 import glob
 import time
 import cv2
-import skimage
-import imageio
 import json
 from tqdm import tqdm
-import skimage.metrics
 import logging as log
 import numpy as np
 import torch
@@ -22,7 +19,7 @@ from torch.multiprocessing import Pool
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
 from wisp.ops.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
-from wisp.ops.image import resize_mip
+from wisp.ops.image import resize_mip, load_rgb
 
 """ A module for loading data files in the standard NeRF format, including extensions to the format
     supported by Instant Neural Graphics Primitives.
@@ -51,8 +48,7 @@ def _load_standard_imgs(frame, root, mip=None):
     # For some reason instant-ngp allows missing images that exist in the transform but not in the data.
     # Handle this... also handles the above case well too.
     if os.path.exists(fpath):
-        img = imageio.imread(fpath)
-        img = skimage.img_as_float32(img)
+        img = load_rgb(fpath)
         if mip is not None:
             img = resize_mip(img, mip, interpolation=cv2.INTER_AREA)
         return dict(basename=basename,

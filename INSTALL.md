@@ -4,22 +4,6 @@ NVIDIA Kaolin Wisp can be installed either manually or using Docker.
 
 ## Manual Installation
 
-### Prerequisite
-
-Install OpenEXR on Ubuntu:
-
-```
-sudo apt-get update
-sudo apt-get install libopenexr-dev 
-```
-
-Install OpenEXR on Windows:
-
-```
-pip install pipwin
-pipwin install openexr
-```
-
 ### Quick Start
 Full installation with interactive visualizer, for torch 1.12.1, cuda 11.3 and kaolin 0.12.0:
 ```
@@ -48,11 +32,32 @@ conda activate wisp
 pip install --upgrade pip
 ```
 
-#### 2. Install PyTorch
+#### 2. (Optional) Install OpenEXR
+
+Some features of our library, like support for the [RTMV dataset](http://www.cs.umd.edu/~mmeshry/projects/rtmv/) 
+and logging of multi-layer EXR files (which you can visualize with
+awesome tools like [tev](https://github.com/Tom94/tev)) will only work if you install OpenEXR.
+These steps are optional, and these features will only be enabled if you follow these steps.
+
+Install OpenEXR on Ubuntu:
+
+```
+sudo apt-get update
+sudo apt-get install libopenexr-dev 
+```
+
+Install OpenEXR on Windows:
+
+```
+pip install pipwin
+pipwin install openexr
+```
+
+#### 3. Install PyTorch
 
 You should first install PyTorch by following the [official instructions](https://pytorch.org/). The code has been tested with `1.9.1` to `1.12.0` on Ubuntu 20.04. 
 
-#### 3. Install Kaolin
+#### 4. Install Kaolin
 
 kaolin can be installed with pip (use the correct torch + cuda version):
 ```
@@ -68,7 +73,7 @@ See the [Kaolin Installation Doc](https://kaolin.readthedocs.io/en/latest/notes/
 
 _The minimum required version of Kaolin is `0.12.0`._  
 
-#### 4. Installing Wisp
+#### 5. Installing Wisp
 
 Install the rest of the dependencies from [requirements](requirements.txt).
 

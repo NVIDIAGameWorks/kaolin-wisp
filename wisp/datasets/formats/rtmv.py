@@ -17,14 +17,142 @@ import torch
 from torch.multiprocessing import Pool, cpu_count
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
-from wisp.ops.image import load_exr
+import wisp.ops.image as img_ops
 from wisp.ops.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
 from wisp.ops.pointcloud import create_pointcloud_from_images, normalize_pointcloud
-
+import cv2
 
 """ A module for loading data files in the RTMV format.
     See: http://www.cs.umd.edu/~mmeshry/projects/rtmv/
 """
+
+def load_rtmv_images(root, basename, use_depth=False, mip=None, srgb=False, bg_color='white'):
+    """Loads a set of RTMV images by path and basename.
+
+    Args:
+        root (str): Path to the root of the dataset.
+        basename (str): Basename of the RTMV image set to load.
+        use_depth (bool): if True, loads the depth data
+                          by default, this assumes the depth is stored in the "depth" buffer
+        mip (int): if not None, then each image will be resized by 2^mip
+        srgb (bool): if True, convert to SRGB
+
+    Returns:
+        (dictionary of torch.Tensors)
+
+        Keys:
+            image : torch.FloatTensor of size [H,W,3]
+            alpha : torch.FloatTensor of size [H,W,1]
+            depth : torch.FloatTensor of size [H,W,1]
+    """
+    # TODO(ttakikawa): There is a lot that this function does... break this up
+    from wisp.ops.image import resize_mip, linear_to_srgb
+
+    image_exts = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG']
+    exr_exts = ['.exr', '.EXR']
+    npz_exts = ['.npz', '.NPZ']
+
+    img = None
+    depth = None
+
+    # Try to load RGB first
+    found_image_path = None
+    for ext in image_exts + exr_exts:
+        image_path = os.path.join(root, basename + ext)
+        if os.path.exists(image_path):
+            found_image_path = image_path
+            break
+    if found_image_path is None:
+        raise Exception("No images found! Check if your dataset path contains an actual RTMV dataset.")
+
+    img_ext = os.path.splitext(found_image_path)[1]
+    if img_ext in image_exts:
+        img = img_ops.load_rgb(found_image_path)
+    elif img_ext in exr_exts:
+        try:
+            import pyexr
+        except:
+            raise Exception(
+                "The RTMV dataset provided uses EXR, but module pyexr is not available. "
+                "To install, run `pip install pyexr`. "
+                "You will likely also need `libopenexr`, which through apt you can install with "
+                "`apt-get install libopenexr-dev` and on Windows you can install with "
+                "`pipwin install openexr`.")
+        f = pyexr.open(found_image_path)
+        img = f.get("default")
+    else:
+        raise Exception(f"Invalid image extension for the image path {found_image_path}")
+
+    found_depth_path = None
+    for ext in [".depth.npz", ".depth.exr"] + exr_exts:
+        depth_path = os.path.join(root, basename + ext)
+        if os.path.exists(depth_path):
+            found_depth_path = depth_path
+            break
+    if found_depth_path is None:
+        raise Exception("No depth found! Check if your dataset path contains an actual RTMV dataset.")
+
+    depth_ext = os.path.splitext(found_depth_path)[1]
+    # Load depth
+    if depth_ext == ".npz":
+        depth = np.load(found_depth_path)['arr_0'][..., 0]
+    elif depth_ext == ".exr":
+        try:
+            import pyexr
+        except:
+            raise Exception(
+                "The RTMV dataset provided uses EXR, but module pyexr is not available. "
+                "To install, run `pip install pyexr`. "
+                "You will likely also need `libopenexr`, which through apt you can install with "
+                "`apt-get install libopenexr-dev` and on Windows you can install with "
+                "`pipwin install openexr`.")
+        
+        f = pyexr.open(found_depth_path)
+        
+        components = os.path.basename(found_depth_path).split('.')
+        if len(components) > 2 and components[-1] == "exr" and components[-2] == "depth":
+            depth = f.get('default')[:, :, 0]
+        else:
+            if len(f.channel_map['depth']) > 0:
+                depth = f.get("depth")
+            else:
+                raise Exception("Depth channel not found in the EXR file provided!")
+    else:
+        raise Exception(f"Invalid depth extension for the depth path {found_depth_path}")
+
+    alpha = img[..., 3:4]
+
+    if bg_color == 'black':
+        img[..., :3] -= (1 - alpha)
+        img = np.clip(img, 0.0, 1.0)
+    else:
+        img[..., :3] *= alpha
+        img[..., :3] += (1 - alpha)
+        img = np.clip(img, 0.0, 1.0)
+
+    if mip is not None:
+        # TODO(ttakikawa): resize_mip causes the mask to be squuezed... why?
+        img = resize_mip(img, mip, interpolation=cv2.INTER_AREA)
+        if use_depth:
+            depth = resize_mip(depth, mip, interpolation=cv2.INTER_NEAREST)
+            # mask_depth = resize_mip(mask_depth[...,None].astype(np.float), mip, interpolation=cv2.INTER_NEAREST)
+
+    img = torch.from_numpy(img)
+    if use_depth:
+        depth = torch.from_numpy(depth)
+
+    if use_depth:
+        mask_depth = torch.logical_and(depth > -1000, depth < 1000)
+        depth[~mask_depth] = -1.0
+        depth = depth[:, :, np.newaxis]
+
+    if srgb:
+        img = linear_to_srgb(img)
+
+    alpha = mask_depth
+
+    return img, alpha, depth
+
 
 
 def rescale_rtmv_intrinsics(camera, target_size, original_width, original_height):
@@ -87,7 +215,7 @@ def _parallel_load_rtmv_data(args):
     """
     torch.set_num_threads(1)
     with torch.no_grad():
-        image, alpha, depth = load_exr(**args['exr_args'])
+        image, alpha, depth = load_rtmv_images(**args['exr_args'])
         camera = load_rtmv_camera(args['camera_args']['path'])
         transformed_camera = transform_rtmv_camera(copy.deepcopy(camera), mip=args['camera_args']['mip'])
         return dict(
@@ -149,7 +277,8 @@ def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=Fals
                 dict(
                     task_basename=basename,
                     exr_args=dict(
-                        path=os.path.join(root, basename + '.exr'),
+                        root=root,
+                        basename=basename,
                         use_depth=True,
                         mip=mip,
                         srgb=True,
@@ -170,8 +299,7 @@ def load_rtmv_data(root, split, mip=None, normalize=True, return_pointcloud=Fals
         for img_index, json_file in tqdm(enumerate(json_files), desc='loading data'):
             with torch.no_grad():
                 basename = os.path.splitext(os.path.basename(json_file))[0]
-                exr_path = os.path.join(root, basename + ".exr")
-                image, alpha, depth = load_exr(exr_path, use_depth=True, mip=mip, srgb=True, bg_color=bg_color)
+                image, alpha, depth = load_rtmv_images(root, basename, use_depth=True, mip=mip, srgb=True, bg_color=bg_color)
                 json_path = os.path.join(root, basename + ".json")
                 camera = load_rtmv_camera(path=json_path)
                 transformed_camera = transform_rtmv_camera(copy.deepcopy(camera), mip=mip)
