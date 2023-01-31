@@ -162,7 +162,8 @@ class BaseNeuralField(WispModule):
 
                 for channel in supported_channels:
                     return_dict[channel] = output[channel]
-                torch.cuda.nvtx.range_pop()
+            
+            torch.cuda.nvtx.range_pop()
         
         if isinstance(channels, str):
             if channels in return_dict:
