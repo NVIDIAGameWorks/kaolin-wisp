@@ -14,6 +14,7 @@ class SampleRays:
     def __init__(self, num_samples):
         self.num_samples = num_samples
 
+    @torch.cuda.nvtx.range("SampleRays")
     def __call__(self, inputs):
         ray_idx = torch.randint(0, inputs['imgs'].shape[0], [self.num_samples],
             device=inputs['imgs'].device)

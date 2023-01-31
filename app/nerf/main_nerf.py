@@ -32,6 +32,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='A script for training simple NeRF variants.')
     parser.add_argument('--config', type=str,
                         help='Path to config file to replace defaults.')
+    parser.add_argument('--profile', action='store_true',
+                        help='Enable NVTX profiling')
 
     log_group = parser.add_argument_group('logging')
     log_group.add_argument('--exp-name', type=str,
@@ -489,4 +491,4 @@ else:
     if args.valid_only:
         trainer.validate()
     else:
-        trainer.train()  # Run in headless mode
+        trainer.train()

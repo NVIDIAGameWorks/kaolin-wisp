@@ -18,7 +18,6 @@ import logging as log
 
 from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from torch.utils.data import DataLoader
-from wisp.utils import PerfTimer
 from wisp.datasets import SDFDataset
 from wisp.ops.sdf import compute_sdf_iou
 from wisp.ops.image import hwc_to_chw
@@ -35,6 +34,7 @@ class SDFTrainer(BaseTrainer):
         self.log_dict['rgb_loss'] = 0
         self.log_dict['l2_loss'] = 0
 
+    @torch.cuda.nvtx.range("SDFTrainer.step")
     def step(self, data):
         """Implement training from ground truth TSDF.
         """
@@ -88,8 +88,9 @@ class SDFTrainer(BaseTrainer):
         self.log_dict['total_loss'] += loss.item() 
 
         # Backpropagate
-        loss.backward()
-        self.optimizer.step()
+        with torch.cuda.nvtx.range("SDFTrainer.backward"):
+            loss.backward()
+            self.optimizer.step()
 
     def log_cli(self):
         """Override logging.
@@ -109,9 +110,6 @@ class SDFTrainer(BaseTrainer):
                 out_x = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=0)
                 out_y = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=1)
                 out_z = self.renderer.sdf_slice(self.pipeline.nef.get_forward_function("sdf"), dim=2)
-                out_x = torch.FloatTensor(out_x)
-                out_y = torch.FloatTensor(out_y)
-                out_z = torch.FloatTensor(out_z)
                 self.writer.add_image(f'Cross-section/X/{d}', hwc_to_chw(out_x), self.epoch)
                 self.writer.add_image(f'Cross-section/Y/{d}', hwc_to_chw(out_y), self.epoch)
                 self.writer.add_image(f'Cross-section/Z/{d}', hwc_to_chw(out_z), self.epoch)

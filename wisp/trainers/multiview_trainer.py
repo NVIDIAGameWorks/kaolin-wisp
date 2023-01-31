@@ -13,7 +13,7 @@ from tqdm import tqdm
 import random
 import pandas as pd
 import torch
-from torch.utils.tensorboard import SummaryWriter
+from lpips import LPIPS
 from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
@@ -41,6 +41,7 @@ class MultiviewTrainer(BaseTrainer):
         super().init_log_dict()
         self.log_dict['rgb_loss'] = 0.0
 
+    @torch.cuda.nvtx.range("MultiviewTrainer.step")
     def step(self, data):
         """Implement the optimization over image-space loss.
         """
@@ -49,6 +50,7 @@ class MultiviewTrainer(BaseTrainer):
         img_gts = data['imgs'].to(self.device).squeeze(0)
 
         self.optimizer.zero_grad()
+            
         loss = 0
         
         if self.extra_args["random_lod"]:
@@ -74,9 +76,10 @@ class MultiviewTrainer(BaseTrainer):
 
         self.log_dict['total_loss'] += loss.item()
         
-        self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        with torch.cuda.nvtx.range("MultiviewTrainer.backward"):
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
         
     def log_cli(self):
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
@@ -85,10 +88,11 @@ class MultiviewTrainer(BaseTrainer):
         
         log.info(log_text)
 
-    def evaluate_metrics(self, rays, imgs, lod_idx, name=None, lpips_model=None):
+    def evaluate_metrics(self, rays, imgs, lod_idx, name=None):
         
         ray_os = list(rays.origins)
         ray_ds = list(rays.dirs)
+        lpips_model = LPIPS(net='vgg').cuda()
 
         psnr_total = 0.0
         lpips_total = 0.0
@@ -104,8 +108,7 @@ class MultiviewTrainer(BaseTrainer):
                 
                 gts = img.cuda()
                 psnr_total += psnr(rb.rgb[...,:3], gts[...,:3])
-                if lpips_model:
-                    lpips_total += lpips(rb.rgb[...,:3], gts[...,:3], lpips_model)
+                lpips_total += lpips(rb.rgb[...,:3], gts[...,:3], lpips_model)
                 ssim_total += ssim(rb.rgb[...,:3], gts[...,:3])
                 
                 out_rb = RenderBuffer(rgb=rb.rgb, depth=rb.depth, alpha=rb.alpha,
@@ -116,32 +119,20 @@ class MultiviewTrainer(BaseTrainer):
                 if name is not None:
                     out_name += "-" + name
 
-                try:
-                    write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
-                except:
-                    if hasattr(self, "exr_exception"):
-                        pass
-                    else:
-                        self.exr_exception = True
-                        log.info("Skipping EXR logging since pyexr is not found.")
-                write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb)
+                write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
+                write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb.numpy())
 
         psnr_total /= len(imgs)
         lpips_total /= len(imgs)  
         ssim_total /= len(imgs)
-        
-        metrics_dict = {"psnr": psnr_total, "ssim": ssim_total}
-
+                
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | {}: {:.2f}'.format(f"{name} PSNR", psnr_total)
         log_text += ' | {}: {:.6f}'.format(f"{name} SSIM", ssim_total)
-        
-        if lpips_model:
-            log_text += ' | {}: {:.6f}'.format(f"{name} LPIPS", lpips_total)
-            metrics_dict["lpips"] = lpips_total
+        log_text += ' | {}: {:.6f}'.format(f"{name} LPIPS", lpips_total)
         log.info(log_text)
  
-        return {"psnr" : psnr_total, "ssim": ssim_total}
+        return {"psnr" : psnr_total, "lpips": lpips_total, "ssim": ssim_total}
 
     def render_final_view(self, num_angles, camera_distance):
         angles = np.pi * 0.1 * np.array(list(range(num_angles + 1)))
@@ -207,22 +198,12 @@ class MultiviewTrainer(BaseTrainer):
             os.makedirs(self.valid_log_dir)
 
         lods = list(range(self.pipeline.nef.grid.num_lods))
-        try:
-            from lpips import LPIPS
-            lpips_model = LPIPS(net='vgg').cuda()
-        except:
-            lpips_model = None
-            if hasattr(self, "lpips_exception"):
-                pass
-            else:
-                self.lpips_exception = True
-                log.info("Skipping LPIPS since lpips is not found.")
-        evaluation_results = self.evaluate_metrics(data["rays"], imgs, lods[-1], 
-                                                    f"lod{lods[-1]}", lpips_model=lpips_model)
+        evaluation_results = self.evaluate_metrics(data["rays"], imgs, lods[-1], f"lod{lods[-1]}")
         record_dict.update(evaluation_results)
         if self.using_wandb:
-            for key in evaluation_results:
-                log_metric_to_wandb(f"Validation/{key}", evaluation_results[key], self.epoch)
+            log_metric_to_wandb("Validation/psnr", evaluation_results['psnr'], self.epoch)
+            log_metric_to_wandb("Validation/lpips", evaluation_results['lpips'], self.epoch)
+            log_metric_to_wandb("Validation/ssim", evaluation_results['ssim'], self.epoch)
         
         df = pd.DataFrame.from_records([record_dict])
         df['lod'] = lods[-1]

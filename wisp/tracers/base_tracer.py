@@ -9,10 +9,10 @@
 from abc import abstractmethod, ABC
 from typing import Dict, Any
 import inspect
+import torch
 import torch.nn as nn
 from wisp.core import Rays
 from wisp.core import WispModule
-
 
 class BaseTracer(WispModule, ABC):
     """Base class for all tracers within Wisp.
@@ -150,7 +150,9 @@ class BaseTracer(WispModule, ABC):
                 default_arg = getattr(self, _arg, None)
                 if default_arg is not None:
                     input_args[_arg] = default_arg
-        return self.trace(nef, rays, requested_channels, requested_extra_channels, **input_args)
+        with torch.cuda.nvtx.range("Tracer.trace"):
+            rb = self.trace(nef, rays, requested_channels, requested_extra_channels, **input_args)
+        return rb
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.

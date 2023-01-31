@@ -362,9 +362,10 @@ class BaseTrainer(ABC):
         """
         Override this if some very specific training procedure is needed.
         """
-        self.is_optimization_running = True
-        while self.is_optimization_running:
-            self.iterate()
+        with torch.autograd.profiler.emit_nvtx(enabled=self.extra_args["profile"]):
+            self.is_optimization_running = True
+            while self.is_optimization_running:
+                self.iterate()
 
     #######################
     # Training Events
