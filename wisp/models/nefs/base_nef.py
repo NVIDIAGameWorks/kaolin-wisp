@@ -9,6 +9,7 @@
 import inspect
 from abc import abstractmethod
 from typing import Dict, Any
+import torch
 from wisp.core import WispModule
 
 
@@ -135,7 +136,7 @@ class BaseNeuralField(WispModule):
         
         return_dict = {}
         for fn in self._forward_functions:
-
+            torch.cuda.nvtx.range_push(f"{fn.__name__}")
             output_channels = self._forward_functions[fn]
             # Filter the set of channels supported by the current forward function
             supported_channels = output_channels & requested_channels
@@ -161,6 +162,7 @@ class BaseNeuralField(WispModule):
 
                 for channel in supported_channels:
                     return_dict[channel] = output[channel]
+            torch.cuda.nvtx.range_pop()
         
         if isinstance(channels, str):
             if channels in return_dict:

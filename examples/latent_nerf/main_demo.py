@@ -106,7 +106,8 @@ trainer = MultiviewTrainer(pipeline=pipeline,
                                valid_every=-1,
                                save_as_new=False,
                                model_format='full',
-                               mip=0
+                               mip=0,
+                               profile=False
                            ),
                            render_tb_every=100,
                            save_every=100,

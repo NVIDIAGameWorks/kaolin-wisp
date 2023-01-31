@@ -41,6 +41,7 @@ class MultiviewTrainer(BaseTrainer):
         super().init_log_dict()
         self.log_dict['rgb_loss'] = 0.0
 
+    @torch.cuda.nvtx.range("MultiviewTrainer.step")
     def step(self, data):
         """Implement the optimization over image-space loss.
         """
@@ -74,9 +75,10 @@ class MultiviewTrainer(BaseTrainer):
 
         self.log_dict['total_loss'] += loss.item()
         
-        self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        with torch.cuda.nvtx.range("MultiviewTrainer.backward"):
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
         
     def log_cli(self):
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)

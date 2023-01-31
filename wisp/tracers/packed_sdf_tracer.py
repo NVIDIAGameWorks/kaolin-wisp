@@ -11,7 +11,6 @@ import torch.nn.functional as F
 import torch.nn as nn
 import kaolin.render.spc as spc_render
 from wisp.core import RenderBuffer
-from wisp.utils import PsDebugger, PerfTimer
 from wisp.ops.differential import finitediff_gradient
 from wisp.ops.geometric import find_depth_bound
 from wisp.tracers import BaseTracer
@@ -77,7 +76,6 @@ class PackedSDFTracer(BaseTracer):
         if lod_idx is None:
             lod_idx = nef.grid.num_lods - 1
 
-        timer = PerfTimer(activate=False)
         invres = 1.0
 
         # Trace SPC
@@ -104,7 +102,6 @@ class PackedSDFTracer(BaseTracer):
 
         curr_pidx = pidx[first_hit].long()
         
-        timer.check("initial")
         # Doing things with where is not super efficient, but we have to make do with what we have...
         with torch.no_grad():
 
@@ -112,7 +109,6 @@ class PackedSDFTracer(BaseTracer):
             dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
             dist[~mask] = 20
             dist_prev = dist.clone()
-            timer.check("first")
 
             for i in range(num_steps):
                 # Two-stage Ray Marching
@@ -142,7 +138,6 @@ class PackedSDFTracer(BaseTracer):
                 if not mask.any():
                     break
                 dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
-            timer.check("step done")
     
         x_buffer = torch.zeros_like(rays.origins)
         depth_buffer = torch.zeros_like(rays.origins[...,0:1])
@@ -169,6 +164,5 @@ class PackedSDFTracer(BaseTracer):
             rgb_buffer[..., :3] = (normal_buffer + 1.0) / 2.0
         
         alpha_buffer[hit_buffer] = 1.0
-        timer.check("populate buffers")
         return RenderBuffer(xyz=x_buffer, depth=depth_buffer, hit=hit_buffer, normal=normal_buffer,
                             rgb=rgb_buffer, alpha=alpha_buffer, **extra_outputs)

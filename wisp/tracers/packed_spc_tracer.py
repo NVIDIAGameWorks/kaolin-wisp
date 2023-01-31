@@ -1,6 +1,5 @@
 import torch
 import kaolin.render.spc as spc_render
-from wisp.utils import PerfTimer
 from wisp.tracers import BaseTracer
 from wisp.core import RenderBuffer
 
@@ -48,7 +47,6 @@ class PackedSPCTracer(BaseTracer):
         Returns:
             (wisp.RenderBuffer): A dataclass which holds the output buffers from the render.
         """
-        timer = PerfTimer(activate=False, show_memory=False)
         N = rays.origins.shape[0]
 
         # By default, SPCRFTracer will use the highest level of detail for the ray sampling.
@@ -60,7 +58,6 @@ class PackedSPCTracer(BaseTracer):
         pidx = raytrace_results.pidx
         depths = raytrace_results.depth
 
-        timer.check("Raytrace")
 
         # Get the indices of the ray tensor which correspond to hits
         first_hits_mask = spc_render.mark_pack_boundaries(ridx)
@@ -71,7 +68,6 @@ class PackedSPCTracer(BaseTracer):
         # Get the color for each ray
         color = nef(ridx_hit=first_hits_point.long(), channels="rgb")
 
-        timer.check("RGBA")
         del ridx, pidx, rays
 
         # Fetch colors and depth for closest hits
@@ -90,7 +86,5 @@ class PackedSPCTracer(BaseTracer):
         hit[first_hits_ray.long()] = alpha[..., 0] > 0.0
         rgb[first_hits_ray.long(), :3] = color
         out_alpha[first_hits_ray.long()] = alpha
-
-        timer.check("Composit")
 
         return RenderBuffer(depth=depth, hit=hit, rgb=rgb, alpha=out_alpha)

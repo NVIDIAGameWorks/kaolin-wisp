@@ -32,7 +32,8 @@ def parse_args():
                                                  'Implicit 3D Shapes".')
     parser.add_argument('--config', type=str,
                         help='Path to config file to replace defaults.')
-
+    parser.add_argument('--profile', action='store_true',
+                        help='Enable NVTX profiling')
     log_group = parser.add_argument_group('logging')
     log_group.add_argument('--exp-name', type=str,
                            help='Experiment name, unique id for trainers, logs.')

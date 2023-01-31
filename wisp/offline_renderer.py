@@ -11,7 +11,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from wisp.core import RenderBuffer, Rays
-from wisp.utils import PsDebugger, PerfTimer
 from wisp.ops.shaders import matcap_shader, pointlight_shadow_shader
 from wisp.ops.differential import finitediff_gradient
 from wisp.ops.geometric import normalized_grid, normalized_slice
@@ -174,7 +173,6 @@ class OfflineRenderer():
             (wisp.core.RenderBuffer): The renderer image.
         """
         # Differentiable Renderer
-        timer = PerfTimer(activate=self.perf)
         if self.perf:
             _time = time.time()
 
