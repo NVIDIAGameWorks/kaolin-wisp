@@ -12,11 +12,11 @@ import argparse
 import logging
 import numpy as np
 import torch
+import wisp
 from wisp.app_utils import default_log_setup, args_to_log_format
 import wisp.config_parser as config_parser
 from wisp.framework import WispState
-from wisp.datasets import MultiviewDataset
-from wisp.datasets.transforms import SampleRays
+from wisp.datasets import MultiviewDataset, SampleRays
 from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid
 from wisp.tracers import BaseTracer, PackedRFTracer
 from wisp.models.nefs import BaseNeuralField, NeuralRadianceField
@@ -240,7 +240,7 @@ def parse_args():
     return args, args_dict
 
 
-def load_dataset(args) -> torch.utils.data.Dataset:
+def load_dataset(args) -> MultiviewDataset:
     """ Loads a multiview dataset comprising of pairs of images and calibrated cameras.
     The types of supported datasets are defined by multiview_dataset_format:
     'standard' - refers to the standard NeRF format popularized by Mildenhall et al. 2020,
@@ -250,16 +250,19 @@ def load_dataset(args) -> torch.utils.data.Dataset:
             This dataset includes depth information which allows for performance improving optimizations in some cases.
     """
     transform = SampleRays(num_samples=args.num_rays_sampled_per_img)
-    train_dataset = MultiviewDataset(dataset_path=args.dataset_path,
-                                     multiview_dataset_format=args.multiview_dataset_format,
-                                     mip=args.mip,
-                                     bg_color=args.bg_color,
-                                     dataset_num_workers=args.dataset_num_workers,
-                                     transform=transform)
-    return train_dataset
+    train_dataset = wisp.datasets.load_multiview_dataset(dataset_path=args.dataset_path,
+                                                         split='train',
+                                                         mip=args.mip,
+                                                         bg_color=args.bg_color,
+                                                         dataset_num_workers=args.dataset_num_workers,
+                                                         transform=transform)
+    validation_dataset = None
+    if args.valid_every > -1 or args.valid_only:
+        validation_dataset = train_dataset.create_split(split='val', transform=None)
+    return train_dataset, validation_dataset
 
 
-def load_grid(args, dataset: torch.utils.data.Dataset) -> BLASGrid:
+def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
     """ Wisp's implementation of NeRF uses feature grids to improve the performance and quality (allowing therefore,
     interactivity).
     This function loads the feature grid to use within the neural pipeline.
@@ -269,13 +272,12 @@ def load_grid(args, dataset: torch.utils.data.Dataset) -> BLASGrid:
     See corresponding grid constructors for each of their arg details.
     """
     grid = None
-    # Optimization: For octrees based grids, if dataset contains depth info, initialize only cells known to be occupied
-    has_depth_supervision = getattr(dataset, "coords", None) is not None
 
+    # Optimization: For octrees based grids, if dataset contains depth info, initialize only cells known to be occupied
     if args.grid_type == "OctreeGrid":
-        if has_depth_supervision:
+        if dataset.supports_depth():
             grid = OctreeGrid.from_pointcloud(
-                pointcloud=dataset.coords,
+                pointcloud=dataset.as_pointcloud(),
                 feature_dim=args.feature_dim,
                 base_lod=args.base_lod,
                 num_lods=args.num_lods,
@@ -295,9 +297,9 @@ def load_grid(args, dataset: torch.utils.data.Dataset) -> BLASGrid:
                 feature_bias=args.feature_bias,
             )
     elif args.grid_type == "CodebookOctreeGrid":
-        if has_depth_supervision:
+        if dataset.supports_depth:
             grid = CodebookOctreeGrid.from_pointcloud(
-                pointcloud=dataset.coords,
+                pointcloud=dataset.as_pointcloud(),
                 feature_dim=args.feature_dim,
                 base_lod=args.base_lod,
                 num_lods=args.num_lods,
@@ -359,7 +361,7 @@ def load_grid(args, dataset: torch.utils.data.Dataset) -> BLASGrid:
     return grid
 
 
-def load_neural_field(args, dataset: torch.utils.data.Dataset) -> BaseNeuralField:
+def load_neural_field(args, dataset: MultiviewDataset) -> BaseNeuralField:
     """ Creates a "Neural Field" instance which converts input coordinates to some output signal.
     Here a NeuralRadianceField is created, which maps 3D coordinates (+ 2D view direction) -> RGB + density.
     The NeuralRadianceField uses spatial feature grids internally for faster feature interpolation and raymarching.
@@ -416,7 +418,7 @@ def load_neural_pipeline(args, dataset, device) -> Pipeline:
     return pipeline
 
 
-def load_trainer(pipeline, train_dataset, device, scene_state, args, args_dict) -> BaseTrainer:
+def load_trainer(pipeline, train_dataset, validation_dataset, device, scene_state, args, args_dict) -> BaseTrainer:
     """ Loads the NeRF trainer.
     The trainer is responsible for managing the optimization life-cycles and can be operated in 2 modes:
     - Headless, which will run the train() function until all training steps are exhausted.
@@ -431,7 +433,8 @@ def load_trainer(pipeline, train_dataset, device, scene_state, args, args_dict) 
     optimizer_params = config_parser.get_args_for_function(args, optimizer_cls)
 
     trainer = MultiviewTrainer(pipeline=pipeline,
-                               dataset=train_dataset,
+                               train_dataset=train_dataset,
+                               validation_dataset=validation_dataset,
                                num_epochs=args.epochs,
                                batch_size=args.batch_size,
                                optim_cls=optimizer_cls,
@@ -478,10 +481,12 @@ args, args_dict = parse_args()  # Obtain args by priority: cli args > config yam
 default_log_setup(args.log_level)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-train_dataset = load_dataset(args=args)
+train_dataset, validation_dataset = load_dataset(args=args)
 pipeline = load_neural_pipeline(args=args, dataset=train_dataset, device=device)
 scene_state = WispState()   # Joint trainer / app state
-trainer = load_trainer(pipeline=pipeline, train_dataset=train_dataset, device=device, scene_state=scene_state,
+trainer = load_trainer(pipeline=pipeline,
+                       train_dataset=train_dataset, validation_dataset=validation_dataset,
+                       device=device, scene_state=scene_state,
                        args=args, args_dict=args_dict)
 app = load_app(args=args, scene_state=scene_state, trainer=trainer)
 

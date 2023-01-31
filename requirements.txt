@@ -25,3 +25,4 @@ pynvml
 setuptools==59.5.0
 wandb>=0.13.5
 pytest>=7.1.0
+attrdict

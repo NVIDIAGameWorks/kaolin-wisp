@@ -14,7 +14,6 @@ from wisp.renderer.gizmos.gizmo import Gizmo
 from wisp.renderer.app.wisp_app import WispApp
 from wisp.renderer.core.api import request_redraw
 from wisp.framework import WispState, watch
-from wisp.datasets import MultiviewDataset, SDFDataset
 
 
 class OptimizationApp(WispApp):
@@ -42,19 +41,6 @@ class OptimizationApp(WispApp):
         # This attribute will signal the renderer that some camera controllers should align with this plane,
         # as well as what gizmos (e.g: reference grids, axes) to draw on the canvas.
         wisp_state.renderer.reference_grids = ['xz']
-
-        # MultiviewDatasets come from images with a predefined background color.
-        # The following lines can be uncommented to initialize the renderer canvas background color
-        # to the train data bg color if it is black or white.
-        #
-        # train_sets = self.wisp_state.optimization.train_data
-        # if train_sets is not None and len(train_sets) > 0:
-        #     train_set = train_sets[0]
-        #     if isinstance(train_set, MultiviewDataset):
-        #         if train_set.bg_color == 'white':
-        #             wisp_state.renderer.clear_color_value = (1.0, 1.0, 1.0)
-        #         elif train_set.bg_color == 'black':
-        #             wisp_state.renderer.clear_color_value = (0.0, 0.0, 0.0)
 
     def create_widgets(self) -> List[WidgetImgui]:
         """ Returns the list of widgets the gui will display, in order. """

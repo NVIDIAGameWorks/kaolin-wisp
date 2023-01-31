@@ -83,12 +83,14 @@ def get_module(name, module_type=None):
 def get_args_for_function(args, func):
     """ Given a func (for example an __init__(..) function or from_X(..)), and also the parsed args,
     return the subset of args that func expects and args contains. """
+    if isinstance(args, argparse.Namespace):
+        args = vars(args)   # Namespace -> dict
     has_kwargs = inspect.getfullargspec(func).varkw != None
     if has_kwargs:
-        collected_args = vars(args)
+        collected_args = args
     else:
         parameters = dict(inspect.signature(func).parameters)
-        collected_args = {a: getattr(args, a) for a in parameters if hasattr(args, a)}
+        collected_args = {a: args[a] for a in parameters if a in args}
     return collected_args
 
 

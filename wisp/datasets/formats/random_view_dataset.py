@@ -20,6 +20,7 @@ from torch.utils.data import Dataset
 from wisp.utils import DotDict
 from wisp.ops.raygen import generate_pinhole_rays, generate_centered_pixel_coords
 
+# TODO (operel): integrate with WispDataset interface, currently unused by any of the apps
 
 def spherical_eye(
     radius=1,
