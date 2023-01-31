@@ -11,7 +11,6 @@ import skimage
 import skimage.metrics
 import numpy as np
 import torch
-from lpips import LPIPS
 
 
 """ A module for image based metrics """
@@ -50,6 +49,11 @@ def lpips(rgb, gts, lpips_model=None):
     Returns:
         (float): The LPIPS score
     """
+    try:
+        from lpips import LPIPS
+    except:
+        raise Exception(
+            "Module lpips not available. To install, run `pip install lpips`")
     assert (rgb.max() <= 1.05 and rgb.min() >= -0.05)
     assert (gts.max() <= 1.05 and gts.min() >= -0.05)
     assert (rgb.shape[-1] == 3)
