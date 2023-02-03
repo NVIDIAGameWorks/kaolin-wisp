@@ -76,12 +76,23 @@ class HashGrid(BLASGrid):
         self.max_lod = self.num_lods - 1
 
         self.codebook_size = 2 ** self.codebook_bitwidth
-        self.codebook = nn.ParameterList([])
-        for res in resolutions:
+        self.register_buffer("codebook_lod_sizes", torch.zeros(self.num_lods, dtype=torch.int32))
+        self.register_buffer("codebook_lod_first_idx", torch.zeros(self.num_lods, dtype=torch.int32))
+        
+
+        self.codebook = []
+
+        offset = 0
+        for lod, res in enumerate(resolutions):
             num_pts = res ** 3
             fts = torch.zeros(min(self.codebook_size, num_pts), self.feature_dim)
             fts += torch.randn_like(fts) * self.feature_std
-            self.codebook.append(nn.Parameter(fts))
+            self.codebook.append(fts)
+            self.codebook_lod_sizes[lod] = fts.shape[0]
+            self.codebook_lod_first_idx[lod] = offset
+
+            offset += fts.shape[0]
+        self.codebook = nn.Parameter(torch.cat(self.codebook, dim=0))
 
     @classmethod
     def from_octree(cls,
@@ -215,7 +226,7 @@ class HashGrid(BLASGrid):
             batch, num_samples, coords_dim = coords.shape  # batch x num_samples
             coords = coords.reshape(batch * num_samples, coords_dim)
 
-        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth, lod_idx, self.codebook)
+        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth, lod_idx, self.codebook, self.codebook_lod_sizes, self.codebook_lod_first_idx)
 
         if self.multiscale_type == 'cat':
             return feats.reshape(*output_shape, feats.shape[-1])

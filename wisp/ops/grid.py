@@ -71,44 +71,46 @@ class HashGridInterpolate(torch.autograd.Function):
 
     @staticmethod
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
-    def forward(ctx, coords, resolutions, codebook_bitwidth, lod_idx, *codebook):
+    def forward(ctx, coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_sizes, codebook_first_idx):
         if codebook[0].shape[-1] % 2 == 1:
             raise Exception("The codebook feature dimension needs to be a multiple of 2.")
 
+
         # TODO(ttakikawa): Make the kernel use the LOD
         feats_out = wisp_C.ops.hashgrid_interpolate_cuda(coords.float().contiguous(), 
-                                                     codebook,
-                                                     resolutions,
-                                                     codebook_bitwidth).contiguous()
+                                                         codebook,
+                                                         codebook_first_idx,
+                                                         resolutions,
+                                                         codebook_bitwidth).contiguous()
     
-        ctx.save_for_backward(coords, *codebook)
+        ctx.save_for_backward(coords, codebook, codebook_first_idx)
         ctx.resolutions = resolutions
         ctx.num_lods = len(resolutions)
-        ctx.codebook_shapes = [_c.shape for _c in codebook]
         ctx.codebook_size = 2**codebook_bitwidth
         ctx.codebook_bitwidth = codebook_bitwidth
-        ctx.feature_dim = codebook[0].shape[-1]
+        ctx.feature_dim = codebook.shape[-1]
         return feats_out
     
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
+    
         coords = ctx.saved_tensors[0]
-        codebook = ctx.saved_tensors[1:]
+        codebook = ctx.saved_tensors[1]
+        codebook_first_idx = ctx.saved_tensors[2]
         resolutions = ctx.resolutions
-        codebook_size = ctx.codebook_size
         feature_dim = ctx.feature_dim
-        codebook_shapes = ctx.codebook_shapes
         codebook_bitwidth = ctx.codebook_bitwidth
         
 
         grad_codebook = wisp_C.ops.hashgrid_interpolate_backward_cuda(
                 coords.float().contiguous(), grad_output.contiguous(), codebook,
-                resolutions, [c_[0] for c_ in codebook_shapes], 
+                codebook_first_idx,
+                resolutions,  
                 codebook_bitwidth, feature_dim, ctx.needs_input_grad[0])
-        return (None, None, None, None, *grad_codebook)
+        return (None, None, None, None, grad_codebook, None, None)
         
-def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
+def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_sizes, codebook_first_idx):
     """A hash-grid query + interpolation function, accelerated with CUDA.
     
     Args:
@@ -123,6 +125,7 @@ def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook):
     """
     batch, dim = coords.shape
     feats = HashGridInterpolate.apply(coords.contiguous(), resolutions,
-                                      codebook_bitwidth, lod_idx, *[_c for _c in codebook])
-    feature_dim = codebook[0].shape[1] * len(resolutions)
+                                      codebook_bitwidth, lod_idx, codebook,
+                                      codebook_sizes, codebook_first_idx)
+    feature_dim = codebook.shape[1] * len(resolutions)
     return feats.reshape(batch, feature_dim)
