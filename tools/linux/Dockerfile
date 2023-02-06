@@ -10,6 +10,7 @@ WORKDIR /wisp
 COPY . .
 
 RUN apt-get -y update \
+    && apt-get -y upgrade \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libopenexr-dev \
         git \
@@ -21,10 +22,5 @@ RUN pip install pyexr
 RUN python setup.py develop
 
 RUN if [ -z "${INSTALL_RENDERER}" ]; then \
-        git clone --recursive https://github.com/inducer/pycuda && \
-        cd ./pycuda && \
-        python configure.py --cuda-root=/usr/local/cuda/ --cuda-enable-gl && \
-        python setup.py develop && \
-        cd /wisp && \
         pip install -r requirements_app.txt; \
     fi
