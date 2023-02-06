@@ -21,6 +21,16 @@ from wisp.renderer.core.api import BottomLevelRenderer, RayTracedRenderer, Frame
 from wisp.gfx.datalayers import CameraDatalayers
 
 
+def enable_amp(func):
+    """ An extension to @torch.cuda.amp.autocast which queries WispState to check if
+    mixed precision should be enabled.
+    """
+    def _enable_amp(self: RendererCore, *args, **kwargs):
+        with torch.cuda.amp.autocast(enabled=self.state.renderer.enable_amp):
+            return func(self, *args, **kwargs)
+    return _enable_amp
+
+
 class RendererCore:
     def __init__(self, state: WispState):
         self.state = state
@@ -177,6 +187,7 @@ class RendererCore:
             bl_renderer_state.toggled_data_layers = toggled_data_layers
 
     @torch.no_grad()
+    @enable_amp
     def redraw(self) -> None:
         """ Allow bottom-level renderers to refresh internal information, such as data layers. """
         # Read phase: sync with scene graph, create renderers for new objects added
@@ -193,6 +204,7 @@ class RendererCore:
         self._update_scene_graph()
 
     @torch.no_grad()
+    @enable_amp
     def render(self, time_delta=None, force_render=False) -> RenderBuffer:
         """Render a frame.
 

@@ -74,7 +74,8 @@ class BaseTrainer(ABC):
     def __init__(self, pipeline, train_dataset: WispDataset, num_epochs, batch_size,
                  optim_cls, lr, weight_decay, grid_lr_weight, optim_params, log_dir, device,
                  exp_name=None, info=None, scene_state=None, extra_args=None, validation_dataset: WispDataset = None,
-                 render_tb_every=-1, save_every=-1, trainer_mode='validate', using_wandb=False):
+                 render_tb_every=-1, save_every=-1, trainer_mode='validate', using_wandb=False,
+                 enable_amp=True):
         """Constructor.
         
         Args:
@@ -99,6 +100,7 @@ class BaseTrainer(ABC):
             trainer_mode (str): 'train' or 'validate' for choosing running training or validation only modes.
                 Currently used only for titles within logs.
             using_wandb (bool): When True, weights & biases will be used for logging.
+            enable_amp (bool): If enabled, the step() training function will use mixed precision.
         """
         log.info(f'Info: \n{info}')
         log.info(f'Training on {extra_args["dataset_path"]}')
@@ -164,6 +166,7 @@ class BaseTrainer(ABC):
         self.render_tb_every = render_tb_every
         self.save_every = save_every
         self.using_wandb = using_wandb
+        self.enable_amp = enable_amp
 
     def populate_scenegraph(self):
         """ Updates the scenegraph with information about available objects.
@@ -333,7 +336,8 @@ class BaseTrainer(ABC):
                     data = self.next_batch()
             if self.is_any_iterations_remaining():
                 self.pre_step()
-                self.step(data)
+                with torch.cuda.amp.autocast(self.enable_amp):
+                    self.step(data)
                 self.post_step()
                 iter_end_time = time.time()
             else:

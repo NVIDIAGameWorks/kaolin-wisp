@@ -71,16 +71,15 @@ class MultiviewTrainer(BaseTrainer):
             # Sample only the max lod (None is max lod by default)
             lod_idx = None
 
-        with torch.cuda.amp.autocast():
-            rb = self.pipeline(rays=rays, lod_idx=lod_idx, channels=["rgb"])
+        rb = self.pipeline(rays=rays, lod_idx=lod_idx, channels=["rgb"])
 
-            # RGB Loss
-            #rgb_loss = F.mse_loss(rb.rgb, img_gts, reduction='none')
-            rgb_loss = torch.abs(rb.rgb[..., :3] - img_gts[..., :3])
-            
-            rgb_loss = rgb_loss.mean()
-            loss += self.extra_args["rgb_loss"] * rgb_loss
-            self.log_dict['rgb_loss'] += rgb_loss.item()
+        # RGB Loss
+        #rgb_loss = F.mse_loss(rb.rgb, img_gts, reduction='none')
+        rgb_loss = torch.abs(rb.rgb[..., :3] - img_gts[..., :3])
+
+        rgb_loss = rgb_loss.mean()
+        loss += self.extra_args["rgb_loss"] * rgb_loss
+        self.log_dict['rgb_loss'] += rgb_loss.item()
 
         self.log_dict['total_loss'] += loss.item()
         

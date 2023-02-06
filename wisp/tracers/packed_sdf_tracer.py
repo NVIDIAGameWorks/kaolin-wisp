@@ -105,8 +105,9 @@ class PackedSDFTracer(BaseTracer):
         # Doing things with where is not super efficient, but we have to make do with what we have...
         with torch.no_grad():
 
-            # Calculate SDF for current set of query points   
-            dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
+            # Calculate SDF for current set of query points
+            sdf = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
+            dist[mask] = sdf.to(dist.dtype)
             dist[~mask] = 20
             dist_prev = dist.clone()
 
@@ -137,7 +138,8 @@ class PackedSDFTracer(BaseTracer):
                 curr_pidx = torch.where(mask, pidx[curr_idxes.long()].long(), curr_pidx)
                 if not mask.any():
                     break
-                dist[mask] = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
+                sdf = nef(coords=x[mask], lod_idx=lod_idx, pidx=curr_pidx[mask], channels="sdf") * invres * step_size
+                dist[mask] = sdf.to(dist.dtype)
     
         x_buffer = torch.zeros_like(rays.origins)
         depth_buffer = torch.zeros_like(rays.origins[...,0:1])
@@ -151,7 +153,7 @@ class PackedSDFTracer(BaseTracer):
         for channel in extra_channels:
             feats = nef(coords=x[hit], lod_idx=lod_idx, channels=channel)
             extra_buffer = torch.zeros(*rays.origins.shape[:-1], feats.shape[-1], device=feats.device)
-            extra_buffer[hit_buffer] = feats
+            extra_buffer[hit_buffer] = feats.to(extra_buffer.dtype)
 
         x_buffer[hit_buffer] = x[hit]
         depth_buffer[hit_buffer] = t[hit]

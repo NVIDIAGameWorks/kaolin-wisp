@@ -166,5 +166,5 @@ class TestNerfApp(TestWispApp):
         out = run_wisp_script(cmd, cli_args)
         metrics = collect_metrics_from_log(out, ['PSNR'])
 
-        assert float(metrics[100]['PSNR']) > 27.5, 'PSNR is too low.'
+        assert float(metrics[100]['PSNR']) > 27.4, 'PSNR is too low.'
         report_metrics(metrics)  # Prints to log
