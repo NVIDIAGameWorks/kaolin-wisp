@@ -82,7 +82,7 @@ class WispApp(ABC):
 
         # Create main app window & initialize GL context
         # glumpy with a specialized glfw backend takes care of that (backend is imgui integration aware)
-        window = self._create_window(self.width, self.height, window_name)
+        window = self._create_window(self.width, self.height, window_name, gl_version=wisp_state.renderer.gl_version)
         self.register_io_mappings()
 
         # Initialize gui, assumes the window is managed by glumpy with glfw
@@ -242,10 +242,9 @@ class WispApp(ABC):
         """
         app.run()   # App clock should always run as frequently as possible (background tasks should not be limited)
 
-    def _create_window(self, width, height, window_name):
+    def _create_window(self, width, height, window_name, gl_version):
         # Currently assume glfw backend due to integration with imgui
-        app.use("glfw_imgui")
-
+        app.use(f"glfw_imgui ({gl_version})")
         win_config = app.configuration.Configuration()
         if self.wisp_state.renderer.antialiasing == 'msaa_4x':
             win_config.samples = 4
