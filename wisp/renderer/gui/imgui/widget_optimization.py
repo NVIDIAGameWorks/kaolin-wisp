@@ -43,7 +43,7 @@ class WidgetOptimization(WidgetImgui):
                 state.optimization.running = False
                 state.renderer.background_tasks_paused = True
         else:
-            if curr_epoch == 1 and curr_iteration == 1:
+            if curr_epoch == 1 and curr_iteration == 0:
                 if imgui.button("Start Training", width=button_width):
                     state.optimization.running = True
                     state.renderer.background_tasks_paused = False
