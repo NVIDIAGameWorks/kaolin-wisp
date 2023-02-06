@@ -23,17 +23,33 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         mode is on.
     """
 
-    def __init__(self, nef: NeuralRadianceField, tracer: PackedRFTracer, batch_size=2**14, num_steps=None,
-                 raymarch_type=None, *args, **kwargs):
+    def __init__(self, nef: BaseNeuralField, tracer: PackedRFTracer, batch_size: int = 2**14, num_steps: int = None,
+                 raymarch_type: str = None, *args, **kwargs):
+        """
+        Construct a new neural radiance field from the nef + tracer pipeline.
+        By default, tracing will use the tracer args, unless specific values are specified for overriding those
+        defaults.
+
+        Args:
+            nef (BaseNeuralField): Neural field component of the pipeline. The neural field is expected to be ray based.
+            tracer (PackedRFTracer): Tracer component of the pipeline, assumed to trace radiance fields.
+            batch_size (int): Amount of rays processed per batch, in inference time. A high default is in place,
+                since often tracers are configured for training batch sizes, which are suboptimal for inference time.
+            num_steps (int): Number of steps used for raymarching, the exact functionality depends on raymarch_type
+                (see for example, OctreeAS.raymarch). By default, the tracer num_steps will be used. Specify an explicit
+                value to override.
+            raymarch_type (str): raymarch_type sampling strategy to use (see for example, OctreeAS.raymarch).
+                By default, the tracer num_steps will be used. Specify an explicit value to override.
+        """
         super().__init__(nef, tracer, batch_size, *args, **kwargs)
         if num_steps is None:
-            num_steps = 2
+            num_steps = tracer.num_steps
         self.num_steps = num_steps
-        self.num_steps_movement = max(num_steps // 4, 1)
+        self.num_steps_interactive = max(num_steps // 4, 1)
         if raymarch_type is None:
-            raymarch_type = 'voxel'
+            raymarch_type = tracer.raymarch_type
         self.raymarch_type = raymarch_type
-        self.bg_color = 'black'
+        self.bg_color = tracer.bg_color
 
         self._last_state = dict()
 
@@ -41,7 +57,7 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         super().pre_render(payload)
         self.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
         if payload.interactive_mode:
-            self.tracer.num_steps = self.num_steps_movement
+            self.tracer.num_steps = self.num_steps_interactive
         else:
             self.tracer.num_steps = self.num_steps
 

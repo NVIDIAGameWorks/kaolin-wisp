@@ -23,9 +23,9 @@ class WidgetNeuralSDFRenderer(WidgetImgui):
     def paint_tracer(self, state: WispState, renderer: NeuralSDFPackedRenderer):
         if imgui.tree_node("Tracer", imgui.TREE_NODE_DEFAULT_OPEN):
             def _num_samples_property():
-                changed, value = imgui.core.slider_int(f"##steps_per_ray", value=renderer.samples_per_ray,
+                changed, value = imgui.core.slider_int(f"##steps_per_ray", value=renderer.num_steps,
                                                        min_value=1, max_value=256)
-                renderer.samples_per_ray = value
+                renderer.num_steps = value
 
             def _batch_size_property():
                 changed, value = imgui.core.slider_int("##batch_size", value=renderer.batch_size,

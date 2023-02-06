@@ -38,7 +38,7 @@ trainer:
 
 # Sphere Tracer is employed during inference only
 tracer:
-    num_steps: 128
+    num_steps: 32   # Usual range should be within [32, 128] according to model complexity (increasing may reduce FPS).
     step_size: 0.8
 
 # NOTE: These are OfflineRenderer definitions, used for validation. See WispState for interactive app definitions.
