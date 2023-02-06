@@ -209,6 +209,7 @@ class OctreeAS(BaseAS):
         # boundary ~ (NUM_INTERSECTIONS * NUM_SAMPLES,)
         # (each intersected cell is sampled NUM_SAMPLES times)
         boundary = wisp_spc_ops.expand_pack_boundary(spc_render.mark_first_hit(ridx.int()), num_samples)
+        boundary = boundary.bool()
 
         # ridx ~ (NUM_INTERSECTIONS * NUM_SAMPLES,)
         # samples ~ (NUM_INTERSECTIONS * NUM_SAMPLES, 3)
@@ -281,10 +282,10 @@ class OctreeAS(BaseAS):
         boundary = spc_render.mark_pack_boundaries(ridx)
 
         return ASRaymarchResults(
-            ridx=ridx,
-            samples=samples,
-            depth_samples=depth_samples,
-            deltas=deltas,
+            ridx=ridx.long(),
+            samples=samples.float(),
+            depth_samples=depth_samples.float(),
+            deltas=deltas.float(),
             boundary=boundary
         )
 
@@ -339,14 +340,6 @@ class OctreeAS(BaseAS):
     def occupancy(self) -> List[int]:
         """ Returns a list of length [LODs], where each element contains the number of cells occupied in that LOD """
         return self.pyramid[0, :-2].cpu().numpy().tolist()
-
-    def capacity(self) -> List[int]:
-        """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
-        return [8**lod for lod in range(self.max_level)]
-
-    def occupancy(self) -> List[int]:
-        """ Returns a list of length [LODs], where each element contains the number of cells occupied in that LOD """
-        return self.pyramid[0, :-2].cpu().numpy()
 
     def capacity(self) -> List[int]:
         """ Returns a list of length [LODs], where each element contains the total cell capacity in that LOD """
