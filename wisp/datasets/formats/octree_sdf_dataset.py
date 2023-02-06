@@ -124,8 +124,8 @@ class OctreeSampledSDFDataset(SDFDataset):
                 raise Exception(f"Sampling mode {mode} not implemented")
 
         # Filter out points which do not belong to the narrowband
-        pts = torch.cat(pts, dim=0)
-        query_results = blas.query(pts.cuda(), 0)
+        pts = torch.cat(pts, dim=0).cuda()
+        query_results = blas.query(pts, 0)
         pts = pts[query_results.pidx > -1]
 
         # Sample distances and textures.
@@ -156,7 +156,7 @@ class OctreeSampledSDFDataset(SDFDataset):
         idx = torch.randperm(self.pool_size - 1, device='cuda')
         if self.num_samples is not None and self.num_samples < self.pool_size:
             idx = idx[:self.num_samples]
-        self.data = {k: v[idx] for k, v in self.data_pool.items() if v is not None}
+        self.data = {k: v[idx.to(v.device)] for k, v in self.data_pool.items() if v is not None}
 
     def load_singleprocess(self):
         """Initializes the dataset by sampling SDF values from a grid and a mesh contained within it.
