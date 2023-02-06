@@ -114,6 +114,15 @@ class InteractiveRendererState:
         'none' - No inherent antialising mode will be activated.
     """
 
+    gl_version: str = "GL 3.3"
+    """ Wisp applications rely on glumpy + OpenGL to render specific features and blit content to the window.
+    This setting configures glumpy to load with a specific OpenGL backend.
+    OpenGL 3.3 is widely supported and is therefore assumed to be the default.
+    Users are free to bump this version to a higher number in case more advanced OpenGL capabilities are required.
+    Format: (api major.minor. profile)
+    For example: "GL 3.3 core"  
+    """
+
     reference_grids: List[str] = field(default_factory=list)
     """ List of world grids to use as reference planes, for both rendering and some camera controllers.
         Choices: Any combination of the values: 'xy', 'xz', 'yz'. An empty list will turn off the grid.
