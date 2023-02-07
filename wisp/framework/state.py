@@ -114,7 +114,7 @@ class InteractiveRendererState:
         'none' - No inherent antialising mode will be activated.
     """
 
-    gl_version: str = "GL 3.3"
+    gl_version: str = "GL 3.3 core"
     """ Wisp applications rely on glumpy + OpenGL to render specific features and blit content to the window.
     This setting configures glumpy to load with a specific OpenGL backend.
     OpenGL 3.3 is widely supported and is therefore assumed to be the default.

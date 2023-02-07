@@ -54,8 +54,8 @@ class WorldGrid(Gizmo):
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
         try:
             gl.glTexParameterf(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_ANISOTROPY, 16)
-        except AttributeError as e:
-            logging.warning('GL_TEXTURE_MAX_ANISOTROPY not available; appearance may suffer')
+        except Exception as e:
+            logging.warning('GL_TEXTURE_MAX_ANISOTROPY not available; world grid cosmetic appearance may degrade.')
         gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
         tex.deactivate()
 

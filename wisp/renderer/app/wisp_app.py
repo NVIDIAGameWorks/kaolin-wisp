@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 from abc import ABC
+import logging
 import numpy as np
 import torch
 from glumpy import app, gloo, gl, ext
@@ -111,7 +112,8 @@ class WispApp(ABC):
         # There we generate a simple billboard GL program (normally with a shared CUDA resource)
         # Canvas content will be blitted onto it
         self.canvas_program: Optional[gloo.Program] = None   # GL program used to paint a single billboard
-        self.cugl_rgb_handle = None                              # CUDA buffer, as a shared resource with OpenGL
+        self.vao: Optional[gloo.VertexArray] = None          # Vertex array object to hold GL buffers
+        self.cugl_rgb_handle = None                          # CUDA buffer, as a shared resource with OpenGL
         self.cugl_depth_handle = None
 
         try:
@@ -133,7 +135,7 @@ class WispApp(ABC):
         self.change_user_mode(self.default_user_mode())
 
         self.redraw()   # Refresh RendererCore
-    
+
     def add_pipeline(self, name, pipeline, transform=None):
         """Register a neural fields pipeline into the scene graph.
 
@@ -143,7 +145,7 @@ class WispApp(ABC):
             transform (wisp.core.ObjectTransform): The transform for the pipeline.
         """
         add_pipeline_to_scene_graph(self.wisp_state, name, pipeline, transform=transform)
-    
+
     def add_widget(self, widget):
         """ Adds a widget to the list of widgets.
 
@@ -242,10 +244,10 @@ class WispApp(ABC):
         """
         app.run()   # App clock should always run as frequently as possible (background tasks should not be limited)
 
-    def _create_window(self, width, height, window_name, gl_version):
+    def _create_window(self, width, height, window_name, gl_version) -> app.Window:
         # Currently assume glfw backend due to integration with imgui
         app.use(f"glfw_imgui ({gl_version})")
-        win_config = app.configuration.Configuration()
+        win_config = app.configuration.get_default()
         if self.wisp_state.renderer.antialiasing == 'msaa_4x':
             win_config.samples = 4
 
@@ -267,7 +269,7 @@ class WispApp(ABC):
         return window
 
     @staticmethod
-    def _create_gl_depth_billboard_program(texture: np.ndarray, depth_texture: np.ndarray):
+    def _create_gl_depth_billboard_program(texture: np.ndarray, depth_texture: np.ndarray) -> gloo.Program:
         vertex = """
                     uniform float scale;
                     attribute vec2 position;
@@ -301,8 +303,22 @@ class WispApp(ABC):
         canvas['depth_tex'] = depth_texture
         return canvas
 
+    def _create_vao(self, gl_config: app.Configuration) -> gloo.VertexArray:
+        """ Creates a "default" VertexBufferObject to be used by the GL Programs. """
+        # OpenGL 3.3+ requires that a VertexArrayObject is always bound.
+        # Since glumpy's glfw_imgui backend doesn't guarantee one, and imgui expects a GL context with OpenGL >= 3.3,
+        # we create a default one here for all programs and buffers which gloo will bind its buffers to.
+        # This isn't how VAOs are meant to be used: it is more correct to keep a VAO per group of buffers (in Wisp's
+        # case, at least once per gizmo). However, the following glumpy issue needs to be sorted out first, see:
+        # https://github.com/glumpy/glumpy/issues/310
+        vao = None
+        if gl_config.major_version >= 3:
+            vao = np.zeros(0, np.float32).view(gloo.VertexArray)  # Keep GL happy by binding with some VAO handle
+            vao.activate()                                        # Actual vao created here
+        return vao
+
     @staticmethod
-    def _create_screen_texture(res_h, res_w, channel_depth, dtype=np.uint8):
+    def _create_screen_texture(res_h, res_w, channel_depth, dtype=np.uint8) -> gloo.Texture2D:
         """ Create and return a Texture2D with gloo and a cuda handle. """
         if issubclass(dtype, np.integer):
             tex = np.zeros((res_h, res_w, channel_depth), dtype).view(gloo.Texture2D)
@@ -317,8 +333,14 @@ class WispApp(ABC):
 
     def _register_cugl_shared_texture(self, tex):
         if self.blitdevice2device:
-            # Create shared GL / CUDA resource
-            handle = cuda_register_gl_image(image=int(tex.handle), target=tex.target)
+            try:
+                # Create shared GL / CUDA resource
+                handle = cuda_register_gl_image(image=int(tex.handle), target=tex.target)
+            except RuntimeError as e:
+                logging.warning('cugl device2device interface is not available in this env, '
+                                'wisp will fallback & memcopy cuda output to gl canvas through cpu.')
+                self.blitdevice2device = False
+                handle = None
         else:
             # No shared resource required, as we copy from cuda buffer -> cpu -> GL texture
             handle = None
@@ -385,7 +407,7 @@ class WispApp(ABC):
 
         return img, depth_img
 
-    def _blit_to_gl_renderbuffer(self, img, depth_img, canvas_program, cugl_rgb_handle, cugl_depth_handle, height):
+    def _blit_to_gl_renderbuffer(self, img, depth_img, canvas_program, vao, cugl_rgb_handle, cugl_depth_handle, height):
         if self.blitdevice2device:
             # Device to device copy: Copy CUDA buffer to GL Texture mem
             shared_tex = canvas_program['tex']
@@ -402,6 +424,8 @@ class WispApp(ABC):
             canvas_program['tex'] = img.cpu().numpy()
             canvas_program['depth_tex'] = depth_img.cpu().numpy()
 
+        if vao is not None:
+            vao.activate()
         canvas_program.draw(gl.GL_TRIANGLE_STRIP)
 
     def update_renderer_state(self, wisp_state, dt):
@@ -487,7 +511,7 @@ class WispApp(ABC):
 
         # glumpy code injected within the pyimgui render loop to blit the renderer core output to the actual canvas
         # The torch buffers are copied by with cuda, connected as shared resources as 2d GL textures
-        self._blit_to_gl_renderbuffer(img, depth_img, self.canvas_program, self.cugl_rgb_handle,
+        self._blit_to_gl_renderbuffer(img, depth_img, self.canvas_program, self.vao, self.cugl_rgb_handle,
                                       self.cugl_depth_handle, self.height)
 
         # Finally, render OpenGL gizmos on the canvas.
@@ -544,6 +568,7 @@ class WispApp(ABC):
         self.cugl_depth_handle = self._register_cugl_shared_texture(depth_tex)
         if self.canvas_program is None:
             self.canvas_program = self._create_gl_depth_billboard_program(texture=tex, depth_texture=depth_tex)
+            self.vao = self._create_vao(self.window.config)
         else:
             if self.canvas_program['tex'] is not None:
                 self.canvas_program['tex'].delete()
@@ -708,7 +733,6 @@ class WispApp(ABC):
         framebuffer = np.flip(framebuffer, 0)
         ext.png.from_array(framebuffer, 'L').save(path + '_depth.png')
 
-
     def register_io_mappings(self):
         WispMouseButton.register_symbol(WispMouseButton.LEFT_BUTTON, app.window.mouse.LEFT)
         WispMouseButton.register_symbol(WispMouseButton.MIDDLE_BUTTON, app.window.mouse.MIDDLE)
@@ -720,4 +744,3 @@ class WispApp(ABC):
         WispKey.register_symbol(WispKey.DOWN, app.window.key.DOWN)
 
         # TODO: Take care of remaining mappings, and verify the event handlers of glumpy were not overriden
-    
