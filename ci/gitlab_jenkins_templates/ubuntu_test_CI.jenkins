@@ -213,7 +213,7 @@ spec:
 
       // Train NGLOD
       try {
-        timeout(time: 140, unit: 'SECONDS') {
+        timeout(time: 350, unit: 'SECONDS') {
             stage("SDF-octree") {
               sh '''
               cd /wisp
@@ -227,7 +227,7 @@ spec:
       }
       // Train SDFs with triplanar feature maps
       try {
-        timeout(time: 325, unit: 'SECONDS') {
+        timeout(time: 500, unit: 'SECONDS') {
             stage("SDF-triplanar") {
               sh '''
               cd /wisp
@@ -241,7 +241,7 @@ spec:
       }
       // Train SDFs with hash grid
       try {
-        timeout(time: 325, unit: 'SECONDS') {
+        timeout(time: 500, unit: 'SECONDS') {
             stage("SDF-hash") {
               sh '''
               cd /wisp
