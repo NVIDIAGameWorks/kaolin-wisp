@@ -131,6 +131,12 @@ class InteractiveRendererState:
     device: torch.device = 'cpu'
     """ Default device for interactive renderer and bottom level renderers to use """
 
+    enable_amp: bool = True
+    """ Enables mixed precision with torch.cuda.amp.autocast on the interactive renderer's redraw() and render()
+    functions. By default, this setting is enabled to allow for faster optimized rendering.
+    Users with custom tracers or neural fields may opt to turn this off if for some reason their pipelines do not
+    support mixed precision.  
+    """
 
 @watchedfields
 @dataclass

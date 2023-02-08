@@ -26,6 +26,16 @@ from wisp.renderer.gizmos import Gizmo, WorldGrid, AxisPainter, PrimitivesPainte
 from wisp.renderer.gui import WidgetInteractiveVisualizerProperties, WidgetGPUStats, WidgetSceneGraph, WidgetImgui
 
 
+def enable_amp(func):
+    """ An extension to @torch.cuda.amp.autocast which queries WispState to check if
+    mixed precision should be enabled.
+    """
+    def _enable_amp(self: WispApp, *args, **kwargs):
+        with torch.cuda.amp.autocast(enabled=self.wisp_state.renderer.enable_amp):
+            return func(self, *args, **kwargs)
+    return _enable_amp
+
+
 class WispApp(ABC):
     """ WispApp is a base app implementation which takes care of the entire lifecycle of the rendering loop:
     this is the infinite queue of events which includes: handling of IO and OS events, rendering frames and running
@@ -426,6 +436,7 @@ class WispApp(ABC):
             self.wisp_state.renderer.cam_controller = TurntableCameraMode
 
     @torch.no_grad()
+    @enable_amp
     def redraw(self):
         """ Asks the render core to redraw the scene:
         - The scene graph will be refreshed (new objects added will create their renderers if needed)
@@ -441,6 +452,7 @@ class WispApp(ABC):
         self.prim_painter.redraw(layers_to_draw)
 
     @torch.no_grad()
+    @enable_amp
     def render(self):
         """ Renders a single frame. """
         dt = self.render_clock.tick()  # Tick render clock: dt is now the exact time elapsed since last render
@@ -708,7 +720,6 @@ class WispApp(ABC):
         framebuffer = np.flip(framebuffer, 0)
         ext.png.from_array(framebuffer, 'L').save(path + '_depth.png')
 
-
     def register_io_mappings(self):
         WispMouseButton.register_symbol(WispMouseButton.LEFT_BUTTON, app.window.mouse.LEFT)
         WispMouseButton.register_symbol(WispMouseButton.MIDDLE_BUTTON, app.window.mouse.MIDDLE)
@@ -720,4 +731,3 @@ class WispApp(ABC):
         WispKey.register_symbol(WispKey.DOWN, app.window.key.DOWN)
 
         # TODO: Take care of remaining mappings, and verify the event handlers of glumpy were not overriden
-    
