@@ -29,7 +29,8 @@ def parse_args():
     Args are collected by priority: cli args > config yaml > argparse defaults
     For convenience, args are divided into groups.
     """
-    parser = argparse.ArgumentParser(description='A script for training simple NeRF variants.')
+    parser = argparse.ArgumentParser(description='A script for training simple NeRF variants.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', type=str,
                         help='Path to config file to replace defaults.')
     parser.add_argument('--profile', action='store_true',
@@ -51,8 +52,8 @@ def parse_args():
                                  '-1 indicates no multiprocessing.')
     data_group.add_argument('--dataloader-num-workers', type=int, default=0,
                             help='Number of workers for dataloader.')
-    data_group.add_argument('--bg-color', default='white', choices=['white', 'black'],
-                            help='Background color')
+    data_group.add_argument('--bg-color', default='black' if is_interactive() else 'white',
+                            choices=['white', 'black'], help='Background color')
     data_group.add_argument('--multiview-dataset-format', default='standard', choices=['standard', 'rtmv'],
                             help='Data format for the transforms')
     data_group.add_argument('--num-rays-sampled-per-img', type=int, default='4096',
@@ -154,11 +155,11 @@ def parse_args():
                                help='Path to pretrained model weights.')
     trainer_group.add_argument('--save-as-new', action='store_true',
                                help='Save the model at every epoch (no overwrite).')
-    trainer_group.add_argument('--save-every', type=int, default=5,
+    trainer_group.add_argument('--save-every', type=int, default=(-1 if is_interactive() else 5),
                                help='Save the model at every N epoch.')
-    trainer_group.add_argument('--render-tb-every', type=int, default=5,
+    trainer_group.add_argument('--render-tb-every', type=int, default=(-1 if is_interactive() else 5),
                                help='Render every N epochs')
-    trainer_group.add_argument('--log-tb-every', type=int, default=5, # TODO (operel): move to logging
+    trainer_group.add_argument('--log-tb-every', type=int, default=5,  # TODO (operel): move to logging
                                help='Render to tensorboard every N epochs')
     trainer_group.add_argument('--log-dir', type=str, default='_results/logs/runs/',
                                help='Log file directory for checkpoints.')
@@ -227,13 +228,6 @@ def parse_args():
 
     # Parse CLI args & config files
     args = config_parser.parse_args(parser)
-
-    # Override some definitions for interactive app, such as validation logic and default data background color
-    if is_interactive():
-        args.bg_color = 'black'
-        args.save_every = -1
-        args.render_tb_every = -1
-        args.valid_every = -1
 
     # Also obtain args as grouped hierarchy, useful for, i.e., logging
     args_dict = config_parser.get_grouped_args(parser, args)
