@@ -38,15 +38,15 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                 if changed:
                     renderer.num_steps = value
 
-            def _num_samples_movement_property():
+            def _num_samples_interactive_property():
                 max_value = MAX_SAMPLES
                 if renderer.raymarch_type == 'ray':
                     max_value = MAX_SAMPLES_RAY_MODE
-                value = min(renderer.num_steps_movement, max_value)
-                changed, value = imgui.core.slider_int(f"##samples_per_ray_movement", value=value,
+                value = min(renderer.num_steps_interactive, max_value)
+                changed, value = imgui.core.slider_int(f"##samples_per_ray_interactive", value=value,
                                                        min_value=2, max_value=max_value)
                 if changed:
-                    renderer.num_steps_movement = value
+                    renderer.num_steps_interactive = value
 
             def _batch_size_property():
                 changed, value = imgui.core.slider_int("##batch_size", value=renderer.batch_size,
@@ -65,8 +65,8 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                     renderer.raymarch_type = new_marcher_mode
 
             properties = {
-                "Ray Samples (static)": _num_samples_property,              # Samples per ray
-                "Ray Samples (movement)": _num_samples_movement_property,   # Samples per ray
+                "Ray Samples (full-res)": _num_samples_property,                 # Samples per ray
+                "Ray Samples (interact.)": _num_samples_interactive_property,    # Samples per ray
                 "Batch Size (Rays)": _batch_size_property,
                 "Marcher Type": _marcher_type_property,
                 "Render Resolution (W x H)": f"{renderer.render_res_x} x {renderer.render_res_y}"
