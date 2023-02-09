@@ -2,49 +2,49 @@
 
 This folder contains the logic for Wisp's interactive visualizer.
 
-<img src="../../media/wisp_renderer.jpg" alt="Wisp's Renderer" width="1000"/>
+<img src="../_static/media/wisp_renderer.jpg" alt="Wisp's Renderer" width="1000"/>
 
 ## For Beginners
 
-<img src="../../media/wisp_app.jpg" alt="WispApp" width="750"/>
+<img src="../_static/media/wisp_app.jpg" alt="WispApp" width="750"/>
 
 The app controls which gui widgets are created and how visual properties of the canvas are customized. 
 It can also register event handlers due to changes within the shared `WispState` object.
 The scene graph can also be manipulated here.
 
-To create your own interactive app, simply subclass `WispApp` from `wisp/renderer/app/wisp_app.py` and customize its behaviour.
-See `wisp/renderer/app/optimization_app.py` for a working example (it's recommended to clone and modify this file).
-App modifications are possible by manipulating the `WispState` object, or overriding specific `WispApp` methods.
+To create your own interactive app, simply subclass `WispApp` from [`wisp/renderer/app/wisp_app.py`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/renderer/app/wisp_app.py) and customize its behaviour.
+See [`wisp/renderer/app/optimization_app.py`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/renderer/app/optimization_app.py) for a working example (it's recommended to clone and modify this file).
+App modifications are possible by manipulating the [`WispState`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/framework/state.py) object, or overriding specific `WispApp` methods.
 
 Wisp is already packed with an app for interactive visualization of optimizations. 
-See `OptimizationApp` from `wisp/renderer/app/optimization_app.py`.
+See `OptimizationApp` from [`wisp/renderer/app/optimization_app.py`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/renderer/app/optimization_app.py).
 
 ## Extending Apps
 
 The interactive visualizer gui and canvas can be extended with new components:
-* `widgets` control the behaviour of the gui. New widgets can be added by implementing `WidgetImgui` using the `imgui`.
-* `gizmos` are painted over the canvas. New gizmos can be added by implementing `Gizmo` with `glumpy` and `OpenGL`.
+* [`widgets`](https://github.com/NVIDIAGameWorks/kaolin-wisp/tree/main/wisp/renderer/gui/imgui) control the behaviour of the gui. New widgets can be added by implementing `WidgetImgui` using the `imgui`.
+* [`gizmos`](https://github.com/NVIDIAGameWorks/kaolin-wisp/tree/main/wisp/renderer/gizmos) are painted over the canvas. New gizmos can be added by implementing `Gizmo` with `glumpy` and `OpenGL`.
 
 Newly added `widgets` and `gizmos` can be directly added to the `WispApp`.
 
 ## The SceneGraph
 
-`wisp/renderer/core/api/scenegraph.py` contains the interface for manipulating the scene graph. 
+[`wisp/renderer/core/api/scenegraph.py`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/renderer/core/api/scenegraph.py) contains the interface for manipulating the scene graph. 
 New objects can be added or removed from the scene, and the renderer can be requested to fully redraw the scene
 to reflect recent modifications. 
 
-Neural field objects are represented in the form of `Pipeline` objects (a combination of a **Neural Field** and a **Tracer**).
+Neural field objects are represented in the form of [`Pipeline`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/models/pipeline.py) objects (a combination of a **Neural Field** and a **Tracer**).
 
-<img src="../../media/pipeline.jpg" alt="Wisp's Pipeline" width="1000"/>
+<img src="../_static/media/pipeline.jpg" alt="Wisp's Pipeline" width="1000"/>
 
 ## Additional Public API
 
-`wisp/renderer/core/api` contains the logic required for supporting new types of objects with the interactive visualizer.
+[`wisp/renderer/core/api`](https://github.com/NVIDIAGameWorks/kaolin-wisp/tree/main/wisp/renderer/core/api) contains the logic required for supporting new types of objects with the interactive visualizer.
 
-`base_renderer.py` contains the basic entities used by the renderer.
+[`base_renderer.py`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/renderer/core/api/base_renderer.py) contains the basic entities used by the renderer.
 All renderable objects must implement the `BottomLevelRenderer` interface, which knows how to produce:
-* A `RenderBuffer` of the rendered object from the current view. 
-* DataLayers, represented as vector `PrimitivesPack` objects.
+* A [`RenderBuffer`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/core/render_buffer.py) of the rendered object from the current view. 
+* DataLayers, represented as vector [`PrimitivesPack`](https://github.com/NVIDIAGameWorks/kaolin-wisp/blob/main/wisp/core/primitives.py) objects.
 
 Wisp further distinguishes between ray-traced objects and rasterized ones with the `RayTracedRenderer` and `RasterizedRenderer` subclasses.
 
@@ -95,4 +95,4 @@ See the full diagram below.
 
 The Renderer Core is responsible for all drawing logic unrelated to the `gui` or a specific graphics api (i.e. `gizmos` assume OpenGL implementations and are handled separately).
 
-<img src="../../media/renderer_core.jpg" alt="RendererCore" width="1000"/>
+<img src="../_static/media/renderer_core.jpg" alt="RendererCore" width="1000"/>

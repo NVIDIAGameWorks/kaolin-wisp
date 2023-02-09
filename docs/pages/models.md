@@ -11,7 +11,7 @@ Note that Wisp's definition of _neural fields_ is somewhat non-restrictive: in p
 
 ## Building your own Neural Field 
 
-<img src="../../media/nef.jpg" alt="Wisp's Neural Field" width="750"/>
+<img src="../_static/media/nef.jpg" alt="Wisp's Neural Field" width="750"/>
 
 The intent of the building blocks is to make it easier for users to create their own neural fields models. Users are free to pick and choose whatever modules they find useful from these modules, especially if the intent is to integrate these building blocks in to your own existing pipelines.
 

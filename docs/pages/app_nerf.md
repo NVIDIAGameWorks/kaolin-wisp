@@ -51,7 +51,7 @@ The default ray marching acceleration structure uses an octree, which implements
 
 The NeRF app is made of the following building blocks:
 
-<img src="../../media/wisp_app_nerf.jpg" alt="NeRF Diagram" width="1000"/>
+<img src="../_static/media/wisp_app_nerf.jpg" alt="NeRF Diagram" width="1000"/>
 
 An interactive exploration of the optimization process is available with the `OptimizationApp`. 
 
@@ -131,81 +131,79 @@ python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_codebook.yaml datas
 * Total runtime refers to train time only, e.g.  _excludes the validation run_.
 * Evaluation is conducted on 'validation' split only (lego, V8).
 
-<div style="text-align: center;">
-  <table>
-      <tr>
-          <th colspan="2"> Config </th>
-          <th rowspan="2"> Data </th>
-          <th colspan="3"> PSNR </th>
-          <th colspan="2"> Total Runtime (min:secs) </th>
-      </tr>
-      <tr>
-          <th> YAML </th>
-          <th> CLI </th>
-          <th> Epoch 100 </th>
-          <th> Epoch 200 </th>
-          <th> Epoch 300 </th>
-          <th> To Epoch 100 </th>
-      </tr>
-      <tr>
-          <td rowspan="2"> nerf_octree </td>
-          <td> --mip 0 --num-steps 512 --raymarch-type ray --hidden-dim 64 </td>
-          <td> lego </td>
-          <td> 28.72 </td>
-          <td> 29.39 </td>
-          <td> 29.7 </td>
-          <td> 05:48 </td>
-      </tr>
-      <tr>
-          <td> --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 128 </td>
-          <td> V8 </td>
-          <td> 28.46 </td>
-          <td> 29.11 </td>
-          <td> 29.56 </td>
-          <td> 02:11 </td>
-      </tr>
-      <tr>
-          <td> nerf_triplanar </td>
-          <td> --mip 2 --num-steps 512 --raymarch-type voxel --hidden-dim 128 </td>
-          <td> lego </td>
-          <td> 31.13 </td>
-          <td> 31.8 </td>
-          <td> 32.3 </td>
-          <td> 12:42 </td>
-      </tr>
-      <tr>
-          <td> nerf_codebook </td>
-          <td> --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 128 </td>
-          <td> V8 </td>
-          <td> 27.71 </td>
-          <td> 28.27 </td>
-          <td> 28.49 </td>
-          <td> 10:22 </td>
-      </tr>
-      <tr>
-          <td rowspan="3"> nerf_hash </td>
-          <td> trainer.optimizer:RMSprop --mip 0 --num-steps 2048 --raymarch-type ray --hidden-dim 128 </td>
-          <td> lego </td>
-          <td> 31.05 </td>
-          <td> 31.96 </td>
-          <td> 32.36 </td>
-          <td> 01:38 </td>
-      </tr>
-      <tr>
-          <td> trainer.optimizer:Adam --mip 0 --num-steps 512 --raymarch-type ray --hidden-dim 64 </td>
-          <td> lego </td>
-          <td> 28.58 </td>
-          <td> 29.20 </td>
-          <td> 29.64 </td>
-          <td> 01:16 </td>
-      </tr>
-      <tr>
-          <td> trainer.optimizer:Adam --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 64 </td>
-          <td> V8 </td>
-          <td> 28.48 </td>
-          <td> 29.25 </td>
-          <td> 29.51 </td>
-          <td> 06:17 </td>
-      </tr>
-  </table>
-</div>
+<table>
+    <tr>
+        <th colspan="2"> Config </th>
+        <th rowspan="2"> Data </th>
+        <th colspan="3"> PSNR </th>
+        <th colspan="2"> Total Runtime (min:secs) </th>
+    </tr>
+    <tr>
+        <th> YAML </th>
+        <th> CLI </th>
+        <th> Epoch 100 </th>
+        <th> Epoch 200 </th>
+        <th> Epoch 300 </th>
+        <th> To Epoch 100 </th>
+    </tr>
+    <tr>
+        <td rowspan="2"> nerf_octree </td>
+        <td> <code> --mip 0 --num-steps 512 --raymarch-type ray --hidden-dim 64 </code> </td>
+        <td> lego </td>
+        <td> 28.72 </td>
+        <td> 29.39 </td>
+        <td> 29.7 </td>
+        <td> 05:48 </td>
+    </tr>
+    <tr>
+        <td> <code> --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 128 </code> </td>
+        <td> V8 </td>
+        <td> 28.46 </td>
+        <td> 29.11 </td>
+        <td> 29.56 </td>
+        <td> 02:11 </td>
+    </tr>
+    <tr>
+        <td> nerf_triplanar </td>
+        <td> <code> --mip 2 --num-steps 512 --raymarch-type voxel --hidden-dim 128 </code> </td>
+        <td> lego </td>
+        <td> 31.13 </td>
+        <td> 31.8 </td>
+        <td> 32.3 </td>
+        <td> 12:42 </td>
+    </tr>
+    <tr>
+        <td> nerf_codebook </td>
+        <td> <code> --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 128 </code> </td>
+        <td> V8 </td>
+        <td> 27.71 </td>
+        <td> 28.27 </td>
+        <td> 28.49 </td>
+        <td> 10:22 </td>
+    </tr>
+    <tr>
+        <td rowspan="3"> nerf_hash </td>
+        <td> <code> trainer.optimizer:RMSprop --mip 0 --num-steps 2048 --raymarch-type ray --hidden-dim 128 </code> </td>
+        <td> lego </td>
+        <td> 31.05 </td>
+        <td> 31.96 </td>
+        <td> 32.36 </td>
+        <td> 01:38 </td>
+    </tr>
+    <tr>
+        <td> <code> trainer.optimizer:Adam --mip 0 --num-steps 512 --raymarch-type ray --hidden-dim 64 </code> </td>
+        <td> lego </td>
+        <td> 28.58 </td>
+        <td> 29.20 </td>
+        <td> 29.64 </td>
+        <td> 01:16 </td>
+    </tr>
+    <tr>
+        <td> <code> trainer.optimizer:Adam --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 64 </code> </td>
+        <td> V8 </td>
+        <td> 28.48 </td>
+        <td> 29.25 </td>
+        <td> 29.51 </td>
+        <td> 06:17 </td>
+    </tr>
+</table>

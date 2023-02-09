@@ -1,6 +1,6 @@
 # Wisp Library
 
-This is the main folder for the wisp library. The folders can be divided up into **framework** (core components and functions to make everything work) and **building blocks**.
+`wisp/` is the main folder for the wisp library. The folders can be divided up into **framework** (core components and functions to make everything work) and **building blocks**.
 
 ## Framework
 
@@ -32,6 +32,6 @@ This is the main folder for the wisp library. The folders can be divided up into
 
 The architecture figure describes how the major Wisp components relate to each other:
 
-<img src="../media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
+<img src="../_static/media/wisp_architecture.jpg" alt="Wisp Architecture" width="1000"/>
 
 See also further README files accompanying the various wisp folders.

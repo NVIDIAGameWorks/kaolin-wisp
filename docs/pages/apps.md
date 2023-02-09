@@ -1,6 +1,6 @@
 # Wisp Applications
 
-<img src="../media/wisp_main.jpg" alt="Main Script" width="750"/>
+<img src="../_static/media/wisp_main.jpg" alt="Main Script" width="750"/>
 
 The `app` folder contains various apps built with Wisp building blocks.
 

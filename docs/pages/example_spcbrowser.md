@@ -11,7 +11,7 @@ In this tutorial you will learn:
 **SPCs** are efficient data structures for storing and optimizing 3D data.
 Various primitives, such as point clouds, voxels and meshes can be converted to SPC format for quick visualization within wisp.
 
-<img src="../../media/spc.jpg" alt="Structured Point Clouds" width="1000"/>
+<img src="../_static/media/spc.jpg" alt="Structured Point Clouds" width="1000"/>
 
 **SPCs** are compressed GPU data structures, and are heavily used around wisp to implement useful components
 such as acceleration structures and feature grids.
@@ -21,7 +21,7 @@ In this example no optimization will take place.
 
 ## Overview
 
-<img src="../../media/example_spc_browser.jpg" alt="SPC Browser" width="1000"/>
+<img src="../_static/media/example_spc_browser.jpg" alt="SPC Browser" width="1000"/>
 
 We begin the example by running a preprocessing script which loads some `*.obj` file and converts it to a SPC,
 which is stored on the disk in `*.npz` format.

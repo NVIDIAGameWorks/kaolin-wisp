@@ -4,7 +4,7 @@ This folder mostly contains useful trainers which apps may extend or build upon.
 
 ## The purpose of Wisp Trainers
 
-<img src="../../media/trainer.jpg" alt="Wisp's Trainer" width="750"/>
+<img src="../_static/media/trainer.jpg" alt="Wisp's Trainer" width="750"/>
 
 In wisp, a **Trainer** typically governs the optimization process of some neural field, or other objects.
 Trainers are commonly application specific, and it is common practice for users to extend Wisp's defaults trainers with their own. 
