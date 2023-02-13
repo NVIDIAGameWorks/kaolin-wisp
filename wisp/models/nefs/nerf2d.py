@@ -116,7 +116,7 @@ class NeuralRadianceField2d(BaseNeuralField):
     def init_decoders(self, activation_type, layer_type, num_layers, hidden_dim):
         """Initializes the decoder object.
         """
-        decoder_color = BasicDecoder(input_dim=self.color_net_input_dim(),
+        decoder_color = BasicDecoder(input_dim=2,#self.color_net_input_dim(), #TODO
                                      output_dim=3,
                                      activation=get_activation_class(activation_type),
                                      bias=True,
@@ -177,7 +177,8 @@ class NeuralRadianceField2d(BaseNeuralField):
         batch, _ = coords.shape
 
         # Embed coordinates into high-dimensional vectors with the grid.
-        feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
+        # feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
+        feats = coords #TODO
 
         # Optionally concat the positions to the embedding
         if self.pos_embedder is not None:

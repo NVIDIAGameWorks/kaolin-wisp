@@ -179,55 +179,8 @@ class PackedRFTracer(BaseTracer):
             return RenderBuffer(depth=depth, hit=hit, rgb=rgb, alpha=out_alpha, **extra_outputs)
         else:
             # 2d method
-            assert nef.grid is not None and "this tracer requires a grid"
-
-            channels = {'rgb'}
-
-            N = rays.ndc.shape[0]
-            out_alpha = torch.zeros(N, 1, device=rays.ndc.device)
-            
-            if bg_color == 'white':
-                rgb = torch.ones(N, 3, device=rays.ndc.device)
-            else:
-                rgb = torch.zeros(N, 3, device=rays.ndc.device)
-            hit = torch.zeros(N, device=rays.ndc.device, dtype=torch.bool)
-
             if lod_idx is None:
                 lod_idx = nef.grid.num_lods - 1
-
-            rays = Rays(origins=rays.origins*0, dirs=rays.dirs*0, ndc=rays.ndc, dist_min=rays.dist_min, dist_max=rays.dist_max)
-
-            # By default, PackedRFTracer will attempt to use the highest level of detail for the ray sampling.
-            # This however may not actually do anything; the ray sampling behaviours are often single-LOD
-            # and is governed by however the underlying feature grid class uses the BLAS to implement the sampling.
-            raymarch_results = nef.grid.raymarch(rays,
-                                                level=nef.grid.active_lods[lod_idx],
-                                                num_samples=num_steps,
-                                                raymarch_type=raymarch_type)
-            ridx = raymarch_results.ridx
-            samples = raymarch_results.samples
-            boundary = raymarch_results.boundary
-            depths = raymarch_results.depth_samples
-
-            # Get the indices of the ray tensor which correspond to hits
-            ridx_hit = ridx[boundary]
-
-            # Compute the color and density for each ray and their samples
-            num_samples = samples.shape[0]
-            ray_color = nef(coords=samples, lod_idx=lod_idx, channels=["rgb"])[0]
-            del ridx
-
-            out_alpha[ridx_hit] = 1.
-            alpha = boundary.float().reshape(-1,1)
-            hit[ridx_hit] = alpha[...,0] > 0.0
-            
-            # Populate the background
-            if bg_color == 'white':
-                color = (1.0-alpha) + ray_color
-            else:
-                color = alpha * ray_color
-            rgb[ridx_hit] = color
-
-            extra_outputs = {}
-            #TODO: print('ERROR how do i handle no depth')
-            return RenderBuffer(depth=out_alpha, hit=hit, rgb=rgb, alpha=out_alpha, **extra_outputs)
+            samples = rays.ndc
+            rgb = nef(coords=samples, lod_idx=lod_idx, channels=["rgb"])[0]
+            return RenderBuffer(rgb=rgb)

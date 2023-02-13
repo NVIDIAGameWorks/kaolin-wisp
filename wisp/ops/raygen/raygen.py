@@ -69,8 +69,8 @@ def generate_pinhole_rays(camera: Camera, coords_grid: torch.Tensor):
 
     # pixel values are now in range [-1, 1], both tensors are of shape res_y x res_x
     pixel_x, pixel_y = _to_ndc_coords(pixel_x, pixel_y, camera)
-    ndc_coords = torch.cat((pixel_x[None],pixel_y[None])).reshape((-1,2))
-
+    ndc_coords = torch.stack((pixel_y,-pixel_x),dim=-1).reshape(-1,2)
+    
     ray_dir = torch.stack((pixel_x * camera.tan_half_fov(CameraFOV.HORIZONTAL),
                            -pixel_y * camera.tan_half_fov(CameraFOV.VERTICAL),
                            -torch.ones_like(pixel_x)), dim=-1)

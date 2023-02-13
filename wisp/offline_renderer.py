@@ -156,7 +156,7 @@ class OfflineRenderer():
             ray_d = torch.mm(ray_d, mm)
 
         if pipeline.tracer.raymarch_type == '2d':
-            rays = Rays(origins=ray_o*0.0, dirs=ray_d*0.0, ndc=ndc, dist_min=camera_clamp[0], dist_max=camera_clamp[1])
+            rays = Rays(origins=ray_o, dirs=ray_d, ndc=ndc, dist_min=camera_clamp[0], dist_max=camera_clamp[1])
             rb = self.render2d(pipeline, rays, lod_idx=lod_idx)
         else:
             rays = Rays(origins=ray_o, dirs=ray_d, ndc=ndc, dist_min=camera_clamp[0], dist_max=camera_clamp[1])

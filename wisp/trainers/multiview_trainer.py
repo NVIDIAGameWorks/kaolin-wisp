@@ -18,6 +18,7 @@ from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.datasets import MultiviewDataset
 from wisp.core import Rays, RenderBuffer
+import torch.nn.functional as F
 
 import wandb
 import numpy as np
@@ -74,7 +75,8 @@ class MultiviewTrainer(BaseTrainer):
         rb = self.pipeline(rays=rays, lod_idx=lod_idx, channels=["rgb"])
 
         # RGB Loss
-        #rgb_loss = F.mse_loss(rb.rgb, img_gts, reduction='none')
+        # keep_cond = img_gts[:,0] != 1
+        # rgb_loss = F.mse_loss(rb.rgb[keep_cond], img_gts[keep_cond], reduction='mean')
         rgb_loss = torch.abs(rb.rgb[..., :3] - img_gts[..., :3])
 
         rgb_loss = rgb_loss.mean()

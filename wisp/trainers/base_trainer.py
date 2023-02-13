@@ -545,7 +545,7 @@ class BaseTrainer(ABC):
 
 
             im = Image.fromarray(out['rgb'])
-            im.save("your_file.jpeg")
+            im.save("your_file.png")
             for key in log_buffers:
                 if out.get(key) is not None:
                     self.writer.add_image(f'{key}/{d}', out[key].T, self.epoch)
