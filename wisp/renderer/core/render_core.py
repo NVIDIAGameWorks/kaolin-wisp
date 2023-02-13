@@ -488,15 +488,15 @@ class TLAS(abc.ABC):
 
     def transform_rays(self, rays: Rays, transform: ObjectTransform) -> Rays:
         rays_shape = rays.shape
-        rays = rays.reshape((-1, 3))
+        rays = rays.reshape(-1,3)
         ray_origins = torch.cat((rays.origins, torch.ones_like(rays.origins[:,:1])), dim=-1)
         ray_dirs = torch.cat((rays.dirs, torch.zeros_like(rays.dirs[:,:1])), dim=-1)
         inv_model_matrix = transform.to(device=ray_dirs.device).inv_model_matrix().to(dtype=rays.origins.dtype)
         ray_origins = (inv_model_matrix @ ray_origins.T).T
         ray_dirs = (inv_model_matrix @ ray_dirs.T).T
-        transformed_rays = Rays(ray_origins[:, :3], dirs=ray_dirs[:, :3],
+        transformed_rays = Rays(ray_origins[:, :3], dirs=ray_dirs[:, :3], ndc=rays.ndc,
                                 dist_min=rays.dist_min, dist_max=rays.dist_max)
-        return transformed_rays.reshape((*rays_shape, 3))
+        return transformed_rays.reshape(*rays_shape, 3)
 
 class ListTLAS(TLAS):
     def __init__(self, state: WispState, bl_renderers: Dict[str, BottomLevelRenderer]):

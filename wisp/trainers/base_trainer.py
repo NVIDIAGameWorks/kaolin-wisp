@@ -17,6 +17,7 @@ from wisp.offline_renderer import OfflineRenderer
 from wisp.framework import WispState, BottomLevelRendererState
 from wisp.datasets import WispDataset, default_collate
 from wisp.renderer.core.api import add_to_scene_graph
+from PIL import Image
 
 import wandb
 import numpy as np
@@ -542,6 +543,9 @@ class BaseTrainer(ABC):
 
             log_buffers = ['depth', 'hit', 'normal', 'rgb', 'alpha']
 
+
+            im = Image.fromarray(out['rgb'])
+            im.save("your_file.jpeg")
             for key in log_buffers:
                 if out.get(key) is not None:
                     self.writer.add_image(f'{key}/{d}', out[key].T, self.epoch)

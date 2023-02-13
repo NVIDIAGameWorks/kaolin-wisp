@@ -28,6 +28,9 @@ class Rays:
     dirs: torch.Tensor
     """ Ray's normalized direction """
 
+    ndc: torch.Tensor
+    """ normalized device coordinates """
+
     dist_min: Union[float, torch.Tensor] = 0.0
     """ Distance in which ray intersection test begins. Can be defined globally or per ray. """
 
@@ -44,6 +47,9 @@ class Rays:
         if self.origins.shape != self.dirs.shape:
             raise Exception(
                 f"Rays.origins shape should match Rays.dirs shape, but got {self.origins.shape} and {self.dirs.shape}.")
+        if self.origins.shape[:-1] != self.ndc.shape[:-1]:
+            raise Exception(
+                f"All but last dim of Rays.origins shape should match Rays.ndc shape, but got {self.origins.shape} and {self.ndc.shape}.")
         return self.origins.shape[0]
 
     @property
@@ -83,6 +89,7 @@ class Rays:
         return Rays(
             origins=torch.cat([rays.origins for rays in rays_list], dim=dim),
             dirs=torch.cat([rays.dirs for rays in rays_list], dim=dim),
+            ndc=torch.cat([rays.ndc for rays in rays_list], dim=dim),
             dist_min=min([rays.dist_min for rays in rays_list]),
             dist_max=max([rays.dist_max for rays in rays_list])
         )
@@ -101,6 +108,7 @@ class Rays:
         return Rays(
             origins=torch.stack([rays.origins for rays in rays_list], dim=dim),
             dirs=torch.stack([rays.dirs for rays in rays_list], dim=dim),
+            ndc=torch.stack([rays.ndc for rays in rays_list], dim=dim),
             dist_min=min([rays.dist_min for rays in rays_list]),
             dist_max=max([rays.dist_max for rays in rays_list])
         )
@@ -117,6 +125,7 @@ class Rays:
         return Rays(
             origins=self.origins[idx],
             dirs=self.dirs[idx],
+            ndc=self.ndc[idx],
             dist_min=self.dist_min[idx] if isinstance(self.dist_min, torch.Tensor) else self.dist_min,
             dist_max=self.dist_max[idx] if isinstance(self.dist_max, torch.Tensor) else self.dist_max
         )
@@ -131,9 +140,9 @@ class Rays:
         Returns:
             (List[Rays]): A list of smaller Rays batches, split from the current rays pack.
         """
-        zipped = zip(torch.split(self.origins, split_size), torch.split(self.dirs, split_size))
-        return [Rays(origins=origins, dirs=dirs, dist_min=self.dist_min, dist_max=self.dist_max)
-                for origins, dirs in zipped]
+        zipped = zip(torch.split(self.origins, split_size), torch.split(self.dirs, split_size), torch.split(self.ndc, split_size))
+        return [Rays(origins=origins, dirs=dirs, ndc=ndc, dist_min=self.dist_min, dist_max=self.dist_max)
+                for origins, dirs, ndc in zipped]
 
     def reshape(self, *dims: Tuple) -> Rays:
         """ Reshapes the dimensions of the rays struct.
@@ -144,8 +153,12 @@ class Rays:
         Returns:
             (Rays): The reshaped Rays struct
         """
+        dim = list(dims)
+        dim[-1] = 2
+        dim = tuple(dim)
         return Rays(origins=self.origins.reshape(*dims),
                    dirs=self.dirs.reshape(*dims),
+                   ndc=self.ndc.reshape(*dim),
                    dist_min=self.dist_min,
                    dist_max=self.dist_max)
 
@@ -160,6 +173,7 @@ class Rays:
         """
         return Rays(origins=self.origins.squeeze(dim),
                    dirs=self.dirs.squeeze(dim),
+                   ndc=self.ndc.squeeze(dim),
                    dist_min=self.dist_min,
                    dist_max=self.dist_max)
 
@@ -172,6 +186,7 @@ class Rays:
         """
         return Rays(origins=self.origins.contiguous(),
                    dirs=self.dirs.contiguous(),
+                   ndc=self.ndc.contiguous(),
                    dist_min=self.dist_min,
                    dist_max=self.dist_max)
 
@@ -185,10 +200,12 @@ class Rays:
 
         origins = self.origins.to(*args, **kwargs)
         dirs = self.dirs.to(*args, **kwargs)
+        ndc = self.ndc.to(*args, **kwargs)
         if origins is not self.origins or dirs is not self.dirs:
             return Rays(
                 origins=origins,
                 dirs=dirs,
+                ndc=ndc,
                 dist_min=self.dist_min,
                 dist_max=self.dist_max
             )

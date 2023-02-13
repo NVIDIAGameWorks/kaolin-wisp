@@ -1,3 +1,4 @@
+.*
 .DS_Store
 *.sw*
 .ipynb_checkpoints
@@ -14,3 +15,4 @@ _*/
 build
 imgui.ini
 wandb/
+**/data/**

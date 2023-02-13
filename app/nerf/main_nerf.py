@@ -19,7 +19,7 @@ from wisp.framework import WispState
 from wisp.datasets import MultiviewDataset, SampleRays
 from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid
 from wisp.tracers import BaseTracer, PackedRFTracer
-from wisp.models.nefs import BaseNeuralField, NeuralRadianceField
+from wisp.models.nefs import BaseNeuralField, NeuralRadianceField, NeuralRadianceField2d
 from wisp.models.pipeline import Pipeline
 from wisp.trainers import BaseTrainer, MultiviewTrainer
 
@@ -367,20 +367,34 @@ def load_neural_field(args, dataset: MultiviewDataset) -> BaseNeuralField:
     The NeuralRadianceField uses spatial feature grids internally for faster feature interpolation and raymarching.
     """
     grid = load_grid(args=args, dataset=dataset)
-    nef = NeuralRadianceField(
-        grid=grid,
-        pos_embedder=args.pos_embedder,
-        view_embedder=args.view_embedder,
-        position_input=args.position_input,
-        pos_multires=args.pos_multires,
-        view_multires=args.view_multires,
-        activation_type=args.activation_type,
-        layer_type=args.layer_type,
-        hidden_dim=args.hidden_dim,
-        num_layers=args.num_layers,
-        prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
-        prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
-    )
+    if args.raymarch_type == '2d':
+        nef = NeuralRadianceField2d(
+            grid=grid,
+            pos_embedder=args.pos_embedder,
+            pos_multires=args.pos_multires,
+            activation_type=args.activation_type,
+            layer_type=args.layer_type,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
+            prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
+        )
+    else:
+
+        nef = NeuralRadianceField(
+            grid=grid,
+            pos_embedder=args.pos_embedder,
+            view_embedder=args.view_embedder,
+            position_input=args.position_input,
+            pos_multires=args.pos_multires,
+            view_multires=args.view_multires,
+            activation_type=args.activation_type,
+            layer_type=args.layer_type,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
+            prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
+        )
     return nef
 
 
