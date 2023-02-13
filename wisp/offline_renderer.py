@@ -213,10 +213,11 @@ class OfflineRenderer():
             raise NotImplementedError
         
         # Use segmentation
-        if rb.normal is not None:
-            rb.normal[~rb.hit] = 1.0
-        if rb.rgb is not None:
-            rb.rgb[~rb.hit] = 1.0
+        if rb.hit is not None:
+            if rb.normal is not None:
+                rb.normal[~rb.hit] = 1.0
+            if rb.rgb is not None:
+                rb.rgb[~rb.hit] = 1.0
 
         # Add secondary effects
         if self.shadow:

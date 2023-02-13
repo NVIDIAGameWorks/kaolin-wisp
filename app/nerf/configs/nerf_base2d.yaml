@@ -12,13 +12,13 @@ logging:
 dataset:
     multiview_dataset_format: 'standard'
     num_rays_sampled_per_img: 4096
-    mip: 2
+    # mip: 2
     bg_color: 'white'
 
 nef:
-    hidden_dim: 64
-    num_layers: 1
-    pos_embedder: 'none'
+    hidden_dim: 128 #64
+    num_layers: 4 #1
+    pos_embedder: 'positional'
     position_input: False
     view_embedder: 'positional'
     view_multires: 4 
@@ -32,7 +32,7 @@ optimizer:
     lr: 0.001
 
 trainer:
-    epochs: 50
+    epochs: 150
     batch_size: 1
     model_format: 'full'  # If loading a pretrained pipeline, 'full' = torch.load instead of torch.load_state_dict
     valid_every: 50
@@ -47,5 +47,5 @@ renderer:
         - 0.65
         - -3.0
     render_res:
-        - 1024
-        - 1024
+        - 800 #1024
+        - 800 #1024

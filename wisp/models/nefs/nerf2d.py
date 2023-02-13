@@ -85,6 +85,7 @@ class NeuralRadianceField2d(BaseNeuralField):
         self.grid = grid
 
         # Init Embedders
+        self.dim = 2
         self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires,
                                                                    include_input=position_input)
 
@@ -108,7 +109,8 @@ class NeuralRadianceField2d(BaseNeuralField):
         elif embedder_type == 'identity' or (embedder_type == 'none' and include_input):
             embedder, embed_dim = torch.nn.Identity(), 3    # Assumes pos / view input is always 3D
         elif embedder_type == 'positional':
-            embedder, embed_dim = get_positional_embedder(frequencies=frequencies, include_input=include_input)
+            embedder, embed_dim = get_positional_embedder(frequencies=frequencies, 
+                                                          include_input=include_input, input_dim=self.dim) # Assumes pos / view input is always 2D
         else:
             raise NotImplementedError(f'Unsupported embedder type for NeuralRadianceField: {embedder_type}')
         return embedder, embed_dim
@@ -116,7 +118,7 @@ class NeuralRadianceField2d(BaseNeuralField):
     def init_decoders(self, activation_type, layer_type, num_layers, hidden_dim):
         """Initializes the decoder object.
         """
-        decoder_color = BasicDecoder(input_dim=2,#self.color_net_input_dim(), #TODO
+        decoder_color = BasicDecoder(input_dim=self.color_net_input_dim(), #TODO
                                      output_dim=3,
                                      activation=get_activation_class(activation_type),
                                      bias=True,
@@ -182,7 +184,7 @@ class NeuralRadianceField2d(BaseNeuralField):
 
         # Optionally concat the positions to the embedding
         if self.pos_embedder is not None:
-            embedded_pos = self.pos_embedder(coords).view(batch, self.pos_embed_dim)
+            embedded_pos = self.pos_embedder(coords).view(batch, -1) # self.pos_embed_dim)
             feats = torch.cat([feats, embedded_pos], dim=-1)
         fdir = feats
 
@@ -199,7 +201,7 @@ class NeuralRadianceField2d(BaseNeuralField):
         return effective_feature_dim
 
     def color_net_input_dim(self):
-        return self.effective_feature_dim() + self.pos_embed_dim
+        return self.dim + self.pos_embed_dim # + self.effective_feature_dim() 
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.
