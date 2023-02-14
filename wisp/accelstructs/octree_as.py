@@ -31,19 +31,6 @@ def fast_filter_method(mask_idx: torch.Tensor, depth: torch.Tensor, deltas: torc
 
     return depth_samples, deltas, samples, ridx
 
-@torch.jit.script
-def fast_filter_method_2d(mask_idx: torch.Tensor, samples: torch.Tensor,
-                       num_samples: int, num_rays: int, device: torch.device) -> \
-        Tuple[torch.Tensor, torch.Tensor]:
-    
-    samples = samples[mask_idx[:, 0], mask_idx[:, 1], :]
-
-    ridx = torch.arange(0, num_rays, device=device)
-    ridx = ridx[..., None].repeat(1, num_samples)[mask_idx[:, 0], mask_idx[:, 1]]
-
-    return samples, ridx
-
-
 class OctreeAS(BaseAS):
     """Octree bottom-level acceleration structure class implemented using Kaolin SPC.
     Can be used to to quickly query cells occupancy, and trace rays against the volume.
@@ -300,59 +287,6 @@ class OctreeAS(BaseAS):
             deltas=deltas.float(),
             boundary=boundary
         )
-
-    # def _raymarch_2d(self, rays, num_samples=1, level=None) -> ASRaymarchResults:
-    #     """Samples points along the ray inside the SPC structure.
-    #     Raymarch is achieved by sampling num_samples along each ray,
-    #     and then filtering out samples which falls outside of occupied cells.
-    #     In this scheme, num_hit_samples <= num_rays * num_samples.
-    #     Ray boundaries are determined by the ray dist_min / dist_max values
-    #     (which could, for example, be set by the near / far planes).
-
-    #     Args:
-    #         rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
-    #         num_samples (int) : Number of samples generated per ray. The actual number of generated samples may be lower
-    #             due to samples intersecting empty cells.
-    #         level (int) : The level of the octree to raytrace. If None, traces the highest level.
-
-    #     Returns:
-    #         (ASRaymarchResults) with fields containing:
-    #             - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
-    #             - Sample coordinates of shape [num_hit_samples, 3]
-    #             - Sample depths of shape [num_hit_samples, 1]
-    #             - Sample depth diffs of shape [num_hit_samples, 1]
-    #             - Boundary tensor which marks the beginning of each variable-sized
-    #               sample pack of shape [num_hit_samples]
-    #         """
-    #     # Batched generation of samples
-    #     # samples ~ (NUM_RAYS, NUM_SAMPLES, 3)
-    #     # deltas, pidx, mask ~ (NUM_RAYS, NUM_SAMPLES)
-    #     num_rays = rays.shape[0]
-    #     samples = rays.ndc.reshape(num_rays, num_samples, -1)
-    #     if samples.shape[-1] != 2:
-    #         samples = torch.cat((samples, torch.zeros_like(samples[...,0][...,None])), dim=-1)
-    #     query_results = self.query(samples, level=level)
-    #     pidx = query_results.pidx
-    #     pidx = pidx.reshape(num_rays, num_samples)
-    #     mask = pidx > -1
-    #     non_masked_idx = torch.nonzero(mask) #torch.arange(len(samples))
-
-    #     # NUM_HIT_SAMPLES: number of samples sampled within occupied cells
-    #     # NUM_HIT_SAMPLES can be 0!
-    #     # depth_samples, deltas, ridx, boundary ~ (NUM_HIT_SAMPLES,)
-    #     # samples ~ (NUM_HIT_SAMPLES, 3)
-
-    #     samples, ridx = fast_filter_method_2d(non_masked_idx, samples, num_samples, num_rays, samples.device)
-
-    #     boundary = spc_render.mark_pack_boundaries(ridx)
-
-    #     return ASRaymarchResults(
-    #         ridx=ridx.long(),
-    #         samples=samples.float(),
-    #         depth_samples=None,
-    #         deltas=None,
-    #         boundary=boundary
-    #     )
 
     def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Samples points along the ray inside the SPC structure.

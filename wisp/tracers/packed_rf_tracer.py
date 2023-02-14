@@ -182,5 +182,6 @@ class PackedRFTracer(BaseTracer):
             if lod_idx is None:
                 lod_idx = nef.grid.num_lods - 1
             samples = rays.ndc
+            samples = torch.stack((samples[:,0], samples[:,1], torch.zeros_like(samples)[...,0]),dim=-1)
             rgb = nef(coords=samples, lod_idx=lod_idx, channels=["rgb"])[0]
             return RenderBuffer(rgb=rgb)

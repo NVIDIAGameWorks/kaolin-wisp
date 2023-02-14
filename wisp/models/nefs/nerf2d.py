@@ -179,8 +179,8 @@ class NeuralRadianceField2d(BaseNeuralField):
         batch, _ = coords.shape
 
         # Embed coordinates into high-dimensional vectors with the grid.
-        # feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
-        feats = coords #TODO
+        feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
+        # feats = coords #TODO
 
         # Optionally concat the positions to the embedding
         if self.pos_embedder is not None:
@@ -201,7 +201,7 @@ class NeuralRadianceField2d(BaseNeuralField):
         return effective_feature_dim
 
     def color_net_input_dim(self):
-        return self.dim + self.pos_embed_dim # + self.effective_feature_dim() 
+        return self.pos_embed_dim + self.effective_feature_dim()  #self.dim + 
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.
