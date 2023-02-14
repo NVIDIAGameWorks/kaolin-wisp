@@ -71,7 +71,7 @@ def _generate_rays(camera_origin, camera_view, camera_right, camera_up, height, 
         - [height, width, 3] tensor of ray origins
         - [height, width, 3] tensor of ray directions
     """
-    coord = normalized_grid(height, width, device=device)
+    coord = normalized_grid(height, width, jitter=True, use_aspect=False, device=device)
 
     ray_origin = camera_right * coord[..., 0, np.newaxis] * np.tan(np.radians(fov / 2)) + \
                  camera_up * coord[..., 1, np.newaxis] * np.tan(np.radians(fov / 2)) + \
