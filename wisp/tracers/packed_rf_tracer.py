@@ -68,7 +68,7 @@ class PackedRFTracer(BaseTracer):
             return {'rgb'}
         return {"rgb", "density"}
 
-    def trace(self, nef, rays, channels, extra_channels,
+    def trace(self, dnef, nef, rays, channels, extra_channels={},
               lod_idx=None, raymarch_type='voxel', num_steps=64, step_size=1.0, bg_color='white'):
         """Trace the rays against the neural field.
 
@@ -182,6 +182,8 @@ class PackedRFTracer(BaseTracer):
             if lod_idx is None:
                 lod_idx = nef.grid.num_lods - 1
             samples = rays.ndc
-            samples = torch.stack((samples[:,0], samples[:,1], torch.zeros_like(samples)[...,0]),dim=-1)
+            warp_ids = rays.warp_ids
+            # samples = torch.stack((samples[:,0], samples[:,1], torch.zeros_like(samples)[...,0]),dim=-1)
+            samples = dnef(coords=samples, warp_ids=warp_ids, lod_idx=lod_idx, channels=["rgb"])[0]
             rgb = nef(coords=samples, lod_idx=lod_idx, channels=["rgb"])[0]
             return RenderBuffer(rgb=rgb)

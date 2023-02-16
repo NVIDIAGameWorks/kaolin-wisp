@@ -15,18 +15,21 @@ from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
 from wisp.models.grids import BLASGrid, HashGrid
+from wisp.models.nefs import rigid_body as rigid
 
-class NeuralRadianceField2d(BaseNeuralField):
-    """Model for encoding Neural Radiance Fields (Mildenhall et al. 2020), e.g., density and view dependent color.
-    Different to the original NeRF paper, this implementation uses feature grids for a
+class DeformationField(BaseNeuralField):
+    """Model for deformation field from Deformable Neural Radiance Fields
+    Different to the original NeRFies paper, this implementation uses feature grids for a
     higher quality and more efficient implementation, following later trends in the literature,
     such as Neural Sparse Voxel Fields (Liu et al. 2020), Instant Neural Graphics Primitives (Muller et al. 2022)
     and Variable Bitrate Neural Fields (Takikawa et al. 2022).
     """
 
     def __init__(self,
+                 input_dim: int = 3,
+                 warp_arch: str = 'none',
+                 warp_type: str = 'translation',
                  grid: BLASGrid = None,
-                 warp: BaseNeuralField = None,
                  # embedder args
                  pos_embedder: str = 'none',
                  pos_multires: int = 10,
@@ -83,22 +86,75 @@ class NeuralRadianceField2d(BaseNeuralField):
                  Used within the pruning scheme from Muller et al. 2022. Used only for grids which support pruning.
         """
         super().__init__()
-        self.grid = grid
-
         # Init Embedders
-        self.dim = 2
+        self.dim = input_dim
+        self.grid = grid
         self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires,
                                                                    include_input=position_input)
+        self.warp_arch = warp_arch
+        if warp_arch == 'none':
+            return
+
+        output_dim = self.dim
+        self.warp_type = warp_type
+        if self.warp_type == 'translation':
+            pass
+        elif self.warp_type == 'se3':
+            raise(NotImplementedError)
+        elif self.warp_type == 'se2':
+            raise(NotImplementedError)
+        else:
+            raise(NotImplementedError)
+
+
+        #else mlp or grid
+        if self.warp_arch == 'grid':
+            if self.dim == 3:
+                raise("grid warp not implemented for 3 dimension coordinate input")
+            assert(grid is not None)
+            self.grid = grid
+            self.prune_density_decay = prune_density_decay
+            self.prune_min_density = prune_min_density
 
         # Init Decoder
         self.activation_type = activation_type
         self.layer_type = layer_type
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        self.decoder_color = self.init_decoders(activation_type, layer_type, num_layers, hidden_dim)
-
-        self.prune_density_decay = prune_density_decay
-        self.prune_min_density = prune_min_density
+        if self.warp_type == 'translation':
+            self.decoder = BasicDecoder(input_dim=self.mlp_input_dim(), #TODO
+                                        output_dim=output_dim,
+                                        activation=get_activation_class(activation_type),
+                                        bias=True,
+                                        layer=get_layer_class(layer_type),
+                                        num_layers=num_layers + 1,
+                                        hidden_dim=hidden_dim,
+                                        skip=[])
+            torch.nn.init.uniform_(self.decoder.layers[-1].bias,   -1e-4, 1e-4)
+            torch.nn.init.uniform_(self.decoder.layers[-1].weight, -1e-4, 1e-4)
+        elif self.warp_type == 'se3' or self.warp_type == 'se2':
+            self.decoder_w = BasicDecoder(input_dim=self.mlp_input_dim(), 
+                                        output_dim=output_dim,
+                                        activation=get_activation_class(activation_type),
+                                        bias=True,
+                                        layer=get_layer_class(layer_type),
+                                        num_layers=num_layers + 1,
+                                        hidden_dim=hidden_dim,
+                                        skip=[])
+            self.decoder_v = BasicDecoder(input_dim=self.mlp_input_dim(), 
+                                        output_dim=output_dim,
+                                        activation=get_activation_class(activation_type),
+                                        bias=True,
+                                        layer=get_layer_class(layer_type),
+                                        num_layers=num_layers + 1,
+                                        hidden_dim=hidden_dim,
+                                        skip=[])
+            torch.nn.init.uniform_(self.decoder_w.layers[-1].bias,   -1e-4, 1e-4)
+            torch.nn.init.uniform_(self.decoder_w.layers[-1].weight, -1e-4, 1e-4)
+            torch.nn.init.uniform_(self.decoder_v.layers[-1].bias,   -1e-4, 1e-4)
+            torch.nn.init.uniform_(self.decoder_v.layers[-1].weight, -1e-4, 1e-4)
+        else:
+            raise(NotImplementedError)
 
         torch.cuda.empty_cache()
 
@@ -108,26 +164,13 @@ class NeuralRadianceField2d(BaseNeuralField):
         if embedder_type == 'none' and not include_input:
             embedder, embed_dim = None, 0
         elif embedder_type == 'identity' or (embedder_type == 'none' and include_input):
-            embedder, embed_dim = torch.nn.Identity(), 3    # Assumes pos / view input is always 3D
+            embedder, embed_dim = torch.nn.Identity(), self.dim
         elif embedder_type == 'positional':
             embedder, embed_dim = get_positional_embedder(frequencies=frequencies, 
-                                                          include_input=include_input, input_dim=self.dim) # Assumes pos / view input is always 2D
+                                                          include_input=include_input, input_dim=self.dim) 
         else:
             raise NotImplementedError(f'Unsupported embedder type for NeuralRadianceField: {embedder_type}')
         return embedder, embed_dim
-
-    def init_decoders(self, activation_type, layer_type, num_layers, hidden_dim):
-        """Initializes the decoder object.
-        """
-        decoder_color = BasicDecoder(input_dim=self.color_net_input_dim(), #TODO
-                                     output_dim=3,
-                                     activation=get_activation_class(activation_type),
-                                     bias=True,
-                                     layer=get_layer_class(layer_type),
-                                     num_layers=num_layers + 1,
-                                     hidden_dim=hidden_dim,
-                                     skip=[])
-        return decoder_color
 
     def prune(self):
         """Prunes the blas based on current state.
@@ -162,50 +205,111 @@ class NeuralRadianceField2d(BaseNeuralField):
     def register_forward_functions(self):
         """Register the forward functions.
         """
-        self._register_forward_function(self.rgba, ["rgb"])
+        self._register_forward_function(self.warp, ["rgb"])
 
-    def rgba(self, coords, lod_idx=None):
-        """Compute color for the provided coordinates.
+    def warp(self, coords, warp_ids, lod_idx=None):
+        """Compute warp for the provided coordinates.
 
         Args:
-            coords (torch.FloatTensor): tensor of shape [batch, 3]
+            coords (torch.FloatTensor): tensor of shape [batch, self.dim], 
+            warp_id (torch.FloatTensor): tensor of shape [batch, 1]
             lod_idx (int): index into active_lods. If None, will use the maximum LOD.
         
         Returns:
-            {"rgb": torch.FloatTensor}:
-                - RGB tensor of shape [batch, 3]
+            {"points": torch.FloatTensor}:
+                - warped points in a tensor of shape [batch, 3]
         """
+        coords_org = coords.clone().detach().requires_grad_(True)
+        coords = coords_org
+        if self.warp_arch == 'none':
+            return dict(rgb=coords)
         
         if lod_idx is None:
             lod_idx = len(self.grid.active_lods) - 1
-        batch, dim = coords.shape
-        if dim == 2:
-            coords = torch.stack((coords[:,0], coords[:,1], torch.zeros_like(coords)[...,0]),dim=-1)
+        batch, n = coords.shape
+        
+        if len(warp_ids) != batch:
+            warp_ids = torch.ones(batch, 1) * warp_ids
+
+        input = torch.cat((coords, warp_ids), dim=-1)
 
         # Embed coordinates into high-dimensional vectors with the grid.
-        feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
-        # feats = coords #TODO
+        if self.warp_arch == 'grid':
+            if n == 3:
+                raise(NotImplementedError)
+            feats = self.grid.interpolate(input, lod_idx).reshape(batch, self.effective_feature_dim())
+        else:
+            feats = input 
 
         # Optionally concat the positions to the embedding
         if self.pos_embedder is not None:
-            embedded_pos = self.pos_embedder(coords).view(batch, -1) # self.pos_embed_dim)
+            embedded_pos = self.pos_embedder(coords).view(batch, -1) 
             feats = torch.cat([feats, embedded_pos], dim=-1)
-        fdir = feats
 
-        # Colors are values [0, 1] floats
-        # colors ~ (batch, 3)
-        colors = torch.sigmoid(self.decoder_color(fdir))
+        # points ~ (batch, self.dim)
+
+        if self.warp_type == 'translation':
+            translation = self.decoder(feats)
+            points = translation #coords + 
+        elif self.warp_type == 'se3':
+            assert(self.dim == 3)
+            self.se3field(coords, feats)
+            raise(NotImplementedError)
+        elif self.warp_type == 'se2':
+            assert(self.dim == 2)
+            raise(NotImplementedError)
+        
+        colors = points
+        
         return dict(rgb=colors)
+    
+    def se3field(self, p, feats):
+        w = self.decoder_w(feats)
+        v = self.decoder_v(feats)
+
+        theta = torch.linalg.norm(w, dim=-1, keepdim=True)
+        w = w / theta
+        v = v / theta
+
+        screw_axis = torch.cat([w, v], dim=-1)
+        if len(screw_axis.shape) == 1 or screw_axis.shape[0] == 0.:
+            N = 1
+            B = 1
+        elif len(screw_axis.shape) == 2:
+            N,_ = screw_axis.shape
+            B = 1
+        else:
+            B,N,_ = screw_axis.shape
+        exp_se3 = vmap(rigid.exp_se3)
+        transform = exp_se3(screw_axis.reshape(B*N,-1), theta.reshape(B*N,-1)).reshape(B,N,4,4)
+
+        warped_points = p
+
+        if self.use_pivot:
+            raise(NotImplementedError)
+            pivot = self.branches['p'](trunk_output)
+            warped_points = warped_points + pivot
+
+        warped_points = rigid.from_homogenous(
+            torch.bmm(transform.reshape(B*N,4,4), 
+            rigid.to_homogenous(warped_points).reshape(B*N,4,1)).reshape(B*N,4))
+
+        return warped_points
 
     def effective_feature_dim(self):
+        if not self.grid:
+            return 0
         if self.grid.multiscale_type == 'cat':
             effective_feature_dim = self.grid.feature_dim * self.grid.num_lods
         else:
             effective_feature_dim = self.grid.feature_dim
         return effective_feature_dim
 
-    def color_net_input_dim(self):
-        return self.pos_embed_dim + self.effective_feature_dim()  #self.dim + 
+    def mlp_input_dim(self):
+        x = 1
+        if self.warp_arch == 'grid':
+            x = 0
+        return self.pos_embed_dim + (1 - x) * self.effective_feature_dim() + x * (self.dim + 1)  
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.
@@ -214,7 +318,7 @@ class NeuralRadianceField2d(BaseNeuralField):
         """
         properties = {
             "Grid": self.grid,
-            "Decoder (color)": self.decoder_color
+            "Decoder (color)": self.decoder
         }
         if self.prune_density_decay is not None:
             properties['Pruning Density Decay'] = self.prune_density_decay

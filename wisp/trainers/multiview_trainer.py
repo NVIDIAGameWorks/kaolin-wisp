@@ -90,12 +90,15 @@ class MultiviewTrainer(BaseTrainer):
             self.scaler.step(self.optimizer)
             self.scaler.update()
         
+        
     def log_cli(self):
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
         log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
         
         log.info(log_text)
+        print('------------------------------', torch.sum(self.pipeline.dnef.decoder.layers[-1].weight))
+        print('------------------------------', torch.sum(self.pipeline.nef.decoder.layers[-1].weight))
 
     def evaluate_metrics(self, dataset: MultiviewDataset, lod_idx, name=None, lpips_model=None):
 

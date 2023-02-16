@@ -14,14 +14,18 @@ dataset:
     num_rays_sampled_per_img: 4096
     # mip: 2
     bg_color: 'white'
+    warp_type: 'grid'
 
 nef:
     hidden_dim: 64
     num_layers: 1
     pos_embedder: 'none' #'positional'
+    warp_pos_embedder: 'positional'
     position_input: False
     view_embedder: 'positional'
     view_multires: 4 
+    warp_arch: 'none'
+    warp_type: 'translation'
 
 tracer:
     raymarch_type: '2d'
@@ -47,5 +51,5 @@ renderer:
         - 0.65
         - -3.0
     render_res:
-        - 240 #1024
-        - 320 #1024
+        - 200 #600 #1024 #
+        - 200 #800 #1024 #

@@ -155,11 +155,13 @@ class OfflineRenderer():
             ray_o = torch.mm(ray_o, mm)
             ray_d = torch.mm(ray_d, mm)
 
+        warp_ids = torch.ones(len(ray_o),1).to('cuda')*0.2
+        rays = Rays(origins=ray_o, dirs=ray_d, ndc=ndc, warp_ids=warp_ids, 
+                    dist_min=camera_clamp[0], dist_max=camera_clamp[1])
+
         if pipeline.tracer.raymarch_type == '2d':
-            rays = Rays(origins=ray_o, dirs=ray_d, ndc=ndc, dist_min=camera_clamp[0], dist_max=camera_clamp[1])
             rb = self.render2d(pipeline, rays, lod_idx=lod_idx)
         else:
-            rays = Rays(origins=ray_o, dirs=ray_d, ndc=ndc, dist_min=camera_clamp[0], dist_max=camera_clamp[1])
             rb = self.render(pipeline, rays, lod_idx=lod_idx)
         rb = rb.reshape(self.height, self.width, -1) 
         return rb
@@ -186,7 +188,7 @@ class OfflineRenderer():
                 for ray_pack in rays.split(self.render_batch):
                     rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
             else:
-                rb = pipeline.tracer(pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
+                rb = pipeline.tracer(pipeline.dnef, pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
 
         ######################
         # Shading Rendering
@@ -276,9 +278,9 @@ class OfflineRenderer():
             if self.render_batch > 0:
                 rb = RenderBuffer(xyz=None, hit=None, normal=None, shadow=None, ao=None, dirs=None)
                 for ray_pack in rays.split(self.render_batch):
-                    rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
+                    rb  += pipeline.tracer(pipeline.dnef, pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
             else:
-                rb = pipeline.tracer(pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
+                rb = pipeline.tracer(pipeline.dnef, pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
         return rb
     
     # TODO(ttakikawa): These are useful functions but probably does not need to live in the renderer. Migrate.

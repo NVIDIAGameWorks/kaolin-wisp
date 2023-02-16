@@ -191,6 +191,7 @@ class BaseTrainer(ABC):
         """
 
         params_dict = { name : param for name, param in self.pipeline.nef.named_parameters()}
+        params_dictd = { name : param for name, param in self.pipeline.dnef.named_parameters()}
         
         params = []
         decoder_params = []
@@ -211,6 +212,24 @@ class BaseTrainer(ABC):
 
             else:
                 rest_params.append(params_dict[name])
+        print(len(grid_params), len(decoder_params), len(rest_params))
+        for name in params_dictd:
+            
+            if 'decoder' in name:
+                # If "decoder" is in the name, there's a good chance it is in fact a decoder,
+                # so use weight_decay
+                decoder_params.append(params_dictd[name])
+
+            elif 'grid' in name:
+                # If "grid" is in the name, there's a good chance it is in fact a grid,
+                # so use grid_lr_weight
+                grid_params.append(params_dictd[name])
+
+            else:
+                rest_params.append(params_dictd[name])
+            # print(name)
+            # print(len(grid_params), len(decoder_params), len(rest_params))
+            
 
         params.append({"params" : decoder_params,
                        "lr": self.lr, 
