@@ -186,7 +186,7 @@ class OfflineRenderer():
             if self.render_batch > 0:
                 rb = RenderBuffer(xyz=None, hit=None, normal=None, shadow=None, ao=None, dirs=None)
                 for ray_pack in rays.split(self.render_batch):
-                    rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
+                    rb  += pipeline.tracer(pipeline.dnef, pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
             else:
                 rb = pipeline.tracer(pipeline.dnef, pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
 

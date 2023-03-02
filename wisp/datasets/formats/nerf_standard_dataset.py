@@ -246,6 +246,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         imgs = []
         poses = []
         basenames = []
+        warp_ids = []
 
         for frame in tqdm(metadata['frames'], desc='loading data'):
             _data = self._load_single_entry(frame, self.dataset_path, mip=self.mip)
@@ -253,8 +254,9 @@ class NeRFSyntheticDataset(MultiviewDataset):
                 basenames.append(_data["basename"])
                 imgs.append(_data["img"])
                 poses.append(_data["pose"])
+                warp_ids.append(_data["warp_id"])
 
-        return self._collect_data_entries(metadata=metadata, basenames=basenames, imgs=imgs, poses=poses)
+        return self._collect_data_entries(metadata=metadata, basenames=basenames, imgs=imgs, poses=poses, warp_ids=warp_ids)
 
     @staticmethod
     def _parallel_load_standard_imgs(args):

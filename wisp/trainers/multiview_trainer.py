@@ -97,8 +97,8 @@ class MultiviewTrainer(BaseTrainer):
         log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
         
         log.info(log_text)
-        print('------------------------------', torch.sum(self.pipeline.dnef.decoder.layers[-1].weight))
-        print('------------------------------', torch.sum(self.pipeline.nef.decoder.layers[-1].weight))
+        # print('------------------------------', torch.sum(self.pipeline.dnef.decoder.layers[-1].weight))
+        # print('------------------------------', torch.sum(self.pipeline.nef.decoder.layers[-1].weight))
 
     def evaluate_metrics(self, dataset: MultiviewDataset, lod_idx, name=None, lpips_model=None):
 
@@ -216,7 +216,8 @@ class MultiviewTrainer(BaseTrainer):
         if not os.path.exists(self.valid_log_dir):
             os.makedirs(self.valid_log_dir)
 
-        lods = list(range(self.pipeline.nef.grid.num_lods))
+        # lods = list(range(self.pipeline.nef.grid.num_lods))
+        lods = [16]
         try:
             from lpips import LPIPS
             lpips_model = LPIPS(net='vgg').cuda()

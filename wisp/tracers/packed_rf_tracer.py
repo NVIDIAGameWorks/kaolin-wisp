@@ -179,11 +179,13 @@ class PackedRFTracer(BaseTracer):
             return RenderBuffer(depth=depth, hit=hit, rgb=rgb, alpha=out_alpha, **extra_outputs)
         else:
             # 2d method
-            if lod_idx is None:
-                lod_idx = nef.grid.num_lods - 1
+            # if lod_idx is None:
+            #     lod_idx = nef.grid.num_lods - 1
             samples = rays.ndc
             warp_ids = rays.warp_ids
             # samples = torch.stack((samples[:,0], samples[:,1], torch.zeros_like(samples)[...,0]),dim=-1)
-            samples = dnef(coords=samples, warp_ids=warp_ids, lod_idx=lod_idx, channels=["rgb"])[0]
-            rgb = nef(coords=samples, lod_idx=lod_idx, channels=["rgb"])[0]
+            # samples = dnef(coords=samples, warp_ids=warp_ids, lod_idx=lod_idx, channels=["rgb"])[0]
+            samples = dnef(coords=samples, warp_ids=warp_ids, channels=["rgb"])[0]
+            # rgb = nef(coords=samples, warp_ids=warp_ids, lod_idx=lod_idx, channels=["rgb"])[0]
+            rgb = nef(coords=samples, warp_ids=warp_ids, channels=["rgb"])[0]
             return RenderBuffer(rgb=rgb)

@@ -19,8 +19,8 @@ dataset:
 nef:
     hidden_dim: 64
     num_layers: 1
-    pos_embedder: 'none' #'positional'
-    warp_pos_embedder: 'positional'
+    pos_embedder: 'positional' #'none' #
+    warp_pos_embedder: 'none' #'positional'
     position_input: False
     view_embedder: 'positional'
     view_multires: 4 
@@ -39,7 +39,7 @@ trainer:
     epochs: 50
     batch_size: 1
     model_format: 'full'  # If loading a pretrained pipeline, 'full' = torch.load instead of torch.load_state_dict
-    valid_every: 50
+    valid_every: 10 #50
     save_every: 10
     render_tb_every: 2 #10
 
@@ -51,5 +51,5 @@ renderer:
         - 0.65
         - -3.0
     render_res:
-        - 200 #600 #1024 #
-        - 200 #800 #1024 #
+        - 600 #1024 #200 #
+        - 800 #1024 #200 #

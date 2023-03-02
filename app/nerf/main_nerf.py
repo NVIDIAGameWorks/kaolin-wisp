@@ -6,6 +6,9 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+import sys
+sys.path.append('/scratch/soft/anaconda3/envs/wisp/lib/python3.9/site-packages/torch/lib')
+
 
 import os
 import argparse
@@ -17,7 +20,7 @@ from wisp.app_utils import default_log_setup, args_to_log_format
 import wisp.config_parser as config_parser
 from wisp.framework import WispState
 from wisp.datasets import MultiviewDataset, SampleRays
-from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid
+from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid#, HashEmbedder
 from wisp.tracers import BaseTracer, PackedRFTracer
 from wisp.models.nefs import BaseNeuralField, NeuralRadianceField, NeuralRadianceField2d, DeformationField
 from wisp.models.pipeline import Pipeline
@@ -364,6 +367,8 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
                 codebook_bitwidth=args.codebook_bitwidth,
                 blas_level=args.blas_level
             )
+    elif args.grid_type == "HashEmbedder":
+            grid = HashEmbedder() #TODO: add args later  !!
     else:
         raise ValueError(f"Unknown grid_type argument: {args.grid_type}")
     return grid

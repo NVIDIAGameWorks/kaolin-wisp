@@ -89,11 +89,11 @@ class DeformationField(BaseNeuralField):
         # Init Embedders
         self.dim = input_dim
         self.grid = grid
-        self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires,
-                                                                   include_input=position_input)
         self.warp_arch = warp_arch
         if warp_arch == 'none':
             return
+        self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires,
+                                                                   include_input=position_input)
 
         output_dim = self.dim
         self.warp_type = warp_type

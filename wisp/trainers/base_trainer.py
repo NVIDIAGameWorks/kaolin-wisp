@@ -197,13 +197,15 @@ class BaseTrainer(ABC):
         decoder_params = []
         grid_params = []
         rest_params = []
-
+        i = 0
         for name in params_dict:
             
             if 'decoder' in name:
                 # If "decoder" is in the name, there's a good chance it is in fact a decoder,
                 # so use weight_decay
                 decoder_params.append(params_dict[name])
+                print(i, name)
+                i = i+1
 
             elif 'grid' in name:
                 # If "grid" is in the name, there's a good chance it is in fact a grid,

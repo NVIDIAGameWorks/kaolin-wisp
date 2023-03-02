@@ -9,7 +9,7 @@
 parent: 'nerf_base2d.yaml'
 
 grid:
-    grid_type: 'HashGrid'
+    grid_type: 'HashGrid' #'HashEmbedder'
     interpolation_type: 'linear'
     multiscale_type: 'cat'
     feature_dim: 2
@@ -23,4 +23,4 @@ grid:
     blas_level: 7
 
 trainer:
-    prune_every: 100 # iterations
+    prune_every: -1 #100 # iterations

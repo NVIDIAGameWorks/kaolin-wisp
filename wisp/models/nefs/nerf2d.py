@@ -83,7 +83,8 @@ class NeuralRadianceField2d(BaseNeuralField):
                  Used within the pruning scheme from Muller et al. 2022. Used only for grids which support pruning.
         """
         super().__init__()
-        self.grid = grid
+        ## NERF
+        # self.grid = grid
 
         # Init Embedders
         self.dim = 2
@@ -95,10 +96,31 @@ class NeuralRadianceField2d(BaseNeuralField):
         self.layer_type = layer_type
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        self.decoder_color = self.init_decoders(activation_type, layer_type, num_layers, hidden_dim)
+        # self.decoder_color = self.init_decoders(activation_type, layer_type, 4, 128)
+        self.decoder_color = BasicDecoder(input_dim=self.dim + self.pos_embed_dim, #TODO
+                                     output_dim=3,
+                                     activation=get_activation_class(activation_type),
+                                     bias=True,
+                                     layer=get_layer_class(layer_type),
+                                     num_layers=7,
+                                     hidden_dim=256,
+                                     skip=[])
 
         self.prune_density_decay = prune_density_decay
         self.prune_min_density = prune_min_density
+
+
+        ## DEFORMATION FIELD
+        self.pos_embedder_warp, self.pos_embed_dim_warp = self.init_embedder(pos_embedder, pos_multires,
+                                                                   include_input=position_input)
+        self.decoder_warp = BasicDecoder(input_dim=self.dim+1+ self.pos_embed_dim_warp,
+                                     output_dim=self.dim,
+                                     activation=get_activation_class(activation_type),
+                                     bias=True,
+                                     layer=get_layer_class(layer_type),
+                                     num_layers=4,
+                                     hidden_dim=128,
+                                     skip=[4])
 
         torch.cuda.empty_cache()
 
@@ -164,27 +186,49 @@ class NeuralRadianceField2d(BaseNeuralField):
         """
         self._register_forward_function(self.rgba, ["rgb"])
 
-    def rgba(self, coords, lod_idx=None):
+    def rgba(self, coords, warp_ids, lod_idx=None):
         """Compute color for the provided coordinates.
 
         Args:
-            coords (torch.FloatTensor): tensor of shape [batch, 3]
+            coords (torch.FloatTensor): tensor of shape [batch, 2]
             lod_idx (int): index into active_lods. If None, will use the maximum LOD.
         
         Returns:
             {"rgb": torch.FloatTensor}:
                 - RGB tensor of shape [batch, 3]
         """
+        #WARP
         
-        if lod_idx is None:
-            lod_idx = len(self.grid.active_lods) - 1
-        batch, dim = coords.shape
-        if dim == 2:
-            coords = torch.stack((coords[:,0], coords[:,1], torch.zeros_like(coords)[...,0]),dim=-1)
+        coords_org = coords.clone().detach().requires_grad_(True)
+        coords = coords_org
+        batch, n = coords.shape
+        
+        # if len(warp_ids) != batch:
+        #     warp_ids = torch.ones(batch, 1) * warp_ids
+
+        # input = torch.cat((coords, warp_ids), dim=-1)
+        # feats = input 
+
+        # # Optionally concat the positions to the embedding
+        # if self.pos_embedder_warp is not None:
+        #     embedded_pos_warp = self.pos_embedder_warp(coords).view(batch, -1) 
+        #     feats = torch.cat([feats, embedded_pos_warp], dim=-1)
+
+        # translation = self.decoder_warp(feats)
+        # coords_warped = coords + translation #
+
+        # coords = coords_warped
+        
+        #NERF
+        # if lod_idx is None:
+        #     lod_idx = len(self.grid.active_lods) - 1
+        # batch, dim = coords.shape
+        # if dim == 2:
+        #     coords = torch.stack((coords[:,0], coords[:,1], torch.zeros_like(coords)[...,0]),dim=-1)
 
         # Embed coordinates into high-dimensional vectors with the grid.
-        feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
-        # feats = coords #TODO
+        # feats = self.grid.interpolate(coords, lod_idx).reshape(batch, self.effective_feature_dim())
+        feats = coords #TODO
 
         # Optionally concat the positions to the embedding
         if self.pos_embedder is not None:
