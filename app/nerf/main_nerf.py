@@ -291,7 +291,7 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
                 feature_bias=args.feature_bias,
             )
     elif args.grid_type == "CodebookOctreeGrid":
-        if dataset.supports_depth:
+        if dataset.supports_depth():
             grid = CodebookOctreeGrid.from_pointcloud(
                 pointcloud=dataset.as_pointcloud(),
                 feature_dim=args.feature_dim,
