@@ -20,8 +20,6 @@ import kaolin.ops.spc as spc_ops
 #          9999999967, 7654487179, 7654489553, 7654495087, 7654486423,
 #          7654488209, 8654487029, 8654489771, 8654494517, 8654495341]
 
-PRIMES = [1, 265443567, 805459861]
-
 PRIMES = [1, 2654435761, 805459861]
 
 def hashgrid_naive(coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_lod_sizes, codebook_lod_first_idx):
