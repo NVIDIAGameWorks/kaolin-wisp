@@ -26,3 +26,5 @@ setuptools==59.5.0
 wandb>=0.13.5
 pytest>=7.1.0
 attrdict
+tyro>=0.3.38
+hydra-zen>=0.9.1
