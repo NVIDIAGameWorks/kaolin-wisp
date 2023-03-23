@@ -18,6 +18,7 @@ from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.datasets import MultiviewDataset
 from wisp.core import Rays, RenderBuffer
+import torch.nn.functional as F
 
 import wandb
 import numpy as np
@@ -74,7 +75,8 @@ class MultiviewTrainer(BaseTrainer):
         rb = self.pipeline(rays=rays, lod_idx=lod_idx, channels=["rgb"])
 
         # RGB Loss
-        #rgb_loss = F.mse_loss(rb.rgb, img_gts, reduction='none')
+        # keep_cond = img_gts[:,0] != 1
+        # rgb_loss = F.mse_loss(rb.rgb[keep_cond], img_gts[keep_cond], reduction='mean')
         rgb_loss = torch.abs(rb.rgb[..., :3] - img_gts[..., :3])
 
         rgb_loss = rgb_loss.mean()
@@ -88,12 +90,16 @@ class MultiviewTrainer(BaseTrainer):
             self.scaler.step(self.optimizer)
             self.scaler.update()
         
+        
     def log_cli(self):
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
         log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
         
         log.info(log_text)
+        print('------------------------------', torch.sum(self.pipeline.nef.decoder_color.lout.weight))
+        # if self.pipeline.nef.warp:
+        #     print('------------------------------', torch.sum(self.pipeline.nef.decoder_warp.lout.weight))
 
     def evaluate_metrics(self, dataset: MultiviewDataset, lod_idx, name=None, lpips_model=None):
 
@@ -211,7 +217,8 @@ class MultiviewTrainer(BaseTrainer):
         if not os.path.exists(self.valid_log_dir):
             os.makedirs(self.valid_log_dir)
 
-        lods = list(range(self.pipeline.nef.grid.num_lods))
+        # lods = list(range(self.pipeline.nef.grid.num_lods))
+        lods = [16]
         try:
             from lpips import LPIPS
             lpips_model = LPIPS(net='vgg').cuda()

@@ -33,7 +33,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         NeRF-synthetic scenes include RGBA / RGB information.
     """
 
-    def __init__(self, dataset_path: str, split: str, bg_color: str, mip: int = 0,
+    def __init__(self, dataset_path: str, split: str, bg_color: str, warp: str, mip: int = 0,
                  dataset_num_workers: int = -1, transform: Callable = None):
         """ Loads the NeRF-synthetic data and applies dataset specific transforms required for compatibility with the
         framework.
@@ -60,6 +60,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
                          transform=transform, split=split)
         self.mip = mip
         self.bg_color = bg_color
+        self.warp = warp
 
         self.coords = self.data = self.coords_center = self.coords_scale = None
         self._transform_file = self._validate_and_find_transform()
@@ -89,7 +90,8 @@ class NeRFSyntheticDataset(MultiviewDataset):
             bg_color=self.bg_color,
             mip=self.mip,
             dataset_num_workers=self.dataset_num_workers,
-            transform=transform
+            transform=transform,
+            warp= self.warp
         )
 
     def __getitem__(self, idx) -> MultiviewBatch:
@@ -219,8 +221,11 @@ class NeRFSyntheticDataset(MultiviewDataset):
             img = load_rgb(fpath)
             if mip is not None:
                 img = resize_mip(img, mip, interpolation=cv2.INTER_AREA)
-            return dict(basename=basename,
-                        img=torch.FloatTensor(img), pose=torch.FloatTensor(np.array(frame['transform_matrix'])))
+            warp_id = torch.FloatTensor([0])
+            if "warp_id" in frame:
+                warp_id = torch.FloatTensor([frame["warp_id"]])
+            return dict(basename=basename, img=torch.FloatTensor(img), 
+                        pose=torch.FloatTensor(np.array(frame['transform_matrix'])), warp_id=warp_id)
         else:
             # log.info(f"File name {fpath} doesn't exist. Ignoring.")
             return None
@@ -241,6 +246,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         imgs = []
         poses = []
         basenames = []
+        warp_ids = []
 
         for frame in tqdm(metadata['frames'], desc='loading data'):
             _data = self._load_single_entry(frame, self.dataset_path, mip=self.mip)
@@ -248,8 +254,9 @@ class NeRFSyntheticDataset(MultiviewDataset):
                 basenames.append(_data["basename"])
                 imgs.append(_data["img"])
                 poses.append(_data["pose"])
+                warp_ids.append(_data["warp_id"])
 
-        return self._collect_data_entries(metadata=metadata, basenames=basenames, imgs=imgs, poses=poses)
+        return self._collect_data_entries(metadata=metadata, basenames=basenames, imgs=imgs, poses=poses, warp_ids=warp_ids)
 
     @staticmethod
     def _parallel_load_standard_imgs(args):
@@ -258,9 +265,9 @@ class NeRFSyntheticDataset(MultiviewDataset):
         torch.set_num_threads(1)
         result = NeRFSyntheticDataset._load_single_entry(args['frame'], args['root'], mip=args['mip'])
         if result is None:
-            return dict(basename=None, img=None, pose=None)
+            return dict(basename=None, img=None, pose=None, warp_id=None)
         else:
-            return dict(basename=result['basename'], img=result['img'], pose=result['pose'])
+            return dict(basename=result['basename'], img=result['img'], pose=result['pose'], warp_id=result['warp_id'])
 
     def load_multiprocess(self):
         """Standard parsing function for loading nerf-synthetic files with multiple workers.
@@ -278,6 +285,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         imgs = []
         poses = []
         basenames = []
+        warp_ids = []
 
         p = Pool(self.dataset_num_workers)
         try:
@@ -285,24 +293,28 @@ class NeRFSyntheticDataset(MultiviewDataset):
                           for frame in metadata['frames']]
             iterator = p.imap(NeRFSyntheticDataset._parallel_load_standard_imgs, mp_entries)
 
-            for _ in tqdm(range(len(metadata['frames']))):
+            for frame in tqdm(range(len(metadata['frames']))):
                 result = next(iterator)
                 basename = result['basename']
                 img = result['img']
                 pose = result['pose']
+                warp_id = result['warp_id']
+
                 if basename is not None:
                     basenames.append(basename)
                 if img is not None:
                     imgs.append(img)
                 if pose is not None:
                     poses.append(pose)
+                if warp_id is not None:
+                    warp_ids.append(warp_id)
         finally:
             p.close()
             p.join()
 
-        return self._collect_data_entries(metadata=metadata, basenames=basenames, imgs=imgs, poses=poses)
+        return self._collect_data_entries(metadata=metadata, basenames=basenames, imgs=imgs, poses=poses, warp_ids=warp_ids)
 
-    def _collect_data_entries(self, metadata, basenames, imgs, poses) -> Dict[str, Union[torch.Tensor, Rays, Camera]]:
+    def _collect_data_entries(self, metadata, basenames, imgs, poses, warp_ids) -> Dict[str, Union[torch.Tensor, Rays, Camera]]:
         """ Internal function for aggregating the pre-loaded multi-views.
         This function will:
             1. Read the metadata & compute the intrinsic parameters of the camera view, (such as fov and focal length
@@ -316,6 +328,9 @@ class NeRFSyntheticDataset(MultiviewDataset):
         """
         imgs = torch.stack(imgs)
         poses = torch.stack(poses)
+        warp_ids = torch.stack(warp_ids)
+        if self.warp == 'grid':
+            warp_ids = warp_ids/torch.max(warp_ids)
 
         # TODO(ttakikawa): Assumes all images are same shape and focal. Maybe breaks in general...
         h, w = imgs[0].shape[:2]
@@ -407,7 +422,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
             ray_grid = generate_centered_pixel_coords(camera.width, camera.height,
                                                       camera.width, camera.height, device='cuda')
             rays.append \
-                (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width, 3).to
+                (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid, warp_ids[i]).reshape(camera.height, camera.width, 3).to
                     ('cpu'))
 
         rays = Rays.stack(rays).to(dtype=torch.float)

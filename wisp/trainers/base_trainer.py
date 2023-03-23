@@ -17,6 +17,7 @@ from wisp.offline_renderer import OfflineRenderer
 from wisp.framework import WispState, BottomLevelRendererState
 from wisp.datasets import WispDataset, default_collate
 from wisp.renderer.core.api import add_to_scene_graph
+from PIL import Image
 
 import wandb
 import numpy as np
@@ -190,18 +191,21 @@ class BaseTrainer(ABC):
         """
 
         params_dict = { name : param for name, param in self.pipeline.nef.named_parameters()}
+        # params_dictd = { name : param for name, param in self.pipeline.dnef.named_parameters()}
         
         params = []
         decoder_params = []
         grid_params = []
         rest_params = []
-
+        i = 0
         for name in params_dict:
             
             if 'decoder' in name:
                 # If "decoder" is in the name, there's a good chance it is in fact a decoder,
                 # so use weight_decay
                 decoder_params.append(params_dict[name])
+                print(i, name)
+                i = i+1
 
             elif 'grid' in name:
                 # If "grid" is in the name, there's a good chance it is in fact a grid,
@@ -210,6 +214,24 @@ class BaseTrainer(ABC):
 
             else:
                 rest_params.append(params_dict[name])
+        print(len(grid_params), len(decoder_params), len(rest_params))
+        # for name in params_dictd:
+            
+        #     if 'decoder' in name:
+        #         # If "decoder" is in the name, there's a good chance it is in fact a decoder,
+        #         # so use weight_decay
+        #         decoder_params.append(params_dictd[name])
+
+        #     elif 'grid' in name:
+        #         # If "grid" is in the name, there's a good chance it is in fact a grid,
+        #         # so use grid_lr_weight
+        #         grid_params.append(params_dictd[name])
+
+        #     else:
+        #         rest_params.append(params_dictd[name])
+        #     # print(name)
+        #     # print(len(grid_params), len(decoder_params), len(rest_params))
+            
 
         params.append({"params" : decoder_params,
                        "lr": self.lr, 
@@ -542,6 +564,9 @@ class BaseTrainer(ABC):
 
             log_buffers = ['depth', 'hit', 'normal', 'rgb', 'alpha']
 
+
+            im = Image.fromarray(out['rgb'])
+            im.save("your_file.png")
             for key in log_buffers:
                 if out.get(key) is not None:
                     self.writer.add_image(f'{key}/{d}', out[key].T, self.epoch)

@@ -6,6 +6,11 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+import sys
+sys.path.append('/scratch/soft/anaconda3/envs/wisp/lib/python3.9/site-packages/torch/lib')
+
+import time
+start_time = time.time()
 
 import os
 import argparse
@@ -17,9 +22,9 @@ from wisp.app_utils import default_log_setup, args_to_log_format
 import wisp.config_parser as config_parser
 from wisp.framework import WispState
 from wisp.datasets import MultiviewDataset, SampleRays
-from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid
+from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid, HashEmbedder
 from wisp.tracers import BaseTracer, PackedRFTracer
-from wisp.models.nefs import BaseNeuralField, NeuralRadianceField
+from wisp.models.nefs import BaseNeuralField, NeuralRadianceField, NeuralRadianceField2d, DeformationField
 from wisp.models.pipeline import Pipeline
 from wisp.trainers import BaseTrainer, MultiviewTrainer
 
@@ -106,10 +111,18 @@ def parse_args():
                                  'used to track the occupancy status (bottom level acceleration structure).')
 
     nef_group = parser.add_argument_group('nef')
+    nef_group.add_argument('--warp', type=str, help='deformation field architecture.')
+    # nef_group.add_argument('--warp-arch', type=str, choices=['none', 'grid', 'mlp'],
+    #                        default='none', help='deformation field architecture.')
+    # nef_group.add_argument('--warp-type', type=str, choices=['transformation', 'se2', 'se3'],
+                        #    default='transformation', help='deformation field type.')
     nef_group.add_argument('--pos-embedder', type=str, choices=['none', 'identity', 'positional'],
                            default='positional',
                            help='MLP Decoder of neural field: Positional embedder used to encode input coordinates'
                                 'or view directions.')
+    nef_group.add_argument('--warp-pos-embedder', type=str, choices=['none', 'identity', 'positional'],
+                           default='positional',
+                           help='MLP Decoder of deformation field: Positional embedder used to encode input coordinates')
     nef_group.add_argument('--view-embedder', type=str, choices=['none', 'identity', 'positional'],
                            default='positional',
                            help='MLP Decoder of neural field: Positional embedder used to encode view direction')
@@ -248,6 +261,7 @@ def load_dataset(args) -> MultiviewDataset:
                                                          split='train',
                                                          mip=args.mip,
                                                          bg_color=args.bg_color,
+                                                         warp=args.warp,
                                                          dataset_num_workers=args.dataset_num_workers,
                                                          transform=transform)
     validation_dataset = None
@@ -350,6 +364,9 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
                 codebook_bitwidth=args.codebook_bitwidth,
                 blas_level=args.blas_level
             )
+    elif args.grid_type == "HashEmbedder":
+            bounding_box = torch.tensor([[-1,-1,-1],[1, 1, 1]]).to(device)
+            grid = HashEmbedder(bounding_box) #TODO: add args later  !!
     else:
         raise ValueError(f"Unknown grid_type argument: {args.grid_type}")
     return grid
@@ -361,21 +378,67 @@ def load_neural_field(args, dataset: MultiviewDataset) -> BaseNeuralField:
     The NeuralRadianceField uses spatial feature grids internally for faster feature interpolation and raymarching.
     """
     grid = load_grid(args=args, dataset=dataset)
-    nef = NeuralRadianceField(
-        grid=grid,
-        pos_embedder=args.pos_embedder,
-        view_embedder=args.view_embedder,
-        position_input=args.position_input,
-        pos_multires=args.pos_multires,
-        view_multires=args.view_multires,
-        activation_type=args.activation_type,
-        layer_type=args.layer_type,
-        hidden_dim=args.hidden_dim,
-        num_layers=args.num_layers,
-        prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
-        prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
-    )
+    warpgrid = load_grid(args=args, dataset=dataset)
+    if args.raymarch_type == '2d':
+        nef = NeuralRadianceField2d(
+            grid=grid,
+            warpgrid=warpgrid,
+            warp=args.warp,
+            pos_embedder=args.pos_embedder,
+            pos_multires=args.pos_multires,
+            activation_type=args.activation_type,
+            layer_type=args.layer_type,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
+            prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
+        )
+    else:
+
+        nef = NeuralRadianceField(
+            grid=grid,
+            pos_embedder=args.pos_embedder,
+            view_embedder=args.view_embedder,
+            position_input=args.position_input,
+            pos_multires=args.pos_multires,
+            view_multires=args.view_multires,
+            activation_type=args.activation_type,
+            layer_type=args.layer_type,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
+            prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
+        )
     return nef
+
+
+# def load_warp_field(args, dataset: MultiviewDataset) -> BaseNeuralField:
+#     """ Creates a "Neural Field" instance which warps input coordinates.
+#     Here a DeformationField is created, which maps coordinates to coordinates in a canonical space
+#     for scenes with deforamation.
+#     The DeformationField can use spatial feature grids internally for faster feature interpolation and raymarching.
+#     """
+#     dim = 3
+#     grid = None
+#     if args.raymarch_type == '2d':
+#         dim = 2
+#     if args.warp_arch == 'grid':
+#         grid = load_grid(args=args, dataset=dataset)
+#     dnef = DeformationField(
+#         input_dim = dim,
+#         warp_arch = args.warp_arch,
+#         warp_type = args.warp_type,
+#         grid=grid,
+#         pos_embedder=args.warp_pos_embedder,
+#         pos_multires=args.pos_multires,
+#         activation_type=args.activation_type,
+#         layer_type=args.layer_type,
+#         hidden_dim=args.hidden_dim,
+#         num_layers=args.num_layers,
+#         prune_density_decay=args.prune_density_decay,   # Used only for grid types which support pruning
+#         prune_min_density=args.prune_min_density        # Used only for grid types which support pruning
+#     )
+#     return dnef
 
 
 def load_tracer(args) -> BaseTracer:
@@ -400,8 +463,10 @@ def load_neural_pipeline(args, dataset, device) -> Pipeline:
     """ In Wisp, a Pipeline comprises of a neural field + a tracer (the latter is optional in some cases).
     Together, they form the complete pipeline required to render a neural primitive from input rays / coordinates.
     """
+    # dnef = load_warp_field(args=args, dataset=dataset)
     nef = load_neural_field(args=args, dataset=dataset)
     tracer = load_tracer(args=args)
+    # pipeline = Pipeline(dnef=dnef, nef=nef, tracer=tracer)
     pipeline = Pipeline(nef=nef, tracer=tracer)
     if args.pretrained:
         if args.model_format == "full":
@@ -491,3 +556,4 @@ else:
         trainer.validate()
     else:
         trainer.train()
+print("--- %s seconds ---" % (time.time() - start_time))

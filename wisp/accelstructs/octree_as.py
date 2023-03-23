@@ -31,7 +31,6 @@ def fast_filter_method(mask_idx: torch.Tensor, depth: torch.Tensor, deltas: torc
 
     return depth_samples, deltas, samples, ridx
 
-
 class OctreeAS(BaseAS):
     """Octree bottom-level acceleration structure class implemented using Kaolin SPC.
     Can be used to to quickly query cells occupancy, and trace rays against the volume.
@@ -248,7 +247,7 @@ class OctreeAS(BaseAS):
                 - Sample depth diffs of shape [num_hit_samples, 1]
                 - Boundary tensor which marks the beginning of each variable-sized
                   sample pack of shape [num_hit_samples]
-        """
+            """
         # Sample points along 1D line
         # depth ~ (NUM_RAYS, NUM_SAMPLES)
         depth = torch.linspace(0, 1.0, num_samples, device=rays.origins.device)[None] + \
@@ -331,6 +330,10 @@ class OctreeAS(BaseAS):
         # inside-looking-out scenes. The camera near and far planes will have to be adjusted carefully, however.
         elif raymarch_type == 'ray':
             raymarch_results = self._raymarch_ray(rays=rays, num_samples=num_samples, level=level)
+
+        # 2d
+        elif raymarch_type == '2d':
+            raymarch_results = self._raymarch_2d(rays=rays, num_samples=num_samples, level=level)
 
         else:
             raise TypeError(f"Raymarch sampler type: {raymarch_type} is not supported by OctreeAS.")

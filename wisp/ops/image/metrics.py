@@ -85,6 +85,7 @@ def ssim(rgb, gts):
         rgb[..., :3].cpu().numpy(),
         gts[..., :3].cpu().numpy(),
         multichannel=True,
+        channel_axis=-1,
         data_range=1,
         gaussian_weights=True,
         sigma=1.5,

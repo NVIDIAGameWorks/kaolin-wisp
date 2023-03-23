@@ -92,7 +92,7 @@ class BaseTracer(WispModule, ABC):
         """
         pass
 
-    def forward(self, nef, rays: Rays, channels=None, **kwargs):
+    def forward(self, nef, rays: Rays, channels=None, **kwargs):# dnef, 
         """Queries the tracer with channels.
 
         Args:
@@ -151,7 +151,7 @@ class BaseTracer(WispModule, ABC):
                 if default_arg is not None:
                     input_args[_arg] = default_arg
         with torch.cuda.nvtx.range("Tracer.trace"):
-            rb = self.trace(nef, rays, requested_channels, requested_extra_channels, **input_args)
+            rb = self.trace(nef, rays, requested_channels, requested_extra_channels, **input_args)#dnef, 
         return rb
 
     def public_properties(self) -> Dict[str, Any]:

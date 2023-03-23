@@ -30,7 +30,7 @@ class Pipeline(nn.Module):
     The 'Pipeline' classes are responsible for holding and orchestrating these components.
     """
     
-    def __init__(self, nef: BaseNeuralField, tracer: BaseTracer = None):
+    def __init__(self, nef: BaseNeuralField, tracer: BaseTracer = None):#dnef: BaseNeuralField, 
         """Initialize the Pipeline.
 
         Args:
@@ -39,6 +39,7 @@ class Pipeline(nn.Module):
         """
         super().__init__()
     
+        # self.dnef: BaseNeuralField = dnef
         self.nef: BaseNeuralField = nef
         self.tracer: BaseTracer = tracer
 
@@ -48,6 +49,6 @@ class Pipeline(nn.Module):
         Otherwise, it'll execute the neural field.
         """
         if self.tracer is not None:
-            return self.tracer(self.nef, *args, **kwargs)
+            return self.tracer(self.nef, *args, **kwargs)#self.dnef, 
         else:
             return self.nef(*args, **kwargs)

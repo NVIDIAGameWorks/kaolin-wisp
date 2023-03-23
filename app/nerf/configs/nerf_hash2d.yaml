@@ -6,11 +6,21 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-from .blas_grid import *
-from .octree_grid import *
-from .codebook_grid import *
-from .hash_grid import * 
-from .hash_encoding import * 
-from .triplanar_grid import *
-from .utils import *
-from .ray_utils import *
+parent: 'nerf_base2d.yaml'
+
+grid:
+    grid_type: 'HashEmbedder' #'HashGrid' #
+    interpolation_type: 'linear'
+    multiscale_type: 'cat'
+    feature_dim: 2
+    feature_std: 0.01
+    feature_bias: 0.0
+    num_lods: 16
+    codebook_bitwidth: 19
+    tree_type: 'geometric'
+    min_grid_res: 16
+    max_grid_res: 2048
+    blas_level: 7
+
+trainer:
+    prune_every: -1 #100 # iterations

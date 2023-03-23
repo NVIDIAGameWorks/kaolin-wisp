@@ -14,6 +14,7 @@ from wisp.core import RenderBuffer, Rays
 from wisp.ops.shaders import matcap_shader, pointlight_shadow_shader
 from wisp.ops.differential import finitediff_gradient
 from wisp.ops.geometric import normalized_grid, normalized_slice
+from wisp.ops.raygen import generate_centered_pixel_coords
 from wisp.tracers import *
 
 
@@ -70,7 +71,7 @@ def _generate_rays(camera_origin, camera_view, camera_right, camera_up, height, 
         - [height, width, 3] tensor of ray origins
         - [height, width, 3] tensor of ray directions
     """
-    coord = normalized_grid(height, width, device=device)
+    coord = normalized_grid(height, width, jitter=True, use_aspect=False, device=device)
 
     ray_origin = camera_right * coord[..., 0, np.newaxis] * np.tan(np.radians(fov / 2)) + \
                  camera_up * coord[..., 1, np.newaxis] * np.tan(np.radians(fov / 2)) + \
@@ -86,7 +87,7 @@ def _generate_rays(camera_origin, camera_view, camera_right, camera_up, height, 
     else:
         raise ValueError('Invalid camera mode!')
 
-    return ray_origin, ray_dir
+    return ray_origin, ray_dir, coord.reshape(-1, 2)
 
 
 class OfflineRenderer():
@@ -147,16 +148,21 @@ class OfflineRenderer():
             (wisp.core.RenderBuffer): The rendered image buffers.
         """
         # Generate the ray origins and directions, from camera parameters
-        ray_o, ray_d = _look_at(f, t, self.height, self.width, fov=fov, mode=camera_proj, device=device)
+        ray_o, ray_d, ndc = _look_at(f, t, self.height, self.width, fov=fov, mode=camera_proj, device=device)
         # Rotate the camera into model space
         if mm is not None:
             mm = mm.to('cuda')
             ray_o = torch.mm(ray_o, mm)
             ray_d = torch.mm(ray_d, mm)
-        
-        rays = Rays(origins=ray_o, dirs=ray_d, dist_min=camera_clamp[0], dist_max=camera_clamp[1])
 
-        rb = self.render(pipeline, rays, lod_idx=lod_idx)
+        warp_ids = torch.zeros(len(ray_o),1).to('cuda')*0.5
+        rays = Rays(origins=ray_o, dirs=ray_d, ndc=ndc, warp_ids=warp_ids, 
+                    dist_min=camera_clamp[0], dist_max=camera_clamp[1])
+
+        if pipeline.tracer.raymarch_type == '2d':
+            rb = self.render2d(pipeline, rays, lod_idx=lod_idx)
+        else:
+            rb = self.render(pipeline, rays, lod_idx=lod_idx)
         rb = rb.reshape(self.height, self.width, -1) 
         return rb
 
@@ -180,9 +186,9 @@ class OfflineRenderer():
             if self.render_batch > 0:
                 rb = RenderBuffer(xyz=None, hit=None, normal=None, shadow=None, ao=None, dirs=None)
                 for ray_pack in rays.split(self.render_batch):
-                    rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)
+                    rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)#pipeline.dnef, 
             else:
-                rb = pipeline.tracer(pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)
+                rb = pipeline.tracer(pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs)# pipeline.dnef, 
 
         ######################
         # Shading Rendering
@@ -209,10 +215,11 @@ class OfflineRenderer():
             raise NotImplementedError
         
         # Use segmentation
-        if rb.normal is not None:
-            rb.normal[~rb.hit] = 1.0
-        if rb.rgb is not None:
-            rb.rgb[~rb.hit] = 1.0
+        if rb.hit is not None:
+            if rb.normal is not None:
+                rb.normal[~rb.hit] = 1.0
+            if rb.rgb is not None:
+                rb.rgb[~rb.hit] = 1.0
 
         # Add secondary effects
         if self.shadow:
@@ -249,6 +256,31 @@ class OfflineRenderer():
         if self.ao:
             rb.rgb[...,:3] *= rb.ao        
         
+        return rb
+
+
+    def render2d(self, pipeline, rays, lod_idx=None):
+        """Render images from a lookat.
+
+        Args:
+            pipeline (wisp.core.Pipeline): the pipeline to render
+            rays (wisp.core.Rays): the rays to render
+            lod_idx (int): LOD to renderer
+
+        Returns: 
+            (wisp.core.RenderBuffer): The renderer image.
+        """
+        # Differentiable Renderer
+        if self.perf:
+            _time = time.time()
+
+        with torch.no_grad():
+            if self.render_batch > 0:
+                rb = RenderBuffer(xyz=None, hit=None, normal=None, shadow=None, ao=None, dirs=None)
+                for ray_pack in rays.split(self.render_batch):
+                    rb  += pipeline.tracer(pipeline.nef, rays=ray_pack, lod_idx=lod_idx, **self.kwargs)#pipeline.dnef, 
+            else:
+                rb = pipeline.tracer(pipeline.nef, rays=rays, lod_idx=lod_idx, **self.kwargs) #pipeline.dnef, 
         return rb
     
     # TODO(ttakikawa): These are useful functions but probably does not need to live in the renderer. Migrate.
