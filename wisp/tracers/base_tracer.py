@@ -33,14 +33,18 @@ class BaseTracer(WispModule, ABC):
     though non-differentiable tracers are also allowed.
     """
 
-    def __init__(self):
+    def __init__(self, bg_color: str = 'black'):
         """Initializes the tracer class and sets the default arguments for trace.
         This should be overrided and called if you want to pass custom defaults into the renderer.
         If overridden, it should keep the arguments to `self.trace` in `self.` class variables.
         Then, if these variables exist and no function arguments are passed into forward,
         it will override them as the default.
+
+        Args:
+            bg_color (str): The clear background color used by default for the color channel.
         """
         super().__init__()
+        self.bg_color = bg_color
 
     @abstractmethod
     def get_supported_channels(self):

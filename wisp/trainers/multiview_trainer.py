@@ -9,22 +9,49 @@
 
 import os
 import logging as log
-from tqdm import tqdm
+import git
 import random
-import pandas as pd
 import torch
-from wisp.trainers import BaseTrainer, log_metric_to_wandb, log_images_to_wandb
+import pandas as pd
+from typing import Optional
+from tqdm import tqdm
+import wisp
+from wisp.config import configure, autoconfig, instantiate
+from wisp.trainers import BaseTrainer, ConfigBaseTrainer
+from wisp.trainers.tracker import Tracker
 from wisp.ops.image import write_png, write_exr
 from wisp.ops.image.metrics import psnr, lpips, ssim
 from wisp.datasets import MultiviewDataset
 from wisp.core import Rays, RenderBuffer
 
-import wandb
-import numpy as np
-from PIL import Image
+
+@configure
+class ConfigMultiviewTrainer(ConfigBaseTrainer):
+    prune_every: int = 100
+    """ Invokes nef.prune() logic every "prune_every" iterations. """
+
+    random_lod: bool = False
+    """ If True, random LODs in the occupancy structure will be picked per step, during tracing.
+        If False, will always used the highest level of the occupancy structure.
+    """
+
+    rgb_lambda: float = 1.0
+    """ Loss weight for rgb_loss component. """
 
 
 class MultiviewTrainer(BaseTrainer):
+
+    def __init__(self,
+                 cfg: ConfigMultiviewTrainer,
+                 pipeline: wisp.models.Pipeline,
+                 train_dataset: wisp.datasets.WispDataset,
+                 validation_dataset: wisp.datasets.WispDataset,
+                 tracker: Tracker,
+                 device: torch.device = 'cuda',
+                 scene_state: Optional[wisp.framework.WispState] = None):
+        super().__init__(cfg=cfg, pipeline=pipeline, train_dataset=train_dataset, tracker=tracker, device=device,
+                         scene_state=scene_state)
+        self.validation_dataset = validation_dataset
 
     def populate_scenegraph(self):
         """ Updates the scenegraph with information about available objects.
@@ -38,16 +65,10 @@ class MultiviewTrainer(BaseTrainer):
         """
         super().pre_step()
         
-        if self.extra_args["prune_every"] > -1 and \
+        if self.cfg.prune_every > -1 and \
            self.total_iterations > 1 and \
-           self.total_iterations % self.extra_args["prune_every"] == 0:
+           self.total_iterations % self.cfg.prune_every == 0:
             self.pipeline.nef.prune()
-
-    def init_log_dict(self):
-        """Custom log dict.
-        """
-        super().init_log_dict()
-        self.log_dict['rgb_loss'] = 0.0
 
     @torch.cuda.nvtx.range("MultiviewTrainer.step")
     def step(self, data):
@@ -58,10 +79,9 @@ class MultiviewTrainer(BaseTrainer):
         img_gts = data['rgb'].to(self.device).squeeze(0)
 
         self.optimizer.zero_grad(set_to_none=True)
-            
         loss = 0
         
-        if self.extra_args["random_lod"]:
+        if self.cfg.random_lod:
             # Sample from a geometric distribution
             population = [i for i in range(self.pipeline.nef.grid.num_lods)]
             weights = [2**i for i in range(self.pipeline.nef.grid.num_lods)]
@@ -78,24 +98,28 @@ class MultiviewTrainer(BaseTrainer):
         rgb_loss = torch.abs(rb.rgb[..., :3] - img_gts[..., :3])
 
         rgb_loss = rgb_loss.mean()
-        loss += self.extra_args["rgb_loss"] * rgb_loss
-        self.log_dict['rgb_loss'] += rgb_loss.item()
+        loss += self.cfg.rgb_lambda * rgb_loss
 
-        self.log_dict['total_loss'] += loss.item()
+        # Aggregate losses
+        self.tracker.metrics.total_loss += loss.item()
+        self.tracker.metrics.rgb_loss += rgb_loss.item()
+        self.tracker.metrics.num_samples += 1   # Multiview batches are assumed as single image per batch
         
         with torch.cuda.nvtx.range("MultiviewTrainer.backward"):
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
         
-    def log_cli(self):
+    def log_console(self):
+        total_loss = self.tracker.metrics.average_metric('total_loss')
+        rgb_loss = self.tracker.metrics.average_metric('rgb_loss')
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
-        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
-        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'] / len(self.train_data_loader))
+        log_text += ' | total loss: {:>.3E}'.format(total_loss)
+        log_text += ' | rgb loss: {:>.3E}'.format(rgb_loss)
         
         log.info(log_text)
 
-    def evaluate_metrics(self, dataset: MultiviewDataset, lod_idx, name=None, lpips_model=None):
+    def evaluate_metrics(self, dataset: MultiviewDataset, valid_log_dir:str, lod_idx, name=None, lpips_model=None):
 
         img_count = len(dataset)
         img_shape = dataset.img_shape
@@ -107,7 +131,7 @@ class MultiviewTrainer(BaseTrainer):
             for idx, full_batch in tqdm(enumerate(dataset)):
                 gts = full_batch['rgb'].to('cuda')
                 rays = full_batch['rays'].to('cuda')
-                rb = self.renderer.render(self.pipeline, rays, lod_idx=lod_idx)
+                rb = self.tracker.visualizer.render(self.pipeline, rays, lod_idx=lod_idx)
 
                 gts = gts.reshape(*img_shape, -1)
                 rb = rb.reshape(*img_shape, -1)
@@ -126,14 +150,14 @@ class MultiviewTrainer(BaseTrainer):
                     out_name += "-" + name
 
                 try:
-                    write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
+                    write_exr(os.path.join(valid_log_dir, out_name + ".exr"), exrdict)
                 except:
                     if hasattr(self, "exr_exception"):
                         pass
                     else:
                         self.exr_exception = True
                         log.info("Skipping EXR logging since pyexr is not found.")
-                write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb)
+                write_png(os.path.join(valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb)
 
         psnr_total /= img_count
         lpips_total /= img_count
@@ -151,65 +175,48 @@ class MultiviewTrainer(BaseTrainer):
         log.info(log_text)
  
         return metrics_dict
-
-    def render_final_view(self, num_angles, camera_distance):
-        angles = np.pi * 0.1 * np.array(list(range(num_angles + 1)))
-        x = -camera_distance * np.sin(angles)
-        y = self.extra_args["camera_origin"][1]
-        z = -camera_distance * np.cos(angles)
-        for d in range(self.extra_args["num_lods"]):
-            out_rgb = []
-            for idx in tqdm(range(num_angles + 1), desc=f"Generating 360 Degree of View for LOD {d}"):
-                log_metric_to_wandb(f"LOD-{d}-360-Degree-Scene/step", idx, step=idx)
-                out = self.renderer.shade_images(
-                    self.pipeline,
-                    f=[x[idx], y, z[idx]],
-                    t=self.extra_args["camera_lookat"],
-                    fov=self.extra_args["camera_fov"],
-                    lod_idx=d,
-                    camera_clamp=self.extra_args["camera_clamp"]
-                )
-                out = out.image().byte().numpy_dict()
-                if out.get('rgb') is not None:
-                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/RGB", out['rgb'].T, idx)
-                    out_rgb.append(Image.fromarray(np.moveaxis(out['rgb'].T, 0, -1)))
-                if out.get('rgba') is not None:
-                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/RGBA", out['rgba'].T, idx)
-                if out.get('depth') is not None:
-                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Depth", out['depth'].T, idx)
-                if out.get('normal') is not None:
-                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Normal", out['normal'].T, idx)
-                if out.get('alpha') is not None:
-                    log_images_to_wandb(f"LOD-{d}-360-Degree-Scene/Alpha", out['alpha'].T, idx)
-                wandb.log({})
-        
-            rgb_gif = out_rgb[0]
-            gif_path = os.path.join(self.log_dir, "rgb.gif")
-            rgb_gif.save(gif_path, save_all=True, append_images=out_rgb[1:], optimize=False, loop=0)
-            wandb.log({f"360-Degree-Scene/RGB-Rendering/LOD-{d}": wandb.Video(gif_path)})
     
     def validate(self):
         self.pipeline.eval()
 
-        # record_dict contains trainer args, but omits torch.Tensor fields which were not explicitly converted to
+        record_dict = self.tracker.get_app_config(as_dict=True)
+        if record_dict is None:
+            log.info("app_config not supplied to Tracker, config won't be logged in the pandas log")
+            record_dict = {}
+        else:
+            record_dict = pd.json_normalize(record_dict, sep='.').to_dict(orient='records')[0]
+
+        # record_dict contains config args, but omits torch.Tensor fields which were not explicitly converted to
         # numpy or some other format. This is required as parquet doesn't support torch.Tensors
         # (and also for output size considerations)
-        record_dict = {k: v for k, v in self.extra_args.items() if not isinstance(v, torch.Tensor)}
+        record_dict = {k: v for k, v in record_dict.items() if not isinstance(v, torch.Tensor)}
+
+        try:
+            repo = git.Repo(search_parent_directories=True)
+            sha = repo.head.object.hexsha[:8]
+            record_dict["git_sha"] = sha
+        except:
+            log.info("Validation script not running within a git directory, so skipping SHA logging.")
+
+        self.tracker.log_table("args", record_dict, self.epoch)
+
+        log_dir = self.tracker.log_dir
+        log_fname = self.tracker.log_fname
         dataset_name = os.path.splitext(os.path.basename(self.validation_dataset.dataset_path))[0]
-        model_fname = os.path.abspath(os.path.join(self.log_dir, f'model.pth'))
+        model_fname = os.path.abspath(os.path.join(log_dir, f'model.pth'))
         record_dict.update({"dataset_name" : dataset_name, "epoch": self.epoch, 
-                            "log_fname" : self.log_fname, "model_fname": model_fname})
-        parent_log_dir = os.path.dirname(self.log_dir)
+                            "log_fname" : log_fname, "model_fname": model_fname})
+        parent_log_dir = os.path.dirname(log_dir)
 
         log.info("Beginning validation...")
         img_shape = self.validation_dataset.img_shape
         log.info(f"Running validation on dataset with {len(self.validation_dataset)} images "
                  f"at resolution {img_shape[0]}x{img_shape[1]}")
 
-        self.valid_log_dir = os.path.join(self.log_dir, "val")
-        log.info(f"Saving validation result to {self.valid_log_dir}")
-        if not os.path.exists(self.valid_log_dir):
-            os.makedirs(self.valid_log_dir)
+        valid_log_dir = os.path.join(log_dir, "val")
+        log.info(f"Saving validation result to {valid_log_dir}")
+        if not os.path.exists(valid_log_dir):
+            os.makedirs(valid_log_dir)
 
         lods = list(range(self.pipeline.nef.grid.num_lods))
         try:
@@ -222,12 +229,11 @@ class MultiviewTrainer(BaseTrainer):
             else:
                 self.lpips_exception = True
                 log.info("Skipping LPIPS since lpips is not found.")
-        evaluation_results = self.evaluate_metrics(self.validation_dataset, lods[-1],
+        evaluation_results = self.evaluate_metrics(self.validation_dataset, valid_log_dir, lods[-1],
                                                    f"lod{lods[-1]}", lpips_model=lpips_model)
         record_dict.update(evaluation_results)
-        if self.using_wandb:
-            for key in evaluation_results:
-                log_metric_to_wandb(f"Validation/{key}", evaluation_results[key], self.epoch)
+        for key in evaluation_results:
+            self.tracker.log_metric(f"Validation/{key}", evaluation_results[key], self.epoch)
         
         df = pd.DataFrame.from_records([record_dict])
         df['lod'] = lods[-1]
@@ -243,24 +249,12 @@ class MultiviewTrainer(BaseTrainer):
         This function runs once before training starts.
         """
         super().pre_training()
-        if self.using_wandb:
-            for d in range(self.extra_args["num_lods"]):
-                wandb.define_metric(f"LOD-{d}-360-Degree-Scene")
-                wandb.define_metric(
-                    f"LOD-{d}-360-Degree-Scene",
-                    step_metric=f"LOD-{d}-360-Degree-Scene/step"
-                )
+        self.tracker.metrics.define_metric('rgb_loss', aggregation_type=float)
 
     def post_training(self):
         """
         Override this function to change the logic which runs after the last training iteration.
         This function runs once after training ends.
         """
-        wandb_viz_nerf_angles = self.extra_args.get("wandb_viz_nerf_angles", 0)
-        wandb_viz_nerf_distance = self.extra_args.get("wandb_viz_nerf_distance")
-        if self.using_wandb and wandb_viz_nerf_angles != 0:
-            self.render_final_view(
-                num_angles=wandb_viz_nerf_angles,
-                camera_distance=wandb_viz_nerf_distance
-            )
+        self.tracker.log_360_orbit(pipeline=self.pipeline)
         super().post_training()

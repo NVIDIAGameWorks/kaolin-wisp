@@ -11,9 +11,23 @@ from tests.test_utils import TestWispApp, run_wisp_script, collect_metrics_from_
 
 class TestLatentNerfApp(TestWispApp):
 
-    def test_latent_nerf_runs(self, lego_path, dataset_num_workers):
+    def test_latent_nerf_octree_runs(self, lego_path, dataset_num_workers):
         cmd = 'examples/latent_nerf/main_demo.py'
-        cli_args = f'--dataset-path {lego_path} --dataset-num-workers {dataset_num_workers} --epochs 1'
+        cli_args = f'--dataset-path {lego_path}  ' \
+                   f'--config=examples/latent_nerf/demo_octree.yaml ' \
+                   f'--dataset-num-workers {dataset_num_workers} ' \
+                   f'--max-epochs 1'
+
+        out = run_wisp_script(cmd, cli_args)
+        metrics = collect_metrics_from_log(out, ['PSNR'])
+        report_metrics(metrics)  # Prints to log
+
+    def test_latent_nerf_hash_runs(self, lego_path, dataset_num_workers):
+        cmd = 'examples/latent_nerf/main_demo.py'
+        cli_args = f'--dataset-path {lego_path}  ' \
+                   f'--config=examples/latent_nerf/demo_hash.yaml ' \
+                   f'--dataset-num-workers {dataset_num_workers} ' \
+                   f'--max-epochs 1'
 
         out = run_wisp_script(cmd, cli_args)
         metrics = collect_metrics_from_log(out, ['PSNR'])

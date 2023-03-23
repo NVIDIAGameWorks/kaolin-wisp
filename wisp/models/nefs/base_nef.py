@@ -106,6 +106,17 @@ class BaseNeuralField(WispModule):
         """
         return self.supported_channels
 
+    def prune(self):
+        """Prunes the neural field components (i.e. grid, or blas) based on current state.
+        Neural fields may override this function to allow trainers to periodically invoke this logic.
+
+        For example:
+            A NeRF may use a hash grid with an octree acceleration structure. Since features and occupancy are tracked
+            by separate structures, calling this function may update the blas (occupancy structure)
+            with which cells should be marked as empty, according to decoded features -> density.
+        """
+        pass    # By default, this op returns silently
+
     def forward(self, channels=None, **kwargs):
         """Queries the neural field with channels.
 

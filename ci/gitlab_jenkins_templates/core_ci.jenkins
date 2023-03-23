@@ -7,7 +7,7 @@ import groovy.transform.Field
 def ubuntu_from_kaolin_configs = [
     [
         'imageTag': 'master-2235-custom-torch1.13.1-cuda11.6.1-cudnn8-py3.9',
-        'archsToTest': 'A100_PCIE_40GB'
+        'archsToTest': 'GA100-E4720-DVT'
     ],
 ]
 

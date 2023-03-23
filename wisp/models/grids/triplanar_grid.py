@@ -28,10 +28,10 @@ class TriplanarGrid(BLASGrid):
     def __init__(self,
                  blas: BaseAS,
                  feature_dim: int,
-                 log_base_resolution: 4,
+                 log_base_resolution: int = 4,
                  num_lods: int = 1,
-                 interpolation_type: str = 'linear',
-                 multiscale_type: str = 'sum',
+                 interpolation_type: str = 'linear',  # options: 'linear', 'closest'
+                 multiscale_type: str = 'sum',  # options: 'cat', 'sum'
                  feature_std: float = 0.0,
                  feature_bias: float = 0.0
                  ):
@@ -40,18 +40,21 @@ class TriplanarGrid(BLASGrid):
         Args:
             blas (BaseAS): An accelearation structure, used for querying coordinates and fast raymarching.
                 Intuitively, this can be thought as a structure that tracks the occupancy of the grid.
-            feature_dim (int): The dimension of the features stored on the grid.
+            feature_dim (int): Dimensionality for features stored within the grid nodes.
             log_base_resolution (int): The size of the lowest resolution triplane in the pyramid, assigned as
                 2**log_base_resolution x 2**log_base_resolution x 2** log_base_resolution.
                 The following i levels increase the resolution by the power of two, such that:
                 2**(log_base_resolution + i) x 2**(log_base_resolution + i) x 2**(log_base_resolution + i),
             num_lods (int): The number of LODs for which features are defined.
-            interpolation_type (str): The type of interpolation function.
+            interpolation_type (str): Interpolation type to use for samples within grids.
+                 'linear' -For a 3D grid structure, linear uses trilinear interpolation of 8 cell nodes,
+                 'closest' - uses the nearest neighbor.
             multiscale_type (str): The type of multiscale aggregation. Usually 'sum' or 'cat'.
                                    Note that 'cat' will change the decoder input dimension.
-            feature_std (float): The features are initialized with a Gaussian distribution with the given
-                                 standard deviation.
-            feature_bias (float): The mean of the Gaussian distribution.
+            feature_std (float): Grid initialization:
+                the features are initialized with a Gaussian distribution with the given standard deviation.
+            feature_bias (float): Grid initialization: mean (bias) used for randomly sampling initial features from
+                Gaussian distribution.
 
         Returns:
             (void): Initializes the class.

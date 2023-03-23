@@ -16,16 +16,21 @@ A full video walkthrough is [available here](https://www.nvidia.com/en-us/on-dem
 The simplest configuration uses an Octree grid: 
 ```
 cd /examples/latent_nerf
-python3 main_demo.py --config funny_nerf_octree.yaml --dataset-path /path/to/nerf_lego --multiview-dataset-format standard
+python3 main_demo.py --config demo_octree.yaml --dataset-path /path/to/nerf_lego
 ```
 
 You can also experiment with a faster, alternative configuration which uses the Hashtable:
 ```
 cd /examples/latent_nerf
-python3 main_demo.py --config funny_nerf_hash.yaml --dataset-path /path/to/nerf_lego --multiview-dataset-format standard
+python3 main_demo.py --config demo_hash.yaml --dataset-path /path/to/nerf_lego
 ```
 
-Make sure to use the appropriate `multiview-dataset-format` according to your data type.
+For brevity, this example omits the pruning operation, which leaves white artifacts around the object.
+Adding the pruning operation from `NeuralRadianceField` is straightforward and left as an exercise for the reader :)
+
+Additional datasets can be easily supported by changing the config.
+i.e. try modifying the config to: 
+`dataset: autoconfig(RTMVDataset)`. See `app/nerf/` for more details.
 
 ## Files
 
@@ -37,6 +42,6 @@ Make sure to use the appropriate `multiview-dataset-format` according to your da
 `demo_app.py` is the interactive app which visualizes the optimization process.
 It includes additional logic for defining the new `color_feature` channel.
 
-`funny_nerf_octree.yaml` and `funny_nerf_hash.yaml` are the configuration files used to run this example.
+`demo_octree.yaml` and `demo_hash.yaml` are the configuration files used to run this example.
 
 `main_demo,py` is the main script for registering the new neural field class and running the interactive demo.

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 from abc import ABC
+import sys
 import numpy as np
 import torch
 from glumpy import app, gloo, gl, ext
@@ -250,26 +251,45 @@ class WispApp(ABC):
         """ Initiate events message queue, which triggers the rendering loop.
         This call will block the thread until the app window is closed.
         """
-        app.run()   # App clock should always run as frequently as possible (background tasks should not be limited)
+        # glump.app.Window is using argparse
+        # We remove sys.argv temporarily to avoid conflict with Wisp's argparse. argv is restored in on_init()
+        self._argv = sys.argv
+        sys.argv = [sys.argv[0]]
+
+        try:
+            app.run()   # App clock should always run as frequently as possible (background tasks should not be limited)
+        finally:
+            if hasattr(self, '_argv'):  # Should only be take place if an error occurred before on_init was invoked
+                sys.argv = self._argv
+                del self._argv
 
     def _create_window(self, width, height, window_name, gl_version):
-        # Currently assume glfw backend due to integration with imgui
-        app.use(f"glfw_imgui ({gl_version})")
-        win_config = app.configuration.Configuration()
-        if self.wisp_state.renderer.antialiasing == 'msaa_4x':
-            win_config.samples = 4
+        # glump.app.Window is using argparse
+        # We remove sys.argv temporarily to avoid conflict with Wisp's argparse
+        argv = sys.argv
+        try:
+            sys.argv = [argv[0]]
 
-        # glumpy implicitly sets the GL context as current
-        window = app.Window(width=width, height=height, title=window_name, config=win_config)
-        window.on_draw = self.on_draw
-        window.on_resize = self.on_resize
-        window.on_key_press = self.on_key_press
-        window.on_key_release = self.on_key_release
-        window.on_mouse_press = self.on_mouse_press
-        window.on_mouse_drag = self.on_mouse_drag
-        window.on_mouse_release = self.on_mouse_release
-        window.on_mouse_scroll = self.on_mouse_scroll
-        window.on_mouse_motion = self.on_mouse_motion
+            # Currently assume glfw backend due to integration with imgui
+            app.use(f"glfw_imgui ({gl_version})")
+            win_config = app.configuration.Configuration()
+            if self.wisp_state.renderer.antialiasing == 'msaa_4x':
+                win_config.samples = 4
+
+            # glumpy implicitly sets the GL context as current
+            window = app.Window(width=width, height=height, title=window_name, config=win_config)
+            window.on_draw = self.on_draw
+            window.on_resize = self.on_resize
+            window.on_key_press = self.on_key_press
+            window.on_key_release = self.on_key_release
+            window.on_mouse_press = self.on_mouse_press
+            window.on_mouse_drag = self.on_mouse_drag
+            window.on_mouse_release = self.on_mouse_release
+            window.on_mouse_scroll = self.on_mouse_scroll
+            window.on_mouse_motion = self.on_mouse_motion
+        finally:
+            # Restore sys.argv for Wisp argparse
+            sys.argv = argv
 
         if self.wisp_state.renderer.antialiasing == 'msaa_4x':
             gl.glEnable(gl.GL_MULTISAMPLE)
@@ -535,6 +555,15 @@ class WispApp(ABC):
         if target_fps is None or ((target_fps > 0) and time_since_last_render >= (1 / target_fps)):
             return True
         return False
+
+    def on_init(self):
+        """ Invoked when the app first runs """
+        # glump.app.Window is using argparse
+        # During app.run(), we remove sys.argv temporarily to avoid conflict with Wisp's argparse.
+        # Restore it here: this event is invoked by glumpy when app.run() initialization is complete.
+        if hasattr(self, '_argv'):
+            sys.argv = self._argv
+            del self._argv
 
     def on_resize(self, width, height):
         """ Invoked when the window is first created, or resized.

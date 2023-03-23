@@ -27,7 +27,7 @@ class MeshSampledSDFDataset(SDFDataset):
     """
 
     def __init__(self,
-                 dataset_path: str,
+                 mesh_path: str,
                  split: str,
                  transform: Optional[Callable] = None,
                  sample_mode: List[str] = None,
@@ -39,7 +39,7 @@ class MeshSampledSDFDataset(SDFDataset):
         """Construct by loading the mesh and generating an initial dataset of coords + sdf samples.
 
         Args:
-            dataset_path (str): Path to file with mesh to initialize the dataset.
+            mesh_path (str): Path to file with mesh to initialize the dataset.
                 Supported formats: .obj only.
             split (str): Any of 'test', 'train', 'val'.
                 Currently used for keeping track of the dataset purpose and not used internally.
@@ -63,10 +63,10 @@ class MeshSampledSDFDataset(SDFDataset):
                 'planar' - the mesh will be normalized using a non-uniform scale applied to the x,z axes separately.
                 'none' - no normalization will take place.
         """
-        super().__init__(dataset_path=dataset_path, transform=transform, split=split)
+        super().__init__(dataset_path=mesh_path, transform=transform, split=split)
 
         # Sampling args
-        self.sample_mode = sample_mode if sample_mode is not None else ['rand', 'rand', 'near', 'near', 'trace']
+        self.sample_mode = sample_mode if sample_mode is not None else ['rand', 'near', 'near', 'trace', 'trace']
         self.num_samples = num_samples
         self.get_normals = get_normals
         self.sample_tex = sample_tex
@@ -76,7 +76,7 @@ class MeshSampledSDFDataset(SDFDataset):
         self.verts = self.faces = self.texv = self.texf = self.mats = None
 
         # Validate & load mesh, then sample from it
-        self.validate(dataset_path)
+        self.validate(mesh_path)
         self.data = None
         self.load()
 

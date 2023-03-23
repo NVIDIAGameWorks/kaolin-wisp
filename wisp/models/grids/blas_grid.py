@@ -31,6 +31,8 @@ class BLASGrid(WispModule, ABC):
         """ BLASGrids are generally assumed to contain bottom level acceleration structures. """
         super().__init__()
         self.blas = blas
+        self.num_lods = 1
+        self.active_lods = [0]
 
     def raymarch(self, *args, **kwargs) -> ASRaymarchResults:
         """By default, this function will use the equivalent BLAS function unless overridden for custom behaviour.

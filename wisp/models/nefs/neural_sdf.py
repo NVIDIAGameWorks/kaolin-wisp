@@ -23,10 +23,10 @@ class NeuralSDF(BaseNeuralField):
     For example, the usage of Octree follows the idea from Takikawa et al. 2021 (Neural Geometric Level of Detail).
     """
     def __init__(self,
-                 grid: BLASGrid = None,
+                 grid: BLASGrid,
                  # embedder args
-                 pos_embedder: str = 'none',
-                 pos_multires: int = 10,
+                 pos_embedder: str = 'positional',  # options: 'none', 'identity', 'positional'
+                 pos_multires: int = 4,
                  position_input: bool = True,
                  # decoder args
                  activation_type: str = 'relu',

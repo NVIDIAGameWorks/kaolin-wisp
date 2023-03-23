@@ -33,7 +33,7 @@ To run the SDF training:
 **NGLOD (Octree)**:
 ```
 cd kaolin-wisp
-python3 app/nglod/main_nglod.py --config app/nglod/configs/nglod_octree.yaml --dataset-path /path/to/spot.obj
+python3 app/nglod/main_nglod.py --config app/nglod/configs/nglod_octree.yaml --mesh-path /path/to/spot.obj
 ```
 
 Currently, the SDF sampler we have shipped with our code can be quite slow for larger meshes. We plan to
@@ -41,20 +41,32 @@ release a more optimized version of the SDF sampler soon.
 
 To run with additional backbones: 
 
-**NGLOD (Triplanar)**:
-```
-cd kaolin-wisp
-python3 app/nglod/main_nglod.py --config app/nglod/configs/nglod_triplanar.yaml --dataset-path /path/to/spot.obj
-```
-
 **NGLOD (Hash)**:
 ```
 cd kaolin-wisp
-python3 app/nglod/main_nglod.py --config app/nglod/configs/nglod_hash.yaml --dataset-path /path/to/spot.obj
+python3 app/nglod/main_nglod.py --config app/nglod/configs/nglod_hash.yaml --mesh-path /path/to/spot.obj
 ```
+
+**NGLOD (Triplanar)**:
+```
+cd kaolin-wisp
+python3 app/nglod/main_nglod.py --config app/nglod/configs/nglod_triplanar.yaml --dataset.mesh-path /path/to/spot.obj
+```
+
+### Optimization
+Note the difference between the octree / hash variants and the triplanar script.
+
+The octree and hash variants initialize an octree `blas` (`OctreeAS`, a bottom level acceleration structure) from the mesh.
+That is - the mesh is used to initialize the occupancy structure at the beginning of the script.
+The dataset then is initialized from the octree to efficiently sample.
+Here, `--mesh-path` is short for `--blas.mesh-path`.
+
+The triplanar script initializes a full occupancy structure (`OctreeAS`), which samples the mesh directly.
+Hence, `--mesh-path` refers to `--dataset.mesh-path`.
 
 ### Memory Considerations
 
+Octree & Hash:
 * `--num-samples-on-mesh` determines how many SDF train samples are generated on the mesh surface. 
 Lower end machines reduce the default number to avoid running out of memory.
 
