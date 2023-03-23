@@ -9,8 +9,8 @@
 parent: 'nerf_base.yaml'
 
 grid:
-    blas_type: 'octree'
-    blas_levels: 8
+    blas-type: 'octree'
+    blas-levels: 8
     grid_type: 'CodebookOctreeGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'

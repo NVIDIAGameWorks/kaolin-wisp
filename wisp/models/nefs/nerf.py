@@ -6,9 +6,8 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-import numpy as np
 import torch
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from wisp.ops.geometric import sample_unif_sphere
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
@@ -16,7 +15,7 @@ from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
 from wisp.models.grids import BLASGrid, HashGrid
-
+from typing import Optional
 
 class NeuralRadianceField(BaseNeuralField):
     """Model for encoding Neural Radiance Fields (Mildenhall et al. 2020), e.g., density and view dependent color.
@@ -29,19 +28,19 @@ class NeuralRadianceField(BaseNeuralField):
     def __init__(self,
                  grid: BLASGrid = None,
                  # embedder args
-                 pos_embedder: str = 'none',    # options: 'none', 'identity', 'positional'
-                 view_embedder: str = 'none',   # options: 'none', 'identity', 'positional'
+                 pos_embedder: str = 'none',
+                 view_embedder: str = 'none',
                  pos_multires: int = 10,
                  view_multires: int = 4,
                  position_input: bool = False,
                  # decoder args
-                 activation_type: str = 'relu', #  options: 'none', 'relu', 'sin', 'fullsort', 'minmax'
-                 layer_type: str = 'linear',    # 'linear', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'
+                 activation_type: str = 'relu',
+                 layer_type: str = 'none',
                  hidden_dim: int = 128,
                  num_layers: int = 1,
                  # pruning args
-                 prune_density_decay: Optional[float] = (0.01 * 512) / np.sqrt(3),
-                 prune_min_density: Optional[float] = 0.6,
+                 prune_density_decay: Optional[float] = None,
+                 prune_min_density: Optional[float] = None,
                  ):
         """
         Creates a new NeRF instance, which maps 3D input coordinates + view directions to RGB + density.
@@ -152,8 +151,6 @@ class NeuralRadianceField(BaseNeuralField):
     def prune(self):
         """Prunes the blas based on current state.
         """
-        if self.prune_density_decay is None or self.prune_min_density is None:
-            return
         if self.grid is not None:
             if isinstance(self.grid, HashGrid):
                 density_decay = self.prune_density_decay

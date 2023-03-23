@@ -98,23 +98,14 @@ class OfflineRenderer():
         render_res   : Tuple[int, int] = (1024, 720), # [w, h]
         camera_proj  : str  = 'persp', # one of ['persp', 'ortho']
         render_batch : int  = -1, # -1 for no batching
-        shading_mode : str  = 'rb',  # options: ['matcap', 'rb', 'normal']
-        matcap_path  : str  = './data/matcap/Pearl.png',  # set if shading mode = matcap
+        shading_mode : str  = 'rb', # one of ['matcap', 'rb']
+        matcap_path  : str  = './data/matcap/Pearl.png', # set if shadming mode = matcap
         shadow       : bool = False, 
         ao           : bool = False, 
         perf         : bool = False,
-        device       : torch.device = 'cuda'
+        device       : torch.device = 'cuda',
+        **kwargs
     ):
-        """
-        Args:
-            render_res (Tuple[int, int]): Width/height to render at.
-            render_batch (int): Batch size (in number of rays) for batched rendering.
-            shading_mode (str): Shading mode, relevant mostly when a color channel isn't available.
-                options: ['matcap', 'rb', 'normal'].
-            matcap_path (str): ath to the matcap texture to render with.
-            shadow (bool): Use shadowing.
-            ao (bool): Use ambient occlusion.
-        """
         self.render_res = render_res
         self.render_batch = render_batch
         self.shading_mode = shading_mode

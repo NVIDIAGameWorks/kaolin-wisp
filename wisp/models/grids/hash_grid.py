@@ -7,7 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from typing import Dict, Set, Any, Type, List
+from typing import Dict, Set, Any, Type, List, Tuple
 import torch
 import torch.nn as nn
 import numpy as np
@@ -29,19 +29,17 @@ class HashGrid(BLASGrid):
         blas               : BaseAS,
         feature_dim        : int,
         resolutions        : List[int],
-        multiscale_type    : str = 'sum',  # options: 'cat', 'sum'
+        multiscale_type    : str   = 'sum',
         feature_std        : float = 0.0,
         feature_bias       : float = 0.0,
         codebook_bitwidth  : int   = 8
     ):
         """Builds a HashGrid instance, including the feature structure and an underlying BLAS for fast queries.
-        The hash grid is constructed from a list of resolution sizes (each entry contains a RES for the RES x RES x RES
-        lod of nodes pointing at the actual hash table) .
 
         Args:
             blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
                 Used to speed up spatial queries and ray tracing operations.
-            feature_dim (int): Dimensionality for features stored within the hash table.
+            feature_dim (int): The dimension of the features stored on the grid.
              resolutions (List[int]): A list of resolutions to be used for each feature grid lod of the hash structure.
                 i.e. resolutions=[562, 777, 1483, 2048] means that at LOD0, a grid of 562x562x562 nodes will be used,
                 where each node is a hashed pointer to the feature table
@@ -101,7 +99,7 @@ class HashGrid(BLASGrid):
                     feature_dim        : int,
                     base_lod           : int   = 2,
                     num_lods           : int   = 1,
-                    multiscale_type    : str = 'sum',   # options: 'cat', 'sum'
+                    multiscale_type    : str   = 'sum',
                     feature_std        : float = 0.0,
                     feature_bias       : float = 0.0,
                     codebook_bitwidth  : int   = 8) -> HashGrid:
@@ -111,15 +109,15 @@ class HashGrid(BLASGrid):
         Args:
             blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
                            Used to speed up spatial queries and ray tracing operations.
-            feature_dim (int): Dimensionality for features stored within the hash table.
+            feature_dim (int): The dimension of the features stored on the grid.
             base_lod (int): The base LOD of the feature grid.
                             This is the lowest LOD of for which features are defined.
             num_lods (int): The number of LODs for which features are defined. Starts at base_lod.
                             i.e. base_lod=4 and num_lods=5 means features are kept for levels 5, 6, 7, 8.
             multiscale_type (str): The type of multiscale aggregation.
-                           'sum' - aggregates features from different LODs with summation.
-                           'cat' - aggregates features from different LODs with concatenation.
-                            Note that 'cat' will change the decoder input dimension to num_lods * feature_dim.
+                                   'sum' - aggregates features from different LODs with summation.
+                                   'cat' - aggregates features from different LODs with concatenation.
+                                   Note that 'cat' will change the decoder input dimension to num_lods * feature_dim.
             feature_std (float): The features are initialized with a Gaussian distribution with the given
                                  standard deviation.
             feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
@@ -135,7 +133,7 @@ class HashGrid(BLASGrid):
                        blas               : BaseAS,
                        feature_dim        : int,
                        num_lods           : int,
-                       multiscale_type    : str = 'sum',    # options: 'cat', 'sum'
+                       multiscale_type    : str   = 'sum',
                        feature_std        : float = 0.0,
                        feature_bias       : float = 0.0,
                        codebook_bitwidth  : int   = 8,
@@ -150,7 +148,7 @@ class HashGrid(BLASGrid):
         Args:
             blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
                            Used to speed up spatial queries and ray tracing operations.
-            feature_dim (int): Dimensionality for features stored within the hash table.
+            feature_dim (int): The dimension of the features stored on the grid.
             num_lods (int): The number of LODs for which features are defined. Starts at lod=0.
                             i.e.  num_lods=16 means features are kept for levels 0, 1, 2, .., 14, 15.
             multiscale_type (str): The type of multiscale aggregation.
@@ -174,7 +172,7 @@ class HashGrid(BLASGrid):
                          blas: BaseAS,
                          feature_dim: int,
                          resolutions: List[int],
-                         multiscale_type: str = 'sum',  # options: 'cat', 'sum'
+                         multiscale_type: str = 'sum',
                          feature_std: float = 0.0,
                          feature_bias: float = 0.0,
                          codebook_bitwidth: int = 8) -> HashGrid:
@@ -185,7 +183,7 @@ class HashGrid(BLASGrid):
         Args:
             blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
                            Used to speed up spatial queries and ray tracing operations.
-            feature_dim (int): Dimensionality for features stored within the hash table.
+            feature_dim (int): The dimension of the features stored on the grid.
             resolutions (List[int]): A list of resolutions to be used for each feature grid lod of the hash structure.
                 i.e. resolutions=[562, 777, 1483, 2048] means that at LOD0, a grid of 562x562x562 nodes will be used,
                 where each node is a hashed pointer to the feature table
@@ -198,7 +196,6 @@ class HashGrid(BLASGrid):
                                  standard deviation.
             feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
-
         """
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
                    feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)

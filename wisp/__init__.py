@@ -17,5 +17,4 @@ from . import renderer
 from . import tracers
 from . import trainers
 from . import utils
-from .config import *
 from .app_utils import *

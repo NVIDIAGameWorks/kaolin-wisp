@@ -26,8 +26,8 @@ class OctreeGrid(BLASGrid):
         blas: BaseAS,
         feature_dim         : int,
         num_lods            : int          = 1,
-        interpolation_type  : str = 'linear',   # options: 'linear', 'closest'
-        multiscale_type     : str = 'cat',      # options: 'cat', 'sum'
+        interpolation_type  : str          = 'linear',
+        multiscale_type     : str          = 'cat',
         feature_std         : float        = 0.0,
         feature_bias        : float        = 0.0
     ):
@@ -36,19 +36,15 @@ class OctreeGrid(BLASGrid):
         Args:
             blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
                 Used to speed up spatial queries and ray tracing operations.
-            feature_dim (int): Dimensionality for features stored within the grid nodes.
-            num_lods (int): Number of levels which store features in the grid.
+            feature_dim (int): The dimension of the features stored on the grid.
+            num_lods (int): The number of LODs for which features are defined.
                 Starts at base_lod = blas.max_level - num_lods + 1
-                num_lods must be smaller or equivalent to the number of blas levels.
-            interpolation_type (str): Interpolation type to use for samples within grids.
-                 'linear' -For a 3D grid structure, linear uses trilinear interpolation of 8 cell nodes,
-                 'closest' - uses the nearest neighbor.
+            interpolation_type (str): The type of interpolation function.
             multiscale_type (str): The type of multiscale aggregation. Usually 'sum' or 'cat'.
-                Note that 'cat' will change the decoder input dimension.
-            feature_std (float): Grid initialization:
-                the features are initialized with a Gaussian distribution with the given standard deviation.
-            feature_bias (float): Grid initialization: mean (bias) used for randomly sampling initial features from
-                Gaussian distribution.
+                                   Note that 'cat' will change the decoder input dimension.
+            feature_std (float): The features are initialized with a Gaussian distribution with the given
+                                 standard deviation.
+            feature_bias (float): The mean of the Gaussian distribution.
             sample_tex (bool): If True, will also sample textures and store it in the acceleration structure (blas).
             num_samples (int): The number of samples to be generated on the mesh surface.
         Returns:
@@ -74,6 +70,94 @@ class OctreeGrid(BLASGrid):
 
         if self.num_lods > 0:
             self.init_feature_structure()
+
+    @classmethod
+    def from_mesh(cls,
+                  mesh_path: str,
+                  num_samples_on_mesh: int,
+                  feature_dim: int,
+                  num_lods: int = 1,
+                  interpolation_type: str = 'linear',
+                  multiscale_type: str = 'cat',
+                  feature_std: float = 0.0,
+                  feature_bias: float = 0.0) -> OctreeGrid:
+        """Builds the OctreeGrid from point samples over mesh faces.
+        Samples will be quantized to populate the octree cells.
+        This method is not guaranteed to reproduce a perfect mesh structure without "holes",
+        but achieves a very good approximation with high probability.
+
+        Args:
+            mesh_path (str): Path to an OBJ file with a mesh to initialize the octree (only supports OBJ for now).
+            num_samples (int): The number of samples to be generated on the mesh surface.
+            feature_dim (int): The dimension of the features stored on the grid.
+            base_lod (int): The base LOD of the feature grid.
+                            This is the lowest LOD of the  octree for which features are defined.
+            num_lods (int): The number of LODs for which features are defined. Starts at base_lod.
+                            i.e. base_lod=4 and num_lods=5 means features are kept for levels 5, 6, 7, 8.
+            interpolation_type (str): The type of interpolation function used when querying features on the grid.
+                                      'linear' - uses trilinear interpolation from nearest 8 nodes.
+                                      'closest' - uses feature from nearest grid node.
+            multiscale_type (str): The type of multiscale aggregation.
+                                   'sum' - aggregates features from different LODs with summation.
+                                   'cat' - aggregates features from different LODs with concatenation.
+                                   Note that 'cat' will change the decoder input dimension to num_lods * feature_dim.
+            feature_std (float): The features are initialized with a Gaussian distribution with the given
+                                 standard deviation.
+            feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
+
+        Returns:
+            (OctreeGrid): A new instance of an OctreeGrid with occupancy initialized from samples over the mesh faces.
+        """
+        max_lod = OctreeGrid.max_octree_lod(base_lod, num_lods)
+        blas = OctreeAS.from_mesh(mesh_path, level=max_lod, sample_tex=False, num_samples=num_samples_on_mesh)
+        grid = cls(blas=blas, feature_dim=feature_dim, base_lod=base_lod, num_lods=num_lods,
+                   interpolation_type=interpolation_type, multiscale_type=multiscale_type,
+                   feature_std=feature_std, feature_bias=feature_bias)
+        return grid
+
+    @classmethod
+    def from_spc(cls,
+                 spc_octree: torch.FloatTensor,
+                 feature_dim: int,
+                 num_lods: int = 1,
+                 interpolation_type: str = 'linear',
+                 multiscale_type: str = 'cat',
+                 feature_std: float = 0.0,
+                 feature_bias: float = 0.0) -> OctreeGrid:
+        """Builds the OctreeGrid, initializing it's occupancy state with a Structured Point Cloud (SPC).
+        The octree cells occupancy will be determined by the SPC cells.
+        SPCs are compressed, sparse volumetric data structures used for accelerated point queries and ray tracing ops.
+
+        Args:
+            spc_octree (torch.ByteTensor):
+                A tensor which holds the topology of a Structured Point Cloud (SPC).
+                Each byte represents a single octree cell's occupancy (that is, each bit of that byte represents
+                the occupancy status of a child octree cell), yielding 8 bits for 8 cells.
+                See also https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
+            feature_dim (int): The dimension of the features stored on the grid.
+            base_lod (int): The base LOD of the feature grid.
+                            This is the lowest LOD of the  octree for which features are defined.
+            num_lods (int): The number of LODs for which features are defined. Starts at base_lod.
+                            i.e. base_lod=4 and num_lods=5 means features are kept for levels 5, 6, 7, 8.
+            interpolation_type (str): The type of interpolation function used when querying features on the grid.
+                                      'linear' - uses trilinear interpolation from nearest 8 nodes.
+                                      'closest' - uses feature from nearest grid node.
+            multiscale_type (str): The type of multiscale aggregation.
+                                   'sum' - aggregates features from different LODs with summation.
+                                   'cat' - aggregates features from different LODs with concatenation.
+                                   Note that 'cat' will change the decoder input dimension to num_lods * feature_dim.
+            feature_std (float): The features are initialized with a Gaussian distribution with the given
+                                 standard deviation.
+            feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
+
+        Returns:
+            (OctreeGrid): A new instance of an OctreeGrid with occupancy initialized from the SPC topology.
+        """
+        blas = OctreeAS(spc_octree)
+        grid = cls(blas=blas, feature_dim=feature_dim, base_lod=base_lod, num_lods=num_lods,
+                   interpolation_type=interpolation_type, multiscale_type=multiscale_type,
+                   feature_std=feature_std, feature_bias=feature_bias)
+        return grid
 
     def init_feature_structure(self):
         """ Initializes everything related to the features stored in the codebook octree structure. """

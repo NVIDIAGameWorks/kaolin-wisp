@@ -271,19 +271,20 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
     Grids choices, for example, are: OctreeGrid, TriplanarGrid, HashGrid, CodebookOctreeGrid
     See corresponding grid constructors for each of their arg details.
     """
-    # Optimization: For octrees based grids, if dataset contains depth info,initialize only cells known to be occupied
-    if args.blas_type == 'aabb':
-        blas = AxisAlignedBBoxAS()
-    elif args.blas_type == 'octree':
+    grid = None
+
+    blas_type = 'octree'
+    if blas_type == 'octree':
         if dataset.supports_depth():
             blas = OctreeAS.from_pointcloud(dataset.as_pointcloud(), level=args.blas_levels)
         else:
             blas = OctreeAS.make_dense(level=args.blas_levels)
 
-    grid = None
+    # Optimization: For octrees based grids, if dataset contains depth info, initialize only cells known to be occupied
     if args.grid_type == "OctreeGrid":
         grid = OctreeGrid(
             blas=blas,
+            pointcloud=dataset.as_pointcloud(),
             feature_dim=args.feature_dim,
             num_lods=args.num_lods,
             interpolation_type=args.interpolation_type,
@@ -292,7 +293,7 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
             feature_bias=args.feature_bias,
         )
     elif args.grid_type == "CodebookOctreeGrid":
-        grid = CodebookOctreeGrid(
+        CodebookOctreeGrid(
             blas=blas,
             feature_dim=args.feature_dim,
             num_lods=args.num_lods,
