@@ -13,6 +13,8 @@ tracer:
     step_size: 0.8
 
 grid:
+    blas_type: 'octree'
+    blas_levels: 7
     grid_type: 'HashGrid'
     interpolation_type: 'linear'
     multiscale_type: 'cat'

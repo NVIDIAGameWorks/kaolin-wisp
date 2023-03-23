@@ -11,8 +11,11 @@ from wisp.datasets.batch import MultiviewBatch
 
 
 class SampleRays:
-    """ A dataset transform for sub-sampling a fixed amount of rays. """
-    def __init__(self, num_samples):
+    """ A dataset transform for sub-sampling a fixed amount of rays.
+    Args:
+         num_samples (int): Number of rays sampled per image.
+    """
+    def __init__(self, num_samples: int):
         self.num_samples = num_samples
 
     @torch.cuda.nvtx.range("SampleRays")

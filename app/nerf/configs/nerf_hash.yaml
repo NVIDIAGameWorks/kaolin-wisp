@@ -9,6 +9,8 @@
 parent: 'nerf_base.yaml'
 
 grid:
+    blas_type: 'octree'
+    blas_levels: 7
     grid_type: 'HashGrid'
     interpolation_type: 'linear'
     multiscale_type: 'cat'
@@ -20,7 +22,6 @@ grid:
     tree_type: 'geometric'
     min_grid_res: 16
     max_grid_res: 2048
-    blas_level: 7
 
 trainer:
     prune_every: 100 # iterations

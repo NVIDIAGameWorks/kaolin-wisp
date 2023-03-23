@@ -13,10 +13,11 @@ tracer:
     step_size: 0.8
 
 grid:
+    blas_type: 'aabb'
     grid_type: 'TriplanarGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'
     feature_dim: 4
     feature_std: 0.01
-    base_lod: 5
+    log_base_resolution: 5
     num_lods: 1

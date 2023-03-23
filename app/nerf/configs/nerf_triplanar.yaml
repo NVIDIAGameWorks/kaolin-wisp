@@ -9,13 +9,14 @@
 parent: 'nerf_base.yaml'
 
 grid:
+    blas_type: 'aabb'
     grid_type: 'TriplanarGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'
     feature_dim: 4
     feature_std: 0.01
     feature_bias: 0.0
-    base_lod: 5
+    log_base_resolution: 5
     num_lods: 4
 
 tracer:

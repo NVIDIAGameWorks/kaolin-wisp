@@ -9,12 +9,13 @@
 parent: 'nerf_base.yaml'
 
 grid:
+    blas_type: 'octree'
+    blas_levels: 8
     grid_type: 'CodebookOctreeGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'
     feature_dim: 5
     feature_std: 0.01
     feature_bias: 0.0
-    base_lod: 5
     num_lods: 4
     codebook_bitwidth: 4

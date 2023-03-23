@@ -45,9 +45,14 @@ class OctreeAS(BaseAS):
         voxelized point clouds.
 
         Args:
-            octree (torch.ByteTensor): SPC octree tensor, containing the acceleration structure topology.
+            octree (torch.ByteTensor): A tensor which holds the topology of a Structured Point Cloud (SPC).
+            Each byte represents a single octree cell's occupancy (that is, each bit of that byte represents
+            the occupancy status of a child octree cell), yielding 8 bits for 8 cells.
             For more details about this format, see:
-             https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
+            https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
+
+            See also https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html
+
         """
         super().__init__()
         self.octree = octree
@@ -56,13 +61,18 @@ class OctreeAS(BaseAS):
         self.extent = dict()    # Additional optional information which may be stored in this struct
 
     @classmethod
-    def from_mesh(cls, mesh_path, level, sample_tex=False, num_samples=100000000) -> OctreeAS:
+    def from_mesh(cls, mesh_path: str, level: int, sample_tex: bool = False, num_samples: int = 100000000) -> OctreeAS:
         """ Builds the acceleration structure and initializes occupancy of cells from samples over mesh faces.
         Assumes a path to the mesh, only OBJ is supported for now.
 
+        Samples will be quantized to populate the octree cells.
+        This method is not guaranteed to reproduce a perfect mesh structure without "holes",
+        but achieves a very good approximation with high probability.
+
         Args:
             mesh_path (str): Path to the OBJ file.
-            level (int): The depth of the octree.
+            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
+                This is essentially the depth of the octree
             sample_tex (bool): If True, will also sample textures and store it in the accelstruct within
                 self.texv, self.texf, self.mats fields.
                 This feature is currently unused.
@@ -93,35 +103,39 @@ class OctreeAS(BaseAS):
         return accel_struct
 
     @classmethod
-    def from_pointcloud(cls, pointcloud, level) -> OctreeAS:
+    def from_pointcloud(cls, pointcloud: torch.FloatTensor, level: int) -> OctreeAS:
         """ Builds the acceleration structure and initializes occupancy of cells from a pointcloud.
+        The cells occupancy will be determined by points occupying the octree cells.
 
         Args:
             pointcloud (torch.FloatTensor): 3D coordinates of shape [num_coords, 3] in 
                                             normalized space [-1, 1].
-            level (int): The depth of the octree.
+            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
+                This is essentially the depth of the octree
         """
         octree = wisp_spc_ops.pointcloud_to_octree(pointcloud, level, dilate=0)
         return OctreeAS(octree)
 
     @classmethod
-    def from_quantized_points(cls, quantized_points, level) -> OctreeAS:
+    def from_quantized_points(cls, quantized_points: torch.LongTensor, level: int) -> OctreeAS:
         """ Builds the acceleration structure from quantized (integer) point coordinates.
 
         Args:
             quantized_points (torch.LongTensor): 3D coordinates of shape [num_coords, 3] in
                                                  integer coordinate space [0, 2**level]
-            level (int): The depth of the octree.
+            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
+                This is essentially the depth of the octree
         """
         octree = spc_ops.unbatched_points_to_octree(quantized_points, level, sorted=False)
         return OctreeAS(octree)
 
     @classmethod
-    def make_dense(cls, level) -> OctreeAS:
+    def make_dense(cls, level: int) -> OctreeAS:
         """ Builds the acceleration structure and initializes full occupancy of all cells.
 
         Args:
-            level (int): The depth of the octree.
+            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
+                This is essentially the depth of the octree
         """
         octree = wisp_spc_ops.create_dense_octree(level)
         return OctreeAS(octree)

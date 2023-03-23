@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Callable, List, Dict, Union, Tuple
+from typing import Callable, List, Dict, Union, Tuple, Optional
 import torch
 from torch.utils.data import Dataset
 from kaolin.render.camera import Camera
@@ -43,7 +43,7 @@ class WispDataset(Dataset, ABC):
     """
 
     def __init__(self, dataset_path: str = None, dataset_num_workers: int = -1,
-                 transform: Callable = None, split: str = None):
+                 transform: Optional[Callable] = None, split: str = None):
         """
         Args:
             dataset_path (str): The root directory of the dataset, where the dataset's external assets should reside.
@@ -51,7 +51,8 @@ class WispDataset(Dataset, ABC):
             dataset_num_workers (int): The number of workers to spawn for multiprocessed loading.
                 If dataset_num_workers < 1, processing will take place on the main process.
                 Default: -1 (dataset always loads on main process, without using multiprocessing).
-            transform (Callable): Transform function applied per batch when data is accessed with __get_item__.
+            transform (Optional[Callable]):
+                Transform function applied per batch when data is accessed with __get_item__.
                 For example: ray sampling, to filter the amount of rays returned per batch.
                 When multiple transforms are needed, the transform callable may be a composition of multiple Callable.
                 Default: None (no transformation is applied on batches).
@@ -63,7 +64,7 @@ class WispDataset(Dataset, ABC):
         self.transform = transform
         self.split = split
 
-    def create_split(self, split: str, transform: Callable = None, *args, **kwargs) -> WispDataset:
+    def create_split(self, split: str, transform: Optional[Callable] = None, *args, **kwargs) -> WispDataset:
         """ Creates a dataset with the same parameters and a different split.
         This is a convenient way of creating validation and test datasets, while making sure they're compatible
         with the train dataset.
