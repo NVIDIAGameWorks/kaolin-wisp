@@ -17,7 +17,8 @@ class HashEmbedder(nn.Module):
         self.log2_hashmap_size = log2_hashmap_size
         self.base_resolution = torch.tensor(base_resolution)
         self.finest_resolution = torch.tensor(finest_resolution)
-        self.out_dim = self.n_levels * self.n_features_per_level
+        self.feature_dim = self.n_levels * self.n_features_per_level
+        self.multiscale_type = 'none'
 
         self.b = torch.exp((torch.log(self.finest_resolution)-torch.log(self.base_resolution))/(n_levels-1))
 
@@ -55,7 +56,7 @@ class HashEmbedder(nn.Module):
 
         return c
 
-    def forward(self, x):
+    def interpolate(self, x, lod_idx):
         # x is 3D point position: B x 3
         x_embedded_all = []
         for i in range(self.n_levels):
@@ -70,7 +71,7 @@ class HashEmbedder(nn.Module):
             x_embedded_all.append(x_embedded)
 
         keep_mask = keep_mask.sum(dim=-1)==keep_mask.shape[-1]
-        return torch.cat(x_embedded_all, dim=-1), keep_mask
+        return torch.cat(x_embedded_all, dim=-1)#, keep_mask
 
 
 class SHEncoder(nn.Module):
@@ -84,7 +85,7 @@ class SHEncoder(nn.Module):
         assert self.input_dim == 3
         assert self.degree >= 1 and self.degree <= 5
 
-        self.out_dim = degree ** 2
+        self.feature_dim = degree ** 2
 
         self.C0 = 0.28209479177387814
         self.C1 = 0.4886025119029199
@@ -118,7 +119,7 @@ class SHEncoder(nn.Module):
 
     def forward(self, input, **kwargs):
 
-        result = torch.empty((*input.shape[:-1], self.out_dim), dtype=input.dtype, device=input.device)
+        result = torch.empty((*input.shape[:-1], self.feature_dim), dtype=input.dtype, device=input.device)
         x, y, z = input.unbind(-1)
 
         result[..., 0] = self.C0

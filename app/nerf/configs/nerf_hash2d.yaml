@@ -9,7 +9,7 @@
 parent: 'nerf_base2d.yaml'
 
 grid:
-    grid_type: 'HashGrid' #'HashEmbedder'
+    grid_type: 'HashEmbedder' #'HashGrid' #
     interpolation_type: 'linear'
     multiscale_type: 'cat'
     feature_dim: 2

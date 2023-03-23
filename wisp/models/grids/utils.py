@@ -55,7 +55,8 @@ def get_bbox3d_for_blenderobj(camera_transforms, H, W, near=2.0, far=6.0):
             find_min_max(min_point)
             find_min_max(max_point)
 
-    return (torch.tensor(min_bound)-torch.tensor([1.0,1.0,1.0]), torch.tensor(max_bound)+torch.tensor([1.0,1.0,1.0]))
+    return (torch.tensor(min_bound)-torch.tensor([1.0,1.0,1.0]).to(min_bound.device), 
+            torch.tensor(max_bound)+torch.tensor([1.0,1.0,1.0])).to(min_bound.device)
 
 
 def get_bbox3d_for_llff(poses, hwf, near=0.0, far=1.0):
@@ -89,7 +90,8 @@ def get_bbox3d_for_llff(poses, hwf, near=0.0, far=1.0):
             find_min_max(min_point)
             find_min_max(max_point)
 
-    return (torch.tensor(min_bound)-torch.tensor([0.1,0.1,0.0001]), torch.tensor(max_bound)+torch.tensor([0.1,0.1,0.0001]))
+    return (torch.tensor(min_bound)-torch.tensor([0.1,0.1,0.0001]).to(min_bound.device),
+             torch.tensor(max_bound)+torch.tensor([0.1,0.1,0.0001]).to(min_bound.device))
 
 
 def get_voxel_vertices(xyz, bounding_box, resolution, log2_hashmap_size):
@@ -109,7 +111,7 @@ def get_voxel_vertices(xyz, bounding_box, resolution, log2_hashmap_size):
     
     bottom_left_idx = torch.floor((xyz-box_min)/grid_size).int()
     voxel_min_vertex = bottom_left_idx*grid_size + box_min
-    voxel_max_vertex = voxel_min_vertex + torch.tensor([1.0,1.0,1.0])*grid_size
+    voxel_max_vertex = voxel_min_vertex + torch.tensor([1.0,1.0,1.0]).to(grid_size.device) * grid_size
 
     voxel_indices = bottom_left_idx.unsqueeze(1) + BOX_OFFSETS
     hashed_voxel_indices = hash(voxel_indices, log2_hashmap_size)

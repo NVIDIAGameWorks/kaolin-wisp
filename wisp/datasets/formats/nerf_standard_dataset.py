@@ -33,7 +33,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         NeRF-synthetic scenes include RGBA / RGB information.
     """
 
-    def __init__(self, dataset_path: str, split: str, bg_color: str, warp_type: str, mip: int = 0,
+    def __init__(self, dataset_path: str, split: str, bg_color: str, warp: str, mip: int = 0,
                  dataset_num_workers: int = -1, transform: Callable = None):
         """ Loads the NeRF-synthetic data and applies dataset specific transforms required for compatibility with the
         framework.
@@ -60,7 +60,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
                          transform=transform, split=split)
         self.mip = mip
         self.bg_color = bg_color
-        self.warp_type = warp_type
+        self.warp = warp
 
         self.coords = self.data = self.coords_center = self.coords_scale = None
         self._transform_file = self._validate_and_find_transform()
@@ -91,7 +91,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
             mip=self.mip,
             dataset_num_workers=self.dataset_num_workers,
             transform=transform,
-            warp_type= self.warp_type
+            warp= self.warp
         )
 
     def __getitem__(self, idx) -> MultiviewBatch:
@@ -221,9 +221,9 @@ class NeRFSyntheticDataset(MultiviewDataset):
             img = load_rgb(fpath)
             if mip is not None:
                 img = resize_mip(img, mip, interpolation=cv2.INTER_AREA)
-            warp_id = 0
+            warp_id = torch.FloatTensor([0])
             if "warp_id" in frame:
-                warp_id = frame["warp_id"]
+                warp_id = torch.FloatTensor([frame["warp_id"]])
             return dict(basename=basename, img=torch.FloatTensor(img), 
                         pose=torch.FloatTensor(np.array(frame['transform_matrix'])), warp_id=warp_id)
         else:
@@ -307,7 +307,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
                 if pose is not None:
                     poses.append(pose)
                 if warp_id is not None:
-                    warp_ids.append(torch.tensor([warp_id]))
+                    warp_ids.append(warp_id)
         finally:
             p.close()
             p.join()
@@ -329,7 +329,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         imgs = torch.stack(imgs)
         poses = torch.stack(poses)
         warp_ids = torch.stack(warp_ids)
-        if self.warp_type == 'grid':
+        if self.warp == 'grid':
             warp_ids = warp_ids/torch.max(warp_ids)
 
         # TODO(ttakikawa): Assumes all images are same shape and focal. Maybe breaks in general...
