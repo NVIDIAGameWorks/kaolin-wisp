@@ -84,7 +84,6 @@ def ssim(rgb, gts):
     return skimage.metrics.structural_similarity(
         rgb[..., :3].cpu().numpy(),
         gts[..., :3].cpu().numpy(),
-        channel_axis=2,
         data_range=1,
         gaussian_weights=True,
         sigma=1.5,
