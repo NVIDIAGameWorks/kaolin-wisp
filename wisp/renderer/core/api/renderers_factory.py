@@ -59,7 +59,8 @@ def _neural_field_to_renderer_cls(pipeline: Pipeline) -> Type[RayTracedRenderer]
             else:   # Try querying all parent(nef) + tracer combos for compatibility
                 bases = field_type.__bases__
                 if len(bases) > 0:
-                    type_queue.append(*bases)
+                    for b in bases:
+                        type_queue.append(b)
 
         if renderer_cls is not None:
             break   # Found a renderer class

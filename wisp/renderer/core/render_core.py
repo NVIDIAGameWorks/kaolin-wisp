@@ -163,9 +163,9 @@ class RendererCore:
         self.res_y = self.camera.height
         self.interactive_mode = False
 
-    def set_low_resolution(self):
-        self.res_x = self.camera.width // 4
-        self.res_y = self.camera.height // 4
+    def set_low_resolution(self, downscale_factor: int = 4):
+        self.res_x = self.camera.width // downscale_factor
+        self.res_y = self.camera.height // downscale_factor
         self.interactive_mode = True
 
     def resize_canvas(self, width, height):

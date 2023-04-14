@@ -91,6 +91,17 @@ class CameraControlMode(ABC):
             self._current_pan_velocity *= -1
 
     def zoom(self, amount):
+        """ Performs end-to-end zoom while taking care of interaction bookkeeping internally. Useful for e.g.
+        hooking up a zoom-in button.
+        """
+        self.start_pan("backward" if amount < 0 else "forward", 1, 1)
+        self._do_zoom(amount)
+        self.end_pan()
+
+    def _do_zoom(self, amount):
+        """ Performs a zoom step during interaction e.g. with mouse. This function does not do necessary
+        book-keeping.
+        """
         if self.camera.lens_type == 'ortho':
             # Under orthographic projection, objects are not affected by distance to the camera
             amount = self._zoom_ortho_distance_weight * self.camera.fov_distance * abs(amount) * np.sign(amount)
@@ -115,7 +126,7 @@ class CameraControlMode(ABC):
                 ('yz' in self.planes_forbidden_zooming_through and new_pos[0].sign() * cam_pos[0].sign() == -1):
                 self._remaining_pan_time = 0
             else:
-                self.zoom(pos_delta)
+                self._do_zoom(pos_delta)
         elif self._current_pan_direction in ('right', 'left'):
             dist = self.camera.cam_pos().norm()
             pos_delta *= self._key_pan_distance_weight * dist
