@@ -111,7 +111,6 @@ class HashGridInterpolate(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
-
         coords = ctx.saved_tensors[0]
         codebook = ctx.saved_tensors[1]
         codebook_first_idx = ctx.saved_tensors[2]
@@ -119,12 +118,15 @@ class HashGridInterpolate(torch.autograd.Function):
         feature_dim = ctx.feature_dim
         codebook_bitwidth = ctx.codebook_bitwidth
 
-        grad_codebook = wisp_C.ops.hashgrid_interpolate_backward_cuda(
+        is_needs_grad_by_coords = ctx.needs_input_grad[0]
+        grad_codebook, grad_coords = wisp_C.ops.hashgrid_interpolate_backward_cuda(
                 coords.float().contiguous(), grad_output.contiguous(), codebook,
                 codebook_first_idx,
                 resolutions,  
-                codebook_bitwidth, feature_dim, ctx.needs_input_grad[0])
-        return (None, None, None, None, grad_codebook, None, None)
+                codebook_bitwidth, feature_dim, is_needs_grad_by_coords)
+        if not is_needs_grad_by_coords:
+            grad_coords = None
+        return grad_coords, None, None, None, grad_codebook, None, None
 
 def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_sizes, codebook_first_idx):
     """A hash-grid query + interpolation function, accelerated with CUDA.
