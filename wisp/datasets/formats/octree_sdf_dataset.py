@@ -6,7 +6,7 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-from typing import Callable, List
+from typing import Callable, List, Optional
 import torch
 import logging as log
 import kaolin.ops.spc as spc_ops
@@ -30,8 +30,8 @@ class OctreeSampledSDFDataset(SDFDataset):
     def __init__(self,
                  occupancy_struct: OctreeAS,
                  split: str,
-                 transform: Callable = None,
-                 sample_mode: list = None,
+                 transform: Optional[Callable] = None,
+                 sample_mode: List[str] = None,
                  num_samples: int = 100000,
                  sample_tex: bool = False,
                  samples_per_voxel: int = 32
@@ -45,8 +45,9 @@ class OctreeSampledSDFDataset(SDFDataset):
                 Currently used for keeping track of the dataset purpose and not used internally.
             transform (Optional[Callable]):
                 A transform function applied per batch when data is accessed with __get_item__.
-            sample_mode (list of str): List of different sample methods to apply over the mesh.
-                Any sequential combo of:
+            sample_mode (list of str):
+                The sampling scheme to be used for generating points in space, near and on surface.
+                List of different sample methods to apply over the mesh. Any sequential combo of:
                     'tracer' - samples generated on the mesh surface
                     'near' - samples generated near the mesh surface
                     'rand' - samples generated uniformly in the space of occupied grid cells

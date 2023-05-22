@@ -26,37 +26,45 @@ class TriplanarGrid(BLASGrid):
     """
 
     def __init__(self,
+                 blas: BaseAS,
                  feature_dim: int,
-                 base_lod: int,
+                 log_base_resolution: int = 4,
                  num_lods: int = 1,
-                 interpolation_type: str = 'linear',
-                 multiscale_type: str = 'sum',
+                 interpolation_type: str = 'linear',  # options: 'linear', 'closest'
+                 multiscale_type: str = 'sum',  # options: 'cat', 'sum'
                  feature_std: float = 0.0,
                  feature_bias: float = 0.0
                  ):
         """Constructs an instance of a TriplanarGrid.
 
         Args:
-            feature_dim (int): The dimension of the features stored on the grid.
-            base_lod (int): The base LOD of the feature grid. This is the lowest LOD of the SPC octree
-                            for which features are defined.
-            num_lods (int): The number of LODs for which features are defined. Starts at base_lod.
-            interpolation_type (str): The type of interpolation function.
+            blas (BaseAS): An accelearation structure, used for querying coordinates and fast raymarching.
+                Intuitively, this can be thought as a structure that tracks the occupancy of the grid.
+            feature_dim (int): Dimensionality for features stored within the grid nodes.
+            log_base_resolution (int): The size of the lowest resolution triplane in the pyramid, assigned as
+                2**log_base_resolution x 2**log_base_resolution x 2** log_base_resolution.
+                The following i levels increase the resolution by the power of two, such that:
+                2**(log_base_resolution + i) x 2**(log_base_resolution + i) x 2**(log_base_resolution + i),
+            num_lods (int): The number of LODs for which features are defined.
+            interpolation_type (str): Interpolation type to use for samples within grids.
+                 'linear' -For a 3D grid structure, linear uses trilinear interpolation of 8 cell nodes,
+                 'closest' - uses the nearest neighbor.
             multiscale_type (str): The type of multiscale aggregation. Usually 'sum' or 'cat'.
                                    Note that 'cat' will change the decoder input dimension.
-            feature_std (float): The features are initialized with a Gaussian distribution with the given
-                                 standard deviation.
-            feature_bias (float): The mean of the Gaussian distribution.
+            feature_std (float): Grid initialization:
+                the features are initialized with a Gaussian distribution with the given standard deviation.
+            feature_bias (float): Grid initialization: mean (bias) used for randomly sampling initial features from
+                Gaussian distribution.
 
         Returns:
             (void): Initializes the class.
         """
         # The bottom level acceleration structure is an axis aligned bounding box
-        super().__init__(blas=AxisAlignedBBoxAS())
+        super().__init__(blas=blas)
         # The actual feature_dim is multiplied by 3 because of the triplanar maps.
         self.feature_dim = feature_dim * 3
-        self.base_lod = base_lod
         self.num_lods = num_lods
+        self.log_base_resolution = log_base_resolution
         self.interpolation_type = interpolation_type
         self.multiscale_type = multiscale_type
         self.feature_std = feature_std
@@ -64,8 +72,7 @@ class TriplanarGrid(BLASGrid):
 
         # TODO(ttakikawa) The Triplanar API should look more like the ImagePyramid class with
         #   similar initialization mechanisms since it's not limited to octrees.
-        self.active_lods = [self.base_lod + x for x in range(self.num_lods)]
-        self.max_lod = self.num_lods + self.base_lod - 1
+        self.active_lods = [log_base_resolution + x for x in range(self.num_lods)]
 
         log.info(f"Active LODs: {self.active_lods}")
 
@@ -164,8 +171,8 @@ class TriplanarGrid(BLASGrid):
         parent_properties = super().public_properties()
         properties = {
             "Feature Dims": self.feature_dim,
-            "Total LODs": self.max_lod,
-            "Active feature LODs": [str(x) for x in self.active_lods],
+            "Total LODs": self.num_lods,
+            "Base Level Resolution": f"2^{self.log_base_resolution}",
             "Interpolation": self.interpolation_type,
             "Multiscale aggregation": self.multiscale_type,
         }

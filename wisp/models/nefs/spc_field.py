@@ -1,8 +1,17 @@
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
+
 from typing import Dict, Any
 import numpy as np
 import torch
+from wisp.accelstructs import OctreeAS
 from wisp.models.grids import OctreeGrid
-from wisp.models.nefs.nerf import NeuralRadianceField, BaseNeuralField
+from wisp.models.nefs.nerf import BaseNeuralField
 import wisp.ops.spc as wisp_spc_ops
 import kaolin.ops.spc as kaolin_ops_spc
 
@@ -21,7 +30,11 @@ class SPCField(BaseNeuralField):
     Feature samples per ray may be collected from each intersected "cell" of the structured point cloud.
     """
 
-    def __init__(self, spc_octree, features_dict=None, device='cuda'):
+    def __init__(self,
+        spc_octree : torch.ByteTensor,
+        features_dict : Dict[str, torch.tensor] = None,
+        device : torch.device ='cuda'
+    ):
         r"""Creates a new Structured Point Cloud (SPC), represented as a Wisp Field.
 
         In wisp, SPCs are considered neural fields, since their features may be optimized.
@@ -53,7 +66,7 @@ class SPCField(BaseNeuralField):
         self.normals = None
         self.init_grid(spc_octree)
 
-    def init_grid(self, spc_octree):
+    def init_grid(self, spc_octree: torch.ByteTensor):
         """ Uses the OctreeAS / OctreeGrid mechanism to quickly parse the SPC object into a Wisp Neural Field.
 
         Args:
@@ -92,12 +105,10 @@ class SPCField(BaseNeuralField):
         # By default assume the SPC keeps features only at the highest LOD.
         # Compute the highest LOD:
         _, pyramid, _ = wisp_spc_ops.octree_to_spc(spc_octree)
-        max_level = pyramid.shape[-1] - 2
 
-        self.grid = OctreeGrid.from_spc(
-            spc_octree=spc_octree,
+        self.grid = OctreeGrid(
+            blas=OctreeAS(spc_octree),
             feature_dim=3,
-            base_lod=max_level,
             num_lods=0  # SPCFields track features internally, avoiding full OctreeGrid initialization is faster
         )
 

@@ -9,11 +9,12 @@
 parent: 'nglod_base.yaml'
 
 grid:
+    blas_type: 'octree'
+    blas_levels: 7
     grid_type: 'OctreeGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'
     feature_dim: 16
     feature_std: 0.01
-    base_lod: 2
     num_lods: 6
     num_samples_on_mesh: 100000000  # Number of samples generated on mesh surface to initialize the occupancy grid

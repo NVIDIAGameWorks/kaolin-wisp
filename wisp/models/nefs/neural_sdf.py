@@ -15,7 +15,7 @@ from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
 from wisp.models.grids import BLASGrid
-
+from typing import Optional
 
 class NeuralSDF(BaseNeuralField):
     """Model for encoding neural signed distance functions (implicit surfaces).

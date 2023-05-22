@@ -18,7 +18,7 @@ import math
 import numpy as np
 import torch
 from torch.multiprocessing import Pool
-from typing import Callable, List, Dict
+from typing import Callable, List, Dict, Optional
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
 import wisp.ops.image as img_ops
@@ -38,7 +38,7 @@ class RTMVDataset(MultiviewDataset):
     def __init__(self, dataset_path: str, bg_color: str, mip: int = 0, split: str = 'train',
                  train_ratio: float = 2.0 / 3.0, val_ratio: float = 1.0 / 30.0,
                  coords_center: torch.Tensor = None, coords_scale: torch.Tensor = None,
-                 dataset_num_workers: int = -1, transform: Callable = None):
+                 dataset_num_workers: int = -1, transform: Optional[Callable] = None):
         """Loads the RTMV data and applies dataset specific transforms required for compatibility with the framework.
         The loaded data is cached inside the `data` field.
 
@@ -110,7 +110,7 @@ class RTMVDataset(MultiviewDataset):
         self._img_shape = self.data["rgb"].shape[1:3]
         self.flatten_tensors()
 
-    def create_split(self, split: str, transform: Callable = None) -> RTMVDataset:
+    def create_split(self, split: str, transform: Optional[Callable] = None) -> RTMVDataset:
         """ Creates a dataset with the same parameters and a different split.
         This is a convenient way of creating validation and test datasets, while making sure they're compatible
         with the train dataset.

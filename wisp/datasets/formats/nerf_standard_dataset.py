@@ -14,7 +14,7 @@ import cv2
 import json
 from tqdm import tqdm
 import logging as log
-from typing import Callable, List, Dict, Union
+from typing import Callable, List, Dict, Union, Optional
 import numpy as np
 import torch
 from torch.multiprocessing import Pool
@@ -34,7 +34,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
     """
 
     def __init__(self, dataset_path: str, split: str, bg_color: str, mip: int = 0,
-                 dataset_num_workers: int = -1, transform: Callable = None):
+                 dataset_num_workers: int = -1, transform: Optional[Callable] = None):
         """ Loads the NeRF-synthetic data and applies dataset specific transforms required for compatibility with the
         framework.
         The loaded data is cached inside the `data` field.
@@ -68,7 +68,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         self._img_shape = self.data["rgb"].shape[1:3]
         self.flatten_tensors()
 
-    def create_split(self, split: str, transform: Callable = None) -> NeRFSyntheticDataset:
+    def create_split(self, split: str, transform: Optional[Callable] = None) -> NeRFSyntheticDataset:
         """ Creates a dataset with the same parameters and a different split.
         This is a convenient way of creating validation and test datasets, while making sure they're compatible
         with the train dataset.

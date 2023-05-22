@@ -26,18 +26,22 @@ class HashGrid(BLASGrid):
     volume, and relies on heuristics such as pruning for keeping it aligned with the feature structure.
     """
     def __init__(self,
+        blas               : BaseAS,
         feature_dim        : int,
         resolutions        : List[int],
-        multiscale_type    : str   = 'sum',
+        multiscale_type    : str = 'sum',  # options: 'cat', 'sum'
         feature_std        : float = 0.0,
         feature_bias       : float = 0.0,
-        codebook_bitwidth  : int   = 8,
-        blas_level         : int = 7
+        codebook_bitwidth  : int   = 8
     ):
         """Builds a HashGrid instance, including the feature structure and an underlying BLAS for fast queries.
+        The hash grid is constructed from a list of resolution sizes (each entry contains a RES for the RES x RES x RES
+        lod of nodes pointing at the actual hash table) .
 
         Args:
-            feature_dim (int): The dimension of the features stored on the grid.
+            blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
+                Used to speed up spatial queries and ray tracing operations.
+            feature_dim (int): Dimensionality for features stored within the hash table.
              resolutions (List[int]): A list of resolutions to be used for each feature grid lod of the hash structure.
                 i.e. resolutions=[562, 777, 1483, 2048] means that at LOD0, a grid of 562x562x562 nodes will be used,
                 where each node is a hashed pointer to the feature table
@@ -50,15 +54,12 @@ class HashGrid(BLASGrid):
                 standard deviation.
             feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
-            blas_level (int): The level of the octree to be used as the BLAS (bottom level acceleration structure).
         """
         # Occupancy Structure
-        self.blas_level = blas_level
-        blas = OctreeAS.make_dense(level=blas_level)
         super().__init__(blas)
         self.dense_points = spc_ops.unbatched_get_level_points(self.blas.points,
                                                                self.blas.pyramid,
-                                                               self.blas_level).clone()
+                                                               self.blas.max_level).clone()
         self.num_cells = self.dense_points.shape[0]
         self.occupancy = torch.zeros(self.num_cells)
 
@@ -96,51 +97,50 @@ class HashGrid(BLASGrid):
 
     @classmethod
     def from_octree(cls,
+                    blas               : BaseAS,
                     feature_dim        : int,
                     base_lod           : int   = 2,
                     num_lods           : int   = 1,
-                    multiscale_type    : str   = 'sum',
+                    multiscale_type    : str = 'sum',   # options: 'cat', 'sum'
                     feature_std        : float = 0.0,
                     feature_bias       : float = 0.0,
-                    codebook_bitwidth  : int   = 8,
-                    blas_level         : int   = 7) -> HashGrid:
+                    codebook_bitwidth  : int   = 8) -> HashGrid:
         """
         Builds a hash grid using an octree sampling pattern.
 
         Args:
-            feature_dim (int): The dimension of the features stored on the grid.
+            blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
+                           Used to speed up spatial queries and ray tracing operations.
+            feature_dim (int): Dimensionality for features stored within the hash table.
             base_lod (int): The base LOD of the feature grid.
                             This is the lowest LOD of for which features are defined.
             num_lods (int): The number of LODs for which features are defined. Starts at base_lod.
                             i.e. base_lod=4 and num_lods=5 means features are kept for levels 5, 6, 7, 8.
             multiscale_type (str): The type of multiscale aggregation.
-                                   'sum' - aggregates features from different LODs with summation.
-                                   'cat' - aggregates features from different LODs with concatenation.
-                                   Note that 'cat' will change the decoder input dimension to num_lods * feature_dim.
+                           'sum' - aggregates features from different LODs with summation.
+                           'cat' - aggregates features from different LODs with concatenation.
+                            Note that 'cat' will change the decoder input dimension to num_lods * feature_dim.
             feature_std (float): The features are initialized with a Gaussian distribution with the given
                                  standard deviation.
             feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
-            blas_level (int): The level of the octree to be used as the BLAS (bottom level acceleration structure).
-                The HashGrid is backed
         """
         octree_lods = [base_lod + x for x in range(num_lods)]
         resolutions = [2 ** lod for lod in octree_lods]
-        return cls(feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
-                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth,
-                   blas_level=blas_level)
+        return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
+                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
 
     @classmethod
     def from_geometric(cls,
+                       blas               : BaseAS,
                        feature_dim        : int,
                        num_lods           : int,
-                       multiscale_type    : str   = 'sum',
+                       multiscale_type    : str = 'sum',    # options: 'cat', 'sum'
                        feature_std        : float = 0.0,
                        feature_bias       : float = 0.0,
                        codebook_bitwidth  : int   = 8,
                        min_grid_res       : int   = 16,
-                       max_grid_res       : int   = None,
-                       blas_level: int = 7) -> HashGrid:
+                       max_grid_res       : int   = None) -> HashGrid:
         """
         Builds a hash grid using the geometric sequence initialization pattern from Muller et al. 2022 (Instant-NGP).
         This is an implementation of the geometric multiscale grid from
@@ -148,7 +148,9 @@ class HashGrid(BLASGrid):
         See Section 3 Equations 2 and 3 for more details.
 
         Args:
-            feature_dim (int): The dimension of the features stored on the grid.
+            blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
+                           Used to speed up spatial queries and ray tracing operations.
+            feature_dim (int): Dimensionality for features stored within the hash table.
             num_lods (int): The number of LODs for which features are defined. Starts at lod=0.
                             i.e.  num_lods=16 means features are kept for levels 0, 1, 2, .., 14, 15.
             multiscale_type (str): The type of multiscale aggregation.
@@ -161,29 +163,29 @@ class HashGrid(BLASGrid):
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
             min_grid_res (int): min resolution of the feature grid.
             max_grid_res (int): max resolution of the feature grid.
-            blas_level (int): The level of the octree to be used as the BLAS (bottom level acceleration structure).
         """
         b = np.exp((np.log(max_grid_res) - np.log(min_grid_res)) / (num_lods-1))
         resolutions = [int(1 + np.floor(min_grid_res*(b**l))) for l in range(num_lods)]
-        return cls(feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
-                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth,
-                   blas_level=blas_level)
+        return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
+                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
 
     @classmethod
     def from_resolutions(cls,
+                         blas: BaseAS,
                          feature_dim: int,
                          resolutions: List[int],
-                         multiscale_type: str = 'sum',
+                         multiscale_type: str = 'sum',  # options: 'cat', 'sum'
                          feature_std: float = 0.0,
                          feature_bias: float = 0.0,
-                         codebook_bitwidth: int = 8,
-                         blas_level: int = 7) -> HashGrid:
+                         codebook_bitwidth: int = 8) -> HashGrid:
         """
         Builds a hash grid from a list of resolution sizes (each entry contains a RES for the RES x RES x RES
         lod of nodes pointing at the actual hash table) .
 
         Args:
-            feature_dim (int): The dimension of the features stored on the grid.
+            blas (BaseAS): Spatial acceleration structure which tracks the occupancy state of this grid.
+                           Used to speed up spatial queries and ray tracing operations.
+            feature_dim (int): Dimensionality for features stored within the hash table.
             resolutions (List[int]): A list of resolutions to be used for each feature grid lod of the hash structure.
                 i.e. resolutions=[562, 777, 1483, 2048] means that at LOD0, a grid of 562x562x562 nodes will be used,
                 where each node is a hashed pointer to the feature table
@@ -196,11 +198,10 @@ class HashGrid(BLASGrid):
                                  standard deviation.
             feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
-            blas_level (int): The level of the octree to be used as the BLAS (bottom level acceleration structure)
+
         """
-        return cls(feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
-                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth,
-                   blas_level=blas_level)
+        return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
+                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
 
     def freeze(self):
         """Freezes the feature grid.
@@ -240,7 +241,7 @@ class HashGrid(BLASGrid):
 
         Important detail: the OctreeGrid raymarch samples over the coarsest LOD where features are available.
         """
-        return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=self.blas_level)
+        return self.blas.raymarch(rays, raymarch_type=raymarch_type, num_samples=num_samples, level=self.blas.max_level)
 
     def supported_blas(self) -> Set[Type[BaseAS]]:
         """ Returns a set of bottom-level acceleration structures this grid type supports """

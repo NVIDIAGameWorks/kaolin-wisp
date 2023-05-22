@@ -17,6 +17,7 @@ from wisp.app_utils import default_log_setup, args_to_log_format
 import wisp.config_parser as config_parser
 from wisp.framework import WispState
 from wisp.datasets import MultiviewDataset, SampleRays
+from wisp.accelstructs import OctreeAS, AxisAlignedBBoxAS
 from wisp.models.grids import BLASGrid, OctreeGrid, CodebookOctreeGrid, TriplanarGrid, HashGrid
 from wisp.tracers import BaseTracer, PackedRFTracer
 from wisp.models.nefs import BaseNeuralField, NeuralRadianceField
@@ -71,9 +72,12 @@ def parse_args():
                             help='Interpolation type to use for samples within grids.'
                                  'For a 3D grid structure, linear uses trilinear interpolation of 8 cell nodes,'
                                  'closest uses the nearest neighbor.')
-    grid_group.add_argument('--blas-type', type=str, default='octree',  # TODO(operel)
-                            choices=['octree',],
+    grid_group.add_argument('--blas-type', type=str, default='octree',
+                            choices=['octree', 'aabb'],
                             help='Type of acceleration structure to use for fast raymarch occupancy queries.')
+    grid_group.add_argument('--blas-levels', type=int, default=1,
+                            help='Total number of occupancy levels in grid, used by acceleration structure for fast'
+                                 'raymarching.')
     grid_group.add_argument('--multiscale-type', type=str, default='sum', choices=['sum', 'cat'],
                             help='Aggregation of choice for multi-level grids, for features from different LODs.')
     grid_group.add_argument('--feature-dim', type=int, default=32,
@@ -82,11 +86,13 @@ def parse_args():
                             help='Grid initialization: standard deviation used for randomly sampling initial features.')
     grid_group.add_argument('--feature-bias', type=float, default=0.0,
                             help='Grid initialization: bias used for randomly sampling initial features.')
-    grid_group.add_argument('--base-lod', type=int, default=2,
-                            help='Number of levels in grid, which book-keep occupancy but not features.'
-                                 'The total number of levels in a grid is `base_lod + num_lod - 1`')
+    grid_group.add_argument('--log-base-resolution', type=int, default=4,
+                            help='TriplanarGrid only: the size of the lowest resolution triplane in the pyramid, '
+                                 'assigned as 2**log_base_resolution x 2**log_base_resolution x 2** log_base_resolution.'
+                                 'The following i levels increase the resolution by the power of two')
     grid_group.add_argument('--num-lods', type=int, default=1,
-                            help='Number of levels in grid, which store concrete features.')
+                            help='For OctreeGrid, CodebookGrid: Number of levels which store features in the grid, '
+                                 'must be smaller or equivalent to --blas-levels.')
     grid_group.add_argument('--codebook-bitwidth', type=int, default=8,
                             help='For Codebook and HashGrids only: determines the table size as 2**(bitwidth).')
     grid_group.add_argument('--tree-type', type=str, default='geometric', choices=['geometric', 'quad'],
@@ -265,59 +271,42 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
     Grids choices, for example, are: OctreeGrid, TriplanarGrid, HashGrid, CodebookOctreeGrid
     See corresponding grid constructors for each of their arg details.
     """
-    grid = None
+    # Optimization: For octrees based grids, if dataset contains depth info,initialize only cells known to be occupied
+    if args.blas_type == 'aabb':
+        blas = AxisAlignedBBoxAS()
+    elif args.blas_type == 'octree':
+        if dataset.supports_depth():
+            blas = OctreeAS.from_pointcloud(dataset.as_pointcloud(), level=args.blas_levels)
+        else:
+            blas = OctreeAS.make_dense(level=args.blas_levels)
 
-    # Optimization: For octrees based grids, if dataset contains depth info, initialize only cells known to be occupied
+    grid = None
     if args.grid_type == "OctreeGrid":
-        if dataset.supports_depth():
-            grid = OctreeGrid.from_pointcloud(
-                pointcloud=dataset.as_pointcloud(),
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-            )
-        else:
-            grid = OctreeGrid.make_dense(
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-            )
+        grid = OctreeGrid(
+            blas=blas,
+            feature_dim=args.feature_dim,
+            num_lods=args.num_lods,
+            interpolation_type=args.interpolation_type,
+            multiscale_type=args.multiscale_type,
+            feature_std=args.feature_std,
+            feature_bias=args.feature_bias,
+        )
     elif args.grid_type == "CodebookOctreeGrid":
-        if dataset.supports_depth():
-            grid = CodebookOctreeGrid.from_pointcloud(
-                pointcloud=dataset.as_pointcloud(),
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth
-            )
-        else:
-            grid = CodebookOctreeGrid.make_dense(
-                feature_dim=args.feature_dim,
-                base_lod=args.base_lod,
-                num_lods=args.num_lods,
-                interpolation_type=args.interpolation_type,
-                multiscale_type=args.multiscale_type,
-                feature_std=args.feature_std,
-                feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth
-            )
+        grid = CodebookOctreeGrid(
+            blas=blas,
+            feature_dim=args.feature_dim,
+            num_lods=args.num_lods,
+            interpolation_type=args.interpolation_type,
+            multiscale_type=args.multiscale_type,
+            feature_std=args.feature_std,
+            feature_bias=args.feature_bias,
+            codebook_bitwidth=args.codebook_bitwidth
+        )
     elif args.grid_type == "TriplanarGrid":
         grid = TriplanarGrid(
+            blas=blas,
             feature_dim=args.feature_dim,
-            base_lod=args.base_lod,
+            log_base_resolution=args.log_base_resolution,
             num_lods=args.num_lods,
             interpolation_type=args.interpolation_type,
             multiscale_type=args.multiscale_type,
@@ -328,6 +317,7 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
         # "geometric" - determines the resolution of the grid using geometric sequence initialization from InstantNGP,
         if args.tree_type == "geometric":
             grid = HashGrid.from_geometric(
+                blas=blas,
                 feature_dim=args.feature_dim,
                 num_lods=args.num_lods,
                 multiscale_type=args.multiscale_type,
@@ -335,20 +325,19 @@ def load_grid(args, dataset: MultiviewDataset) -> BLASGrid:
                 feature_bias=args.feature_bias,
                 codebook_bitwidth=args.codebook_bitwidth,
                 min_grid_res=args.min_grid_res,
-                max_grid_res=args.max_grid_res,
-                blas_level=args.blas_level
+                max_grid_res=args.max_grid_res
             )
         # "quad" - determines the resolution of the grid using an octree sampling pattern.
         elif args.tree_type == "octree":
             grid = HashGrid.from_octree(
+                blas=blas,
                 feature_dim=args.feature_dim,
                 base_lod=args.base_lod,
                 num_lods=args.num_lods,
                 multiscale_type=args.multiscale_type,
                 feature_std=args.feature_std,
                 feature_bias=args.feature_bias,
-                codebook_bitwidth=args.codebook_bitwidth,
-                blas_level=args.blas_level
+                codebook_bitwidth=args.codebook_bitwidth
             )
     else:
         raise ValueError(f"Unknown grid_type argument: {args.grid_type}")

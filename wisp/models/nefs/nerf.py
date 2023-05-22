@@ -6,8 +6,9 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+import numpy as np
 import torch
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from wisp.ops.geometric import sample_unif_sphere
 from wisp.models.nefs import BaseNeuralField
 from wisp.models.embedders import get_positional_embedder
@@ -15,6 +16,7 @@ from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
 from wisp.models.grids import BLASGrid, HashGrid
+
 
 class NeuralRadianceField(BaseNeuralField):
     """Model for encoding Neural Radiance Fields (Mildenhall et al. 2020), e.g., density and view dependent color.
@@ -27,19 +29,19 @@ class NeuralRadianceField(BaseNeuralField):
     def __init__(self,
                  grid: BLASGrid = None,
                  # embedder args
-                 pos_embedder: str = 'none',
-                 view_embedder: str = 'none',
+                 pos_embedder: str = 'none',    # options: 'none', 'identity', 'positional'
+                 view_embedder: str = 'none',   # options: 'none', 'identity', 'positional'
                  pos_multires: int = 10,
                  view_multires: int = 4,
                  position_input: bool = False,
                  # decoder args
-                 activation_type: str = 'relu',
-                 layer_type: str = 'none',
+                 activation_type: str = 'relu', #  options: 'none', 'relu', 'sin', 'fullsort', 'minmax'
+                 layer_type: str = 'linear',    # 'linear', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'
                  hidden_dim: int = 128,
                  num_layers: int = 1,
                  # pruning args
-                 prune_density_decay: float = None,
-                 prune_min_density: float = None,
+                 prune_density_decay: Optional[float] = (0.01 * 512) / np.sqrt(3),
+                 prune_min_density: Optional[float] = 0.6,
                  ):
         """
         Creates a new NeRF instance, which maps 3D input coordinates + view directions to RGB + density.
@@ -84,9 +86,9 @@ class NeuralRadianceField(BaseNeuralField):
                  'none' / 'linear', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'.
             hidden_dim (int): Number of neurons in hidden layers of both decoders.
             num_layers (int): Number of hidden layers in both decoders.
-            prune_density_decay (float): Decay rate of density per "prune step",
+            prune_density_decay (Optional[float]): Decay rate of density per "prune step",
                  using the pruning scheme from Muller et al. 2022. Used only for grids which support pruning.
-            prune_min_density (float): Minimal density allowed for "cells" before they get pruned during a "prune step".
+            prune_min_density (Optional[float]): Minimal density allowed for "cells" before they get pruned during a "prune step".
                  Used within the pruning scheme from Muller et al. 2022. Used only for grids which support pruning.
         """
         super().__init__()
@@ -150,6 +152,8 @@ class NeuralRadianceField(BaseNeuralField):
     def prune(self):
         """Prunes the blas based on current state.
         """
+        if self.prune_density_decay is None or self.prune_min_density is None:
+            return
         if self.grid is not None:
             if isinstance(self.grid, HashGrid):
                 density_decay = self.prune_density_decay
@@ -158,7 +162,7 @@ class NeuralRadianceField(BaseNeuralField):
                 self.grid.occupancy = self.grid.occupancy.cuda()
                 self.grid.occupancy = self.grid.occupancy * density_decay
                 points = self.grid.dense_points.cuda()
-                res = 2.0**self.grid.blas_level
+                res = 2.0**self.grid.blas.max_level
                 samples = torch.rand(points.shape[0], 3, device=points.device)
                 samples = points.float() + samples
                 samples = samples / res
@@ -176,7 +180,7 @@ class NeuralRadianceField(BaseNeuralField):
                     return
 
                 if hasattr(self.grid.blas.__class__, "from_quantized_points"):
-                    self.grid.blas = self.grid.blas.__class__.from_quantized_points(_points, self.grid.blas_level)
+                    self.grid.blas = self.grid.blas.__class__.from_quantized_points(_points, self.grid.blas.max_level)
                 else:
                     raise Exception(f"The BLAS {self.grid.blas.__class__.__name__} does not support initialization " 
                                      "from_quantized_points, which is required for pruning.")

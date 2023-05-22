@@ -15,6 +15,7 @@ from wisp.app_utils import default_log_setup, args_to_log_format
 from wisp.framework import WispState
 from wisp.datasets import NeRFSyntheticDataset, SampleRays
 from wisp.trainers import MultiviewTrainer
+from wisp.accelstructs import OctreeAS
 from wisp.models.grids import OctreeGrid
 from wisp.models.pipeline import Pipeline
 from wisp.tracers import PackedRFTracer
@@ -49,8 +50,8 @@ train_dataset = NeRFSyntheticDataset(
 
 # To build our neural field (FunnyNeuralField), we'll need a feature grid.
 # A full octree isn't the fastest option in wisp, but it's a straightforward example for this demo
-grid = OctreeGrid.make_dense(
-    base_lod=5,
+grid = OctreeGrid(
+    blas=OctreeAS.make_dense(level=8),
     num_lods=4,
     feature_dim=5,
     feature_bias=0.0,

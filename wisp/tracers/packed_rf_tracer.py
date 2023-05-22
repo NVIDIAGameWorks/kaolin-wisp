@@ -23,7 +23,11 @@ class PackedRFTracer(BaseTracer):
     This tracer class expects the neural field to expose a BLASGrid: a Bottom-Level-Acceleration-Structure Grid,
     i.e. a grid that inherits the BLASGrid class for both a feature structure and an occupancy acceleration structure).
     """
-    def __init__(self, raymarch_type='voxel', num_steps=128, step_size=1.0, bg_color='white'):
+    def __init__(self,
+        raymarch_type: str='voxel',
+        num_steps: int=128,
+        step_size: float=1.0,
+        bg_color: str='white'):
         """Set the default trace() arguments.
 
         Args:
