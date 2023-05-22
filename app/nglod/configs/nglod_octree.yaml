@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -6,15 +6,113 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'nglod_base.yaml'
 
-grid:
-    blas_type: 'octree'
-    blas_levels: 7
-    grid_type: 'OctreeGrid'
+device: 'cuda'   # Device used to run the optimization
+pretrained: null # If specified, a pretrained model will be loaded from this path. None will create a new model.
+log_level: 20    # Log level: logging.INFO
+
+blas:
+    constructor: 'OctreeAS.from_mesh'
+    mesh_path: 'data/'
+    level: 7
+    sample_tex: False       # Load materials
+    num_samples_on_mesh: 100000000  # Number of samples generated on mesh surface to initialize the occupancy grid
+
+grid:  # Feature grid, the backbone of the neural field
+    constructor: 'OctreeGrid'
     interpolation_type: 'linear'
     multiscale_type: 'sum'
     feature_dim: 16
     feature_std: 0.01
-    num_lods: 6
-    num_samples_on_mesh: 100000000  # Number of samples generated on mesh surface to initialize the occupancy grid
+    feature_bias:  0.0
+    num_lods: 6             # Number of LODs keeping features
+
+nef:  # Neural field: combines grid, decoders and positional embedders
+  constructor: 'NeuralSDF'
+  pos_embedder: 'none'        # coordinates positional embedding options: 'none', 'identity', 'positional'
+  pos_multires: 4             # num of embedding frequencies, if embedder is not None
+  position_input: True        # should feed sample position into decoder
+  activation_type: 'relu'
+  layer_type: 'linear'
+  hidden_dim: 128
+  num_layers: 1
+
+tracer:  # Sphere Tracer is employed during inference only
+    constructor: 'PackedSDFTracer'
+    num_steps: 32   # Usual range should be within [32, 128] according to model complexity (increasing may reduce FPS).
+    step_size: 0.8
+
+dataset: # Train & validation dataset
+    constructor: 'OctreeSampledSDFDataset'
+    split: 'train'           # Which subset of the dataset to use for training
+    sample_mode:             # Sequence of sampling strategies to generate sdf samples
+      - rand
+      - near
+      - near
+      - trace
+      - trace
+    num_samples: 500000      # Number of samples held in dataset during training
+    sample_tex: False
+    samples_per_voxel: 32
+
+trainer:
+  # Base Trainer config
+  exp_name: "nglod-octree"  # Name of the experiment: a unique id to use for logging, model names, etc.
+  mode: 'train'             # Choices: 'train', 'validate'
+  max_epochs: 10            # Number of epochs to run the training.
+  save_every: 5             # Saves the optimized model every N epochs
+  save_as_new: False        # If True, will save the model as a new file every time the model is saved
+  model_format: 'full'      # Format to save the model: 'full' (weights+model) or 'state_dict'
+  render_every: 5           # Renders an image of the neural field every N epochs
+  valid_every: 10           # Runs validation every N epochs
+  enable_amp: True          # If enabled, the step() training function will use mixed precision.
+  profile_nvtx: True        # If enabled, nvtx markers will be emitted by torch for profiling.
+  grid_lr_weight: 1.0    # Learning rate weighting applied only for the grid parameters (contain "grid" in their name)
+
+  # SDFTrainer config
+  log_2d: True     # Log 2D slices of the SDF to the loggers.
+  only_last: True  # Train only last LOD
+  resample: True   # Should resample dataset at the end of each epoch. May add diversity but slow down training.
+
+  dataloader:
+    batch_size: 512        # Number of coordinates used per batch
+    num_workers: 0         # Number of cpu workers used to fetch data
+  optimizer:  # torch optimizer to use, and its args
+    constructor: 'Adam'
+    eps: 1.0e-15
+    lr: 0.001
+
+tracker:
+  log_dir: '_results/logs/runs'   # For logs and snapshots
+  enable_tensorboard: True
+  enable_wandb: False
+  tensorboard:
+    log_dir: '_results/logs/runs' # For TensorBoard summary
+  wandb:                          # active when enable_wandb=True
+    project: 'wisp-nglod'
+    entity: null                  # i.e. your wandb username here
+    job_type: 'train'
+  visualizer:                     # Offline renderer used during validation to save snapshot of the neural field
+    render_res:
+      - 1024
+      - 1024
+    render_batch: 0
+    shading_mode: 'normal'        # 'normal' or 'matcap'
+    matcap_path: null             # set if shading_mode = 'matcap'
+    shadow: True
+  vis_camera:                     # See: wisp.trainers.tracker.tracker.ConfigVisCameras
+    camera_origin:
+      - -2.8
+      - 2.3
+      - -2.8
+    camera_lookat:
+      - 0.0
+      - 0.0
+      - 0.0
+    camera_fov: 30
+    camera_clamp:
+      - 0.0
+      - 10.0
+    viz360_num_angles: 20  # Set to 0 to disable the 360 animation.
+    viz360_radius: 3.0
+    viz360_render_all_lods: False

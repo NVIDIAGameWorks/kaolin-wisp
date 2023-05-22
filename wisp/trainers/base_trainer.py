@@ -8,26 +8,68 @@
 import os
 import time
 import logging as log
-from datetime import datetime
-from abc import ABC, abstractmethod
 import torch
-from torch.utils.tensorboard import SummaryWriter
+import wisp
+from typing import Optional, Union
+from abc import ABC, abstractmethod
 from torch.utils.data import DataLoader
-from wisp.offline_renderer import OfflineRenderer
-from wisp.framework import WispState, BottomLevelRendererState
+from wisp.trainers.tracker import Tracker
+from wisp.framework import WispState
 from wisp.datasets import WispDataset, default_collate
+from wisp.config import configure, autoconfig, instantiate, write_config_to_yaml
+from wisp.config.presets import ConfigAdam, ConfigRMSprop, ConfigDataloader
 from wisp.renderer.core.api import add_to_scene_graph
 
-import wandb
-import numpy as np
 
+@configure
+class ConfigBaseTrainer:
+    """ Configuration common to base trainer and its derivatives """
 
-def log_metric_to_wandb(key, _object, step):
-    wandb.log({key: _object}, step=step, commit=False)
+    optimizer: Union[ConfigAdam, ConfigRMSprop]
+    """ Optimizer to be used, includes optimizer modules available within `torch.optim` 
+        and fused optimizers from `apex`.
+    """
 
+    dataloader: ConfigDataloader
+    """ Dataloader configuration, used during optimization. """
 
-def log_images_to_wandb(key, image, step):
-    wandb.log({key: wandb.Image(np.moveaxis(image, 0, -1))}, step=step, commit=False)
+    exp_name: str
+    """ Name of the experiment: a unique id to use for logging, model names, etc. """
+
+    mode: str = 'train'  # options: 'train', 'validate'
+    """ Trainer mode: 
+    'train': Trainer will optimize the given pipeline. 
+    'validate': Only run validation, expects to run a pretrained model.
+    """ 
+
+    max_epochs: int = 250
+    """ Number of epochs to run the training. """
+
+    save_every: int = -1
+    """ Saves the optimized model every N epochs """
+
+    save_as_new: bool = False
+    """ If True, will save the model as a new file every time the model is saved  """
+
+    model_format: str = 'full'  # options: 'full', 'state_dict'
+    """ Format to save the model: 'full' (weights+model) or 'state_dict' """
+
+    render_every : int = 100
+    """ Renders an image of the neural field every N epochs """
+
+    valid_every: int = -1
+    """ Runs validation every N epochs """
+
+    enable_amp: bool = True
+    """ If enabled, the step() training function will use mixed precision. """
+
+    profile_nvtx: bool = True
+    """ If enabled, nvtx markers will be emitted by torch for profiling. See: torch.autograd.profiler.emit_nvtx"""
+
+    grid_lr_weight : float = 1.0
+    """ Learning rate weighting applied only for the grid parameters
+        (e.g. parameters which contain "grid" in their name)
+    """
 
 
 class BaseTrainer(ABC):
@@ -51,9 +93,10 @@ class BaseTrainer(ABC):
                 |- post_step()
 
             post_epoch()
-            |- log_tb()
+            |- log_console()
+            |- log_tracker()
+            |- render_snapshot()
             |- save_model()
-            |- render_tb()
             |- resample_dataset()
 
             |- validate()
@@ -70,103 +113,59 @@ class BaseTrainer(ABC):
     #######################
     # Initialization
     #######################
-
-    def __init__(self, pipeline, train_dataset: WispDataset, num_epochs, batch_size,
-                 optim_cls, lr, weight_decay, grid_lr_weight, optim_params, log_dir, device,
-                 exp_name=None, info=None, scene_state=None, extra_args=None, validation_dataset: WispDataset = None,
-                 render_tb_every=-1, save_every=-1, trainer_mode='validate', using_wandb=False,
-                 enable_amp=True):
+    def __init__(self,
+        cfg: ConfigBaseTrainer,
+        pipeline: wisp.models.Pipeline,
+        train_dataset: wisp.datasets.WispDataset,
+        tracker: Tracker,
+        device: torch.device = 'cuda',
+        scene_state: Optional[wisp.framework.WispState] = None):
         """Constructor.
-        
-        Args:
-            pipeline (wisp.core.Pipeline): The pipeline with tracer and neural field to train.
-            train_dataset (wisp.datasets.WispDataset): Dataset to used for generating training batches.
-            num_epochs (int): The number of epochs to run the training for.
-            batch_size (int): The batch size used in training.
-            optim_cls (torch.optim): The Optimizer object to use
-            lr (float): The learning rate to use
-            weight_decay (float): The weight decay to use
-            optim_params (dict): Optional params for the optimizer.
-            device (device): The device to run the training on. 
-            log_dir (str): The directory to save the training logs in.
-            exp_name (str): The experiment name to use for logging purposes.
-            info (str): The args to save to the logger.
-            scene_state (wisp.core.State): Use this to inject a scene state from the outside to be synced
-                                           elsewhere.
-            extra_args (dict): Optional dict of extra_args for easy prototyping.
-            validation_dataset (wisp.datasets.WispDataset): Validation dataset used for evaluating metrics.
-            render_tb_every (int): The number of epochs between renders for tensorboard logging. -1 = no rendering.
-            save_every (int): The number of epochs between model saves. -1 = no saving.
-            trainer_mode (str): 'train' or 'validate' for choosing running training or validation only modes.
-                Currently used only for titles within logs.
-            using_wandb (bool): When True, weights & biases will be used for logging.
-            enable_amp (bool): If enabled, the step() training function will use mixed precision.
-        """
-        log.info(f'Info: \n{info}')
-        log.info(f'Training on {extra_args["dataset_path"]}')
 
-        # initialize scene_state
+        Args:
+            cfg (ConfigBaseTrainer): Trainer base configuration, includes optimization, logging and other definitions.
+            pipeline (wisp.core.Pipeline): Target neural field to optimize.
+                The pipeline includes both the neural field to train, and a differentiable tracer to render it.
+            train_dataset (wisp.datasets.WispDataset): Dataset used for generating training batches.
+            tracker (wisp.trainers.tracker.Tracker): An experiments tracker object, used for logging the optimization progress.
+            device (torch.device): Device used to run the optimization.
+            scene_state (wisp.core.State): Global information and definitions shared between the trainer and external components (i.e. interactive visualizer).
+        """
+        self.device = device
+        self.cfg = cfg
+        self.pipeline = pipeline.to(device)
+        self.train_dataset = train_dataset
+        self.tracker = tracker
+
+        # Initialize global scene_state, if not set already
         if scene_state is None:
             scene_state = WispState()
         self.scene_state = scene_state
 
-        self.extra_args = extra_args
-        self.info = info
-        self.trainer_mode = trainer_mode
-
-        self.pipeline = pipeline
-        log.info("Total number of parameters: {}".format(
-            sum(p.numel() for p in self.pipeline.nef.parameters()))
-        )
-        # Set device to use
-        self.device = device
-        device_name = torch.cuda.get_device_name(device=self.device)
-        log.info(f'Using {device_name} with CUDA v{torch.version.cuda}')
-
-        self.init_renderer()
-
-        self.train_dataset = train_dataset
-        self.validation_dataset = validation_dataset
-
-        # Optimizer params
-        self.optim_cls = optim_cls
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.grid_lr_weight = grid_lr_weight
-        self.optim_params = optim_params
-        self.init_optimizer()
-
-        # Training params
-        self.epoch = 1
-        self.iteration = 0
-        self.max_epochs = num_epochs
-        self.batch_size = batch_size
-        self.exp_name = exp_name if exp_name else "unnamed_experiment"
-
-        self.populate_scenegraph()
-        # Update optimization state about the current train set used
-        self.scene_state.optimization.train_data.append(train_dataset)
-
-        self.scaler = torch.cuda.amp.GradScaler()
-
-        # In-training variables
+        self.scaler = None
         self.train_data_loader_iter = None
         self.val_data_loader = None
         self.train_dataset_size = None
-        self.log_dict = {}
+
+        # Training params
+        self.enable_amp = cfg.enable_amp
+        self.max_epochs = cfg.max_epochs
+        self.epoch = 1
+        self.iteration = 1
+
+        # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
+        self.populate_scenegraph()
+
+        # Update optimization state about the current train set used
+        self.scene_state.optimization.train_data.append(train_dataset)
+
+        self.init_optimizer()
         self.init_dataloader()
 
-        self.log_fname = f'{datetime.now().strftime("%Y%m%d-%H%M%S")}'
-        self.log_dir = os.path.join(
-            log_dir,
-            self.exp_name,
-            self.log_fname
-        )
-
-        self.render_tb_every = render_tb_every
-        self.save_every = save_every
-        self.using_wandb = using_wandb
-        self.enable_amp = enable_amp
+        device_name = torch.cuda.get_device_name(device=self.device)
+        num_parameters = sum(p.numel() for p in self.pipeline.nef.parameters())
+        log.info(f'Using {device_name} with CUDA v{torch.version.cuda}')
+        log.info(f"Total number of parameters: {num_parameters}")
 
     def populate_scenegraph(self):
         """ Updates the scenegraph with information about available objects.
@@ -175,34 +174,32 @@ class BaseTrainer(ABC):
         # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
         # batch_size is an optional setup arg here which hints the visualizer how many rays can be processed at once
         # (e.g. this is the pipeline's batch_size used for inference time)
-        add_to_scene_graph(state=self.scene_state, name=self.exp_name, obj=self.pipeline, batch_size=2 ** 14)
+        add_to_scene_graph(state=self.scene_state, name=self.cfg.exp_name, obj=self.pipeline, batch_size=2**14)
 
     def init_dataloader(self):
         self.train_data_loader = DataLoader(self.train_dataset,
-                                            batch_size=self.batch_size,
+                                            batch_size=self.cfg.dataloader.batch_size,
                                             collate_fn=default_collate,
                                             shuffle=True, pin_memory=True,
-                                            num_workers=self.extra_args['dataloader_num_workers'])
+                                            num_workers=self.cfg.dataloader.num_workers)
         self.iterations_per_epoch = len(self.train_data_loader)
 
     def init_optimizer(self):
         """Default initialization for the optimizer.
         """
-
         params_dict = { name : param for name, param in self.pipeline.nef.named_parameters()}
-        
+
         params = []
         decoder_params = []
         grid_params = []
         rest_params = []
 
+        # TODO (operel): Better to use wisp interfaces here, as names may be brittle
         for name in params_dict:
-            
             if 'decoder' in name:
                 # If "decoder" is in the name, there's a good chance it is in fact a decoder,
                 # so use weight_decay
                 decoder_params.append(params_dict[name])
-
             elif 'grid' in name:
                 # If "grid" is in the name, there's a good chance it is in fact a grid,
                 # so use grid_lr_weight
@@ -211,22 +208,16 @@ class BaseTrainer(ABC):
             else:
                 rest_params.append(params_dict[name])
 
-        params.append({"params" : decoder_params,
-                       "lr": self.lr, 
-                       "weight_decay": self.weight_decay})
+        lr = self.cfg.optimizer.lr
+        eps = self.cfg.optimizer.eps
+        weight_decay = self.cfg.optimizer.weight_decay
 
-        params.append({"params" : grid_params,
-                       "lr": self.lr * self.grid_lr_weight})
-        
-        params.append({"params" : rest_params,
-                       "lr": self.lr})
+        params.append({"params": decoder_params, "lr": lr, "eps": eps, "weight_decay": weight_decay})
+        params.append({"params": grid_params, "eps": eps, "lr": lr * self.cfg.grid_lr_weight})
+        params.append({"params": rest_params, "eps": eps, "lr": lr})
 
-        self.optimizer = self.optim_cls(params, **self.optim_params)
-
-    def init_renderer(self):
-        """Default initalization for the renderer.
-        """
-        self.renderer = OfflineRenderer(**self.extra_args)
+        self.optimizer = instantiate(self.cfg.optimizer, params=params)
+        self.scaler = torch.cuda.amp.GradScaler()
 
     #######################
     # Data load
@@ -255,7 +246,7 @@ class BaseTrainer(ABC):
             self.train_dataset.resample()
             self.init_dataloader()
         else:
-            raise ValueError("resample=True but the dataset doesn't have a resample method")
+            raise ValueError("resample=True but the training dataset doesn't have a resample method")
 
     #######################
     # Training Life-cycle
@@ -272,7 +263,6 @@ class BaseTrainer(ABC):
         """
         self.reset_data_iterator()
         self.pre_epoch()
-        self.init_log_dict()
         self.epoch_start_time = time.time()
 
     def end_epoch(self):
@@ -281,15 +271,13 @@ class BaseTrainer(ABC):
         current_time = time.time()
         elapsed_time = current_time - self.epoch_start_time
         self.epoch_start_time = current_time
-        # TODO(ttakikawa): Don't always write to TB
-        self.writer.add_scalar(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
-        if self.using_wandb:
-            log_metric_to_wandb(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
+
+        self.tracker.log_metric(f'time/elapsed_ms_per_epoch', elapsed_time * 1000, self.epoch)
 
         self.post_epoch()
 
-        if self.extra_args["valid_every"] > -1 and \
-                self.epoch % self.extra_args["valid_every"] == 0 and \
+        if self.cfg.valid_every > -1 and \
+                self.epoch % self.cfg.valid_every == 0 and \
                 self.epoch != 0:
             self.validate()
 
@@ -298,24 +286,6 @@ class BaseTrainer(ABC):
             self.epoch += 1
         else:
             self.is_optimization_running = False
-
-    def grow(self):
-        stage = min(self.extra_args["num_lods"],
-                    (self.epoch // self.extra_args["grow_every"]) + 1)  # 1 indexed
-        if self.extra_args["growth_strategy"] == 'onebyone':
-            self.loss_lods = [stage - 1]
-        elif self.extra_args["growth_strategy"] == 'increase':
-            self.loss_lods = list(range(0, stage))
-        elif self.extra_args["growth_strategy"] == 'shrink':
-            self.loss_lods = list(range(0, self.extra_args["num_lods"]))[stage - 1:]
-        elif self.extra_args["growth_strategy"] == 'finetocoarse':
-            self.loss_lods = list(range(
-                0, self.extra_args["num_lods"]
-            ))[self.extra_args["num_lods"] - stage:]
-        elif self.extra_args["growth_strategy"] == 'onlylast':
-            self.loss_lods = list(range(0, self.extra_args["num_lods"]))[-1:]
-        else:
-            raise NotImplementedError
 
     def iterate(self):
         """Advances the training by one training step (batch).
@@ -330,51 +300,46 @@ class BaseTrainer(ABC):
                 self.iteration += 1
                 data = self.next_batch()
             except StopIteration:
-                self.end_epoch()
+                self.end_epoch()    # determines if optimization keeps running
                 if self.is_any_iterations_remaining():
                     self.begin_epoch()
                     data = self.next_batch()
+                else:
+                    self.post_training()
             if self.is_any_iterations_remaining():
                 self.pre_step()
                 with torch.cuda.amp.autocast(self.enable_amp):
                     self.step(data)
                 self.post_step()
-                iter_end_time = time.time()
-            else:
-                iter_end_time = time.time()
-                self.post_training()
+            iter_end_time = time.time()
             self.scene_state.optimization.elapsed_time += iter_end_time - iter_start_time
 
     def save_model(self):
         """
         Override this function to change model saving.
         """
-
-        if self.extra_args["save_as_new"]:
-            model_fname = os.path.join(self.log_dir, f'model-ep{self.epoch}-it{self.iteration}.pth')
+        if self.cfg.save_as_new:
+            model_fname = os.path.join(self.tracker.log_dir, f'model-ep{self.epoch}-it{self.iteration}.pth')
         else:
-            model_fname = os.path.join(self.log_dir, f'model.pth')
+            model_fname = os.path.join(self.tracker.log_dir, f'model.pth')
 
         log.info(f'Saving model checkpoint to: {model_fname}')
-        if self.extra_args["model_format"] == "full":
+        if self.cfg.model_format == "full":
             torch.save(self.pipeline, model_fname)
         else:
             torch.save(self.pipeline.state_dict(), model_fname)
 
-        if self.using_wandb:
-            name = wandb.util.make_artifact_name_safe(f"{wandb.run.name}-model")
-            model_artifact = wandb.Artifact(name, type="model")
-            model_artifact.add_file(model_fname)
-            wandb.run.log_artifact(model_artifact, aliases=["latest", f"ep{self.epoch}_it{self.iteration}"])
+        self.tracker.log_artifact(model_fname=model_fname, names=["latest", f"ep{self.epoch}_it{self.iteration}"])
 
     def train(self):
         """
         Override this if some very specific training procedure is needed.
         """
-        with torch.autograd.profiler.emit_nvtx(enabled=self.extra_args["profile"]):
+        with torch.autograd.profiler.emit_nvtx(enabled=self.cfg.profile_nvtx):
             self.is_optimization_running = True
             while self.is_optimization_running:
                 self.iterate()
+            log.info('Training completed.')
 
     #######################
     # Training Events
@@ -385,58 +350,37 @@ class BaseTrainer(ABC):
         Override this function to change the logic which runs before the first training iteration.
         This function runs once before training starts.
         """
-        # Default TensorBoard Logging
-        self.writer = SummaryWriter(self.log_dir, purge_step=0)
-        self.writer.add_text('Info', self.info)
-        
-        if self.using_wandb:
-            wandb_project = self.extra_args["wandb_project"]
-            wandb_run_name = self.extra_args.get("wandb_run_name")
-            wandb_entity = self.extra_args.get("wandb_entity")
-            wandb.init(
-                project=wandb_project,
-                name=self.exp_name if wandb_run_name is None else wandb_run_name,
-                entity=wandb_entity,
-                job_type=self.trainer_mode,
-                config=self.extra_args,
-                sync_tensorboard=True
-            )
+        app_config = self.tracker.get_app_config()
+        if app_config is not None:
+            write_config_to_yaml(app_config, os.path.join(self.tracker.log_dir, "config.yaml"))
+
+            app_config = self.tracker.get_app_config(as_dict=True)
+            self.tracker.log_config(app_config)
+
+        self.tracker.metrics.define_metric('total_loss', aggregation_type=float)
+        # self.log_model_details()
 
     def post_training(self):
         """
         Override this function to change the logic which runs after the last training iteration.
         This function runs once after training ends.
         """
-        self.writer.close()
-        if self.using_wandb:
-            wandb.finish()
+        self.tracker.teardown()
 
     def pre_epoch(self):
         """
         Override this function to change the pre-epoch preprocessing.
         This function runs once before the epoch.
         """
-        # The DataLoader is refreshed before every epoch, because by default, the dataset refreshes
-        # (resamples) after every epoch.
-
-        self.loss_lods = list(range(0, self.extra_args["num_lods"]))
-        if self.extra_args["grow_every"] > 0:
-            self.grow()
-
-        if self.extra_args["only_last"]:
-            self.loss_lods = self.loss_lods[-1:]
-
-        if self.extra_args["resample"] and self.epoch % self.extra_args["resample_every"] == 0 and self.epoch > 1:
-            self.resample_dataset()
-
         self.pipeline.train()
+        self.tracker.metrics.clear()
 
     def post_epoch(self):
         """
         Override this function to change the post-epoch post processing.
 
         By default, this function logs to Tensorboard, renders images to Tensorboard, saves the model,
-        and resamples the dataset.
+        and resamples the training dataset.
 
         To keep default behaviour but also augment with other features, do
 
@@ -446,19 +390,18 @@ class BaseTrainer(ABC):
         """
         self.pipeline.eval()
 
-        total_loss = self.log_dict['total_loss'] / len(self.train_data_loader)
-        self.scene_state.optimization.losses['total_loss'].append(total_loss)
+        # Report average loss for epoch to console
+        self.log_console()
 
-        self.log_cli()
-        self.log_tb()
+        # Update dashboards and external components (i.e. interactive visualizer) about epoch results
+        self.log_tracker()
+        self.tracker.metrics.finalize_epoch(self.scene_state)
 
-        # Render visualizations to tensorboard
-        if self.render_tb_every > -1 and self.epoch % self.render_tb_every == 0:
-            self.render_tb()
+        if self.is_time_to_render():
+            self.render_snapshot()  # Render visualizations to disk, possibly log to experiment dashboards
 
-       # Save model
-        if self.save_every > -1 and self.epoch % self.save_every == 0 and self.epoch != 0:
-            self.save_model()
+        if self.is_time_to_save():
+            self.save_model()       # Save model to disk, possibly log artifact
 
     def pre_step(self):
         """
@@ -488,65 +431,60 @@ class BaseTrainer(ABC):
     # Logging
     #######################
 
-    def init_log_dict(self):
-        """
-        Override this function to use custom logs.
-        """
-        self.log_dict['total_loss'] = 0.0
-        self.log_dict['total_iter_count'] = 0
+    def is_time_to_render(self):
+        return self.cfg.render_every > -1 and self.epoch % self.cfg.render_every == 0
+
+    def is_time_to_save(self):
+        return self.cfg.save_every > -1 and self.epoch % self.cfg.save_every == 0 and self.epoch != 0
 
     def log_model_details(self):
-        # TODO (operel): Brittle
-        log.info(f"Position Embed Dim: {self.pipeline.nef.pos_embed_dim}")
-        log.info(f"View Embed Dim: {self.pipeline.nef.view_embed_dim}")
+        log.info(f"-- Model Details --")
+        if self.pipeline.nef is not None:
+            for key, value in self.pipeline.nef.public_properties().items():
+                log.info(f"{key}: {value}")
 
-    def log_cli(self):
+    def log_console(self):
         """
         Override this function to change CLI logging.
 
         By default, this function only runs every epoch.
         """
         # Average over iterations
+        total_loss = self.tracker.metrics.average_metric('total_loss')
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
-        log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'] / len(self.train_data_loader))
+        log_text += ' | total loss: {:>.3E}'.format(total_loss)
+        log.info(log_text)
 
-    def log_tb(self):
-        """
-        Override this function to change loss / other numeric logging to TensorBoard / Wandb.
-        """
-        for key in self.log_dict:
+    def log_tracker(self):
+        for key in self.tracker.metrics.active_metrics:
             if 'loss' in key:
-                self.writer.add_scalar(f'loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
-                if self.using_wandb:
-                    log_metric_to_wandb(f'loss/{key}', self.log_dict[key] / len(self.train_data_loader), self.epoch)
+                self.tracker.log_metric(metric=f'loss/{key}', value=self.tracker.metrics[key], step=self.epoch)
 
-    def render_tb(self):
-        """
+    def render_snapshot(self):
+        """Renders a snapshot of the neural field
         Override this function to change render logging to TensorBoard / Wandb.
         """
         self.pipeline.eval()
-        for d in [self.extra_args["num_lods"] - 1]:
-            out = self.renderer.shade_images(self.pipeline,
-                                             f=self.extra_args["camera_origin"],
-                                             t=self.extra_args["camera_lookat"],
-                                             fov=self.extra_args["camera_fov"],
-                                             lod_idx=d,
-                                             camera_clamp=self.extra_args["camera_clamp"])
+        lod_idx = self.pipeline.nef.grid.num_lods - 1
+        out = self.tracker.visualizer.render_snapshot(self.pipeline,
+                                                      f=self.tracker.cfg.vis_camera.camera_origin,
+                                                      t=self.tracker.cfg.vis_camera.camera_lookat,
+                                                      fov=self.tracker.cfg.vis_camera.camera_fov,
+                                                      lod_idx=lod_idx,
+                                                      camera_clamp=self.tracker.cfg.vis_camera.camera_clamp)
 
-            # Premultiply the alphas since we're writing to PNG (technically they're already premultiplied)
-            if self.extra_args["bg_color"] == 'black' and out.rgb.shape[-1] > 3:
-                bg = torch.ones_like(out.rgb[..., :3])
-                out.rgb[..., :3] += bg * (1.0 - out.rgb[..., 3:4])
+        # Premultiply the alphas since we're writing to PNG (technically they're already premultiplied)
+        if self.pipeline.tracer.bg_color == 'black' and out.rgb.shape[-1] > 3:
+            bg = torch.ones_like(out.rgb[..., :3])
+            out.rgb[..., :3] += bg * (1.0 - out.rgb[..., 3:4])
 
-            out = out.image().byte().numpy_dict()
+        out = out.image().byte().numpy_dict()
 
-            log_buffers = ['depth', 'hit', 'normal', 'rgb', 'alpha']
+        log_buffers = ['depth', 'hit', 'normal', 'rgb', 'alpha']
 
-            for key in log_buffers:
-                if out.get(key) is not None:
-                    self.writer.add_image(f'{key}/{d}', out[key].T, self.epoch)
-                    if self.using_wandb:
-                        log_images_to_wandb(f'{key}/{d}', out[key].T, self.epoch)
+        for key in log_buffers:
+            if out.get(key) is not None:
+                self.tracker.log_image(f'{key}/{lod_idx}', out[key].T, self.epoch)
 
     #######################
     # Properties

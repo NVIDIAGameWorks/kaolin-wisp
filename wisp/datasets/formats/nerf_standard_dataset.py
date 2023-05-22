@@ -12,6 +12,7 @@ import re
 import glob
 import cv2
 import json
+import copy
 from tqdm import tqdm
 import logging as log
 from typing import Callable, List, Dict, Union, Optional
@@ -20,7 +21,7 @@ import torch
 from torch.multiprocessing import Pool
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
-from wisp.ops.raygen import generate_pinhole_rays, generate_ortho_rays, generate_centered_pixel_coords
+from wisp.ops.raygen import generate_pinhole_rays, generate_centered_pixel_coords
 from wisp.ops.image import resize_mip, load_rgb
 from wisp.datasets.base_datasets import MultiviewDataset
 from wisp.datasets.batch import MultiviewBatch
@@ -62,7 +63,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         self.bg_color = bg_color
 
         self.coords = self.data = self.coords_center = self.coords_scale = None
-        self._transform_file = self._validate_and_find_transform()
+        self._transform_file = self._validate_and_find_transform(self.dataset_path, self.split)
         self.data = self.load()
 
         self._img_shape = self.data["rgb"].shape[1:3]
@@ -83,6 +84,16 @@ class NeRFSyntheticDataset(MultiviewDataset):
                 For example: ray sampling, to filter the amount of rays returned per batch.
                 When multiple transforms are needed, the transform callable may be a composition of multiple Callable.
         """
+        # Avoid creating a duplicate of the dataset if the split doesn't exist.
+        # We simply return the current split instead.
+        if self._validate_and_find_transform(self.dataset_path, split) is None:
+            log.warning(
+                f"WARNING: Split type ['{split}'] does not exist in the dataset. Falling back to {self.split} data."
+            )
+            validation_split = copy.copy(self)
+            validation_split.transform = transform
+            return validation_split
+
         return NeRFSyntheticDataset(
             dataset_path=self.dataset_path,
             split=split,
@@ -146,7 +157,8 @@ class NeRFSyntheticDataset(MultiviewDataset):
         except ValueError:
             return False
 
-    def _validate_and_find_transform(self) -> str:
+    @staticmethod
+    def _validate_and_find_transform(dataset_path: str, split: str) -> Optional[str]:
         """
         Validates the file structure and returns the filename for the dataset's split / transform.
         There are two pairs of standard file structures this dataset can parse:
@@ -166,12 +178,12 @@ class NeRFSyntheticDataset(MultiviewDataset):
         In the former case, the single transform file is assumed to be loaded as a train set,
         for the latter split is assumed to be any of: 'train', 'val', 'test'.
         """
-        if not os.path.exists(self.dataset_path):
-            raise FileNotFoundError(f"NeRF dataset path does not exist: {self.dataset_path}")
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(f"NeRF dataset path does not exist: {dataset_path}")
 
-        transforms = sorted(glob.glob(os.path.join(self.dataset_path, "*.json")))
+        transforms = sorted(glob.glob(os.path.join(dataset_path, "*.json")))
         if len(transforms) == 0:
-            raise RuntimeError(f"NeRF dataset folder has no transform *.json files with camera data: {self.dataset_path}")
+            raise RuntimeError(f"NeRF dataset folder has no transform *.json files with camera data: {dataset_path}")
         elif len(transforms) > 3 or len(transforms) == 2:
             raise RuntimeError(f"NeRF dataset folder has an unsupported number of splits, "
                                f"there should be ['test', 'train', 'val'], but found: {transforms}.")
@@ -187,11 +199,9 @@ class NeRFSyntheticDataset(MultiviewDataset):
                     if _split in fname:
                         transform_dict[_split] = transforms[i]
 
-        if self.split not in transform_dict:
-            log.warning(
-                f"WARNING: Split type ['{self.split}'] does not exist in the dataset. Falling back to train data.")
-            self.split = 'train'
-        return transform_dict[self.split]
+        if split not in transform_dict:
+            return None
+        return transform_dict[split]
 
     @staticmethod
     def _load_single_entry(frame, root, mip=None):

@@ -5,7 +5,6 @@
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
-
 import os, sys
 import re
 import yaml
@@ -66,13 +65,15 @@ def parse_args_tyro(config_type, yaml_arg: Optional[str]='--config'):
 
     config_subcommands, config_args = None, None
     # If a config file is passed in, use as default.
-    if path is not None and os.path.exists(path):
+    if path is not None:
+        assert os.path.exists(path), f'Invalid configuration file path: "{path}". Please review your {yaml_arg} arg.'
         config_subcommands, config_args = load_config(path)
 
     # Rebuild sys.argv here in a format that satisfies tyro's conditions for subcommands and full arg names
     _reform_sys_argv(config_type, config_subcommands, config_args, cli_subcommand_pos, cli_args, cli_mapping)
 
     # If printing help, remove the ConsolidateSubcommandArgs marker which disorients the custom formatter
+    additional_info = None
     if len(sys.argv) == 1 or '--help' in sys.argv or '-h' in sys.argv:
         if tyro.conf.ConsolidateSubcommandArgs in tyro_markers:
             del tyro_markers[tyro_markers.index(tyro.conf.ConsolidateSubcommandArgs)]
@@ -82,9 +83,15 @@ def parse_args_tyro(config_type, yaml_arg: Optional[str]='--config'):
         # Use tyro's underlying parser to handle any cases we have custom help messages for.
         # If an error with a custom message occurs, this lines exits the program.
         # Otherwise, this line returns gracefully and we let tyro take care of the rest.
-        handle_custom_errors(decorated_config_type)
+        additional_info = handle_custom_errors(decorated_config_type)
 
-    args = tyro.cli(decorated_config_type)
+    try:
+        args = tyro.cli(decorated_config_type)
+    except SystemExit as e:
+        if additional_info:
+            sys.stderr.write(additional_info)
+        raise e
+
     return args
 
 
@@ -251,7 +258,7 @@ def _reform_sys_argv(config_type,
     This function will:
     1. Iterate all CLI args, and replace them with their full, unambiguous names.
         i.e: --num-workers   --->   --dataset.num-workers
-        i.e. --lr            --->   --trainer.optimizer.optimization.lr
+        i.e. --lr            --->   --trainer.optimizer.lr
       This works only if the full names are not ambiguous (i.e. if num-workers matches more than 1 prefix, we fail here)
     2. Pops all existing CLI subcommands, and reinjects them at the right order.
     3. Appends the yaml subcommands to sys.argv

@@ -62,7 +62,7 @@ class OctreeSampledSDFDataset(SDFDataset):
         super().__init__(transform=transform, split=split)
 
         self.blas = occupancy_struct
-        self.sample_mode = sample_mode if sample_mode is not None else ['rand', 'rand', 'near', 'near', 'trace']
+        self.sample_mode = sample_mode if sample_mode is not None else ['rand', 'near', 'near', 'trace', 'trace']
         self.num_samples = num_samples
         self.sample_tex = sample_tex
         self.samples_per_voxel = samples_per_voxel

@@ -6,18 +6,18 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from __future__ import annotations
 import time
 import numpy as np
 import torch
 import torch.nn.functional as F
+from typing import Tuple
 from wisp.core import RenderBuffer, Rays
 from wisp.ops.shaders import matcap_shader, pointlight_shadow_shader
 from wisp.ops.differential import finitediff_gradient
 from wisp.ops.geometric import normalized_grid, normalized_slice
-from wisp.tracers import *
-from typing import Tuple
 
-# --  This module will be deprecated, public usage of this functionality is discouraged -- """
+# --  This module is used for offline visualizations only, see WispApp for interactive visualizer -- """
 
 
 def _look_at(f, t, height, width, mode='persp', fov=90.0, device='cuda'):
@@ -95,8 +95,7 @@ class OfflineRenderer():
     TODO(ttakikawa): This class will be deprecated soon when the main renderer class supports offline renders.
     """
     def __init__(self, 
-        render_res   : Tuple[int, int] = (1024, 720), # [w, h]
-        camera_proj  : str  = 'persp', # one of ['persp', 'ortho']
+        render_res   : Tuple[int, int] = (512, 512), # [w, h]
         render_batch : int  = -1, # -1 for no batching
         shading_mode : str  = 'rb',  # options: ['matcap', 'rb', 'normal']
         matcap_path  : str  = './data/matcap/Pearl.png',  # set if shading mode = matcap
@@ -293,8 +292,8 @@ class OfflineRenderer():
         vis[np.abs(d - 0.5) < 0.004] = 0.0
         return vis
     
-    def shade_images(self, pipeline, f=[0,0,1], t=[0,0,0], fov=30.0, aa=1, mm=None, 
-                     lod_idx=None, camera_clamp=[0,10]):
+    def render_snapshot(self, pipeline, f=[0,0,1], t=[0,0,0], fov=30.0, aa=1, mm=None,
+                        lod_idx=None, camera_clamp=[0,10]):
         """
         Invokes the renderer and outputs images.
 
@@ -321,7 +320,7 @@ class OfflineRenderer():
                     camera_clamp=camera_clamp))
             rb = RenderBuffer.mean(*rblst)
         else:
-            rb = self.render_lookat(pipeline, f=f, t=t, fov=fov, mm=mm, lod_idx=lod_idx, 
+            rb = self.render_lookat(pipeline, f=f, t=t, fov=fov, mm=mm, lod_idx=lod_idx,
                     camera_clamp=camera_clamp)
         rb = rb.cpu().transpose()
         return rb

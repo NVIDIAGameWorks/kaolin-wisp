@@ -10,6 +10,7 @@ import argparse
 import tyro
 import types
 from functools import partial
+from typing import Optional
 import contextlib
 import io
 
@@ -34,7 +35,7 @@ class AmbiguousArgument(Exception):
     pass
 
 
-def handle_custom_errors(decorated_config_type):
+def handle_custom_errors(decorated_config_type) -> Optional[str]:
     """Under the hood, tyro uses argparse to validate the CLI arguments.
     Upon an error, the default behavior of argparse is to print a message to stderr and invoke a SystemExit.
     Since wisp makes heavy use of union configs (which amend to argparse subcommands), we wish to override these
@@ -48,8 +49,13 @@ def handle_custom_errors(decorated_config_type):
             This config should appear exactly as it is fed into tyro.cli
 
     Returns:
-        This function has no return value, but will error and print a message for errors with custom messages.
-        Otherwise, for non-custom errors or valid arguments this function will return silentily.
+        This function operates in 3 modes:
+        1. Custom error messages this function knows how to handle:
+            This function will raise custom error and print a message for errors with custom messages. It may also
+            exit the program.
+        2. Error messages this function recognizes, but cannot fully control:
+            This function will return "hint" strings to add further information about upcoming errors tyro may trigger.
+        3. Otherwise, for unhandled (non-custom) errors or valid arguments this function will return silently.
     """
     def _catchable_check_value(self, action, value, _check_value):
         """ Overrides argparse's _check_value function with our own custom version which wraps with try-except.
@@ -96,7 +102,19 @@ def handle_custom_errors(decorated_config_type):
             # Invoke the parser just for the sake of handling custom error messages
             # If all args are valid, this line returns gracefully and we ignore the returned value
             # (we call this again via tyro to obtain the returned config instance)
-            main_parser.parse_args()
+            _, unknown_args = main_parser.parse_known_args()
+            if unknown_args:
+                return "\nThis means that the config system cannot handle some args you specified. " \
+                       "Common reasons this happens: \n" \
+                       "1. Are your arguments properly typed within the code? " \
+                       "i.e: `foo(my_arg: int)` works but `foo(my_arg)` should not. \n" \
+                       "2. Are your arguments types supported? e.g: int, str, float, lists, tuples, etc. " \
+                       "For example, torch.Tensors and objects are not supported. " \
+                       "Such args should be not be included in the yaml / cli. \n" \
+                       "   Instead they should be passed when constructing objects with " \
+                       "`instantiate(cfg, arg=that_unsupported_object).` \n" \
+                       "3. Double check your arg names and categories for typos. \n" \
+                       "4. Don't forget args are cAsE SeNsItIvE! \n"
         except InvalidCLISubcommand as e:
             # Custom error message raised. Restore std.err and call exit() via argparse to let it execute its default
             # behavior
@@ -105,6 +123,7 @@ def handle_custom_errors(decorated_config_type):
         except SystemExit:
             # Let tyro handle any other error messages
             pass
+    return None
 
 """
 A module for parsing the CLI into concrete config dataclass instances.

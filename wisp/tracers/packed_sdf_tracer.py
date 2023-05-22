@@ -27,8 +27,12 @@ class PackedSDFTracer(BaseTracer):
     This tracer class expects the neural field to expose a BLASGrid: a Bottom-Level-Acceleration-Structure Grid,
     i.e. a grid that inherits the BLASGrid class for both a feature structure and an occupancy acceleration structure).
     """
-    def __init__(self, num_steps=128, step_size=1.0, min_dis=0.0003):
-        """Set the default trace() arguments. """
+    def __init__(self, num_steps=1024, step_size=0.8, min_dis=0.0003):
+        """Set the default trace() arguments.
+        Args:
+            num_steps (int): Max number of steps used by Sphere Trace if query did not converge
+            step_size (float): Scale factor for step size used to advance the Sphere Tracer.
+        """
         super().__init__()
         self.num_steps = num_steps
         self.step_size = step_size

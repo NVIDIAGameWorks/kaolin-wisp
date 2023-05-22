@@ -24,10 +24,10 @@ class PackedRFTracer(BaseTracer):
     i.e. a grid that inherits the BLASGrid class for both a feature structure and an occupancy acceleration structure).
     """
     def __init__(self,
-        raymarch_type: str='voxel',
-        num_steps: int=128,
-        step_size: float=1.0,
-        bg_color: str='white'):
+        raymarch_type: str = 'ray',  # options: 'voxel', 'ray'
+        num_steps: int = 1024,
+        step_size: float = 1.0,
+        bg_color: str = 'white'):
         """Set the default trace() arguments.
 
         Args:
@@ -45,9 +45,9 @@ class PackedRFTracer(BaseTracer):
                 status of the acceleration structure.
             step_size (float): The step size between samples. Currently unused, but will be used for a new
                                sampling method in the future.
-            bg_color (str): The background color to use.
+            bg_color (str): The clear background color used by default for the color channel.
         """
-        super().__init__()
+        super().__init__(bg_color=bg_color)
         self.raymarch_type = raymarch_type
         self.num_steps = num_steps
         self.step_size = step_size

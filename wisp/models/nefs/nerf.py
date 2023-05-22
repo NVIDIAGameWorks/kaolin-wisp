@@ -27,7 +27,7 @@ class NeuralRadianceField(BaseNeuralField):
     """
 
     def __init__(self,
-                 grid: BLASGrid = None,
+                 grid: BLASGrid,
                  # embedder args
                  pos_embedder: str = 'none',    # options: 'none', 'identity', 'positional'
                  view_embedder: str = 'none',   # options: 'none', 'identity', 'positional'
@@ -189,7 +189,7 @@ class NeuralRadianceField(BaseNeuralField):
                 raise NotImplementedError(f'Pruning not implemented for grid type {self.grid}')
 
     def register_forward_functions(self):
-        """Register the forward functions.
+        """Registers the forward function to call per requested channel.
         """
         self._register_forward_function(self.rgba, ["density", "rgb"])
 

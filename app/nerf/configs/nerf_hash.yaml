@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -6,22 +6,108 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'nerf_base.yaml'
+device: 'cuda'   # Device used to run the optimization
+pretrained: null # If specified, a pretrained model will be loaded from this path. None will create a new model.
+log_level: 20    # Log level: logging.INFO
 
-grid:
-    blas_type: 'octree'
-    blas_levels: 7
-    grid_type: 'HashGrid'
-    interpolation_type: 'linear'
-    multiscale_type: 'cat'
+blas: # Occupancy structure (blas: bottom level acceleration structure, for fast ray tracing)
+  constructor: 'OctreeAS.make_dense'
+  level: 7
+
+grid: # Feature grid, the backbone of the neural field
+    constructor: 'HashGrid.from_geometric'
     feature_dim: 2
-    feature_std: 0.01
-    feature_bias: 0.0
     num_lods: 16
+    multiscale_type: 'cat'
+    feature_std: 0.01
+    feature_bias:  0.0
     codebook_bitwidth: 19
-    tree_type: 'geometric'
     min_grid_res: 16
     max_grid_res: 2048
 
+nef:  # Neural field: combines grid, decoders and positional embedders
+  constructor: 'NeuralRadianceField'
+  pos_embedder: 'none'        # coordinates positional embedding options: 'none', 'identity', 'positional'
+  view_embedder: 'positional' # ray direction embedding options: 'none', 'identity', 'positional'
+  pos_multires: 10            # num of embedding frequencies, if embedder is not None
+  view_multires: 4            # num of embedding frequencies, if embedder is not None
+  position_input: False       # should feed sample position into decoder
+  activation_type: 'relu'
+  layer_type: 'linear'
+  hidden_dim: 64
+  num_layers: 1
+  prune_density_decay: 0.6              # prune parameter for occupancy blas according to feature struct
+  prune_min_density: 2.956033378250884  # prune parameter for occupancy blas according to feature struct
+                                        # 2.956 = (0.01 * 512) / np.sqrt(3)
+
+tracer: # A tracer for intersecting rays with the blas, generating samples along rays for the neural field & integrating
+  constructor: 'PackedRFTracer'
+  bg_color: 'white'
+  num_steps: 2048
+  raymarch_type: 'ray'
+  step_size: 1.0
+
+dataset:  # Train & validation dataset
+  constructor: 'NeRFSyntheticDataset'
+  dataset_path: 'data/'
+  split: 'train'      # Which subset of the dataset to use for training
+  bg_color: 'white'   # The background color to use for when alpha=0.
+  mip: 0              # If provided, will rescale images by 2**mip. Useful when large images are loaded.
+  dataset_num_workers: -1  # The number of workers to spawn for multiprocessed loading.
+                           # If dataset_num_workers < 1, processing will take place on the main process.
+
+dataset_transform:
+  constructor: 'SampleRays'
+  num_samples: 4096
+
 trainer:
-    prune_every: 100 # iterations
+  # Base Trainer config
+  exp_name: "nerf-hash"  # Name of the experiment: a unique id to use for logging, model names, etc.
+  mode: 'train'            # Choices: 'train', 'validate'
+  max_epochs: 100          # Number of epochs to run the training.
+  save_every: 100          # Saves the optimized model every N epochs
+  save_as_new: False       # If True, will save the model as a new file every time the model is saved
+  model_format: 'full'     # Format to save the model: 'full' (weights+model) or 'state_dict'
+  render_every: 100        # Renders an image of the neural field every N epochs
+  valid_every: 100         # Runs validation every N epochs
+  enable_amp: True         # If enabled, the step() training function will use mixed precision.
+  profile_nvtx: True       # If enabled, nvtx markers will be emitted by torch for profiling.
+  grid_lr_weight: 100.0  # Learning rate weighting applied only for the grid parameters (contain "grid" in their name)
+
+  # MultiviewTrainer config
+  prune_every: 100         # Invokes nef.prune() logic every "prune_every" iterations.
+  random_lod: False        # If True, random LODs in the occupancy structure will be picked per step, during tracing.
+                           # If False, will always used the highest level of the occupancy structure.
+  rgb_lambda: 1.0          # Loss weight for rgb_loss component.
+
+  dataloader:
+    batch_size: 1          # Number of images used per batch, for which dataset_transform.num_samples rays will be used
+    num_workers: 0         # Number of cpu workers used to fetch data, always 0 here as data is already processed.
+
+  optimizer:  # torch optimizer to use, and its args
+    constructor: 'RMSprop'
+    lr: 0.001
+    eps: 1.0e-8
+    weight_decay: 0      # Applies to decoder params only
+
+tracker:
+  log_dir: '_results/logs/runs'   # For logs and snapshots
+  enable_tensorboard: True
+  enable_wandb: False
+  tensorboard:                    # active when enable_tensorboard=True
+    log_dir: '_results/logs/runs' # For TensorBoard summary
+  wandb:                          # active when enable_wandb=True
+    project: 'wisp-nerf'
+    entity: null                  # i.e. your wandb username here
+    job_type: 'train'
+  visualizer:                     # Offline renderer used during validation to save snapshot of the neural field
+    render_res: [ 1024, 1024 ]
+    render_batch: 10000
+  vis_camera:                     # See: wisp.trainers.tracker.tracker.ConfigVisCameras
+    camera_origin: [ -3.0, 0.65, -3.0 ]
+    camera_lookat: [ 0.0, 0.0, 0.0 ]
+    camera_fov: 30
+    camera_clamp: [ 0.0, 10.0 ]
+    viz360_num_angles: 20         # Set to 0 to disable the 360 animation.
+    viz360_radius: 3.0
+    viz360_render_all_lods: False

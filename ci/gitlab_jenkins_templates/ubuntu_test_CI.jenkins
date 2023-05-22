@@ -94,19 +94,13 @@ spec:
               stage("NeRF-hashgrid V8") {
                   sh '''
                   cd /wisp
-                  WISP_HEADLESS=1 python app/nerf/main_nerf.py \
-                    --config app/nerf/configs/nerf_hash.yaml \
-                    --dataset-path=/data/V8 \
-                    --multiview-dataset-format rtmv \
-                    --mip 2 \
-                    --num-steps 16 \
-                    --raymarch-type voxel \
-                    --optimizer-type adam \
-                    --hidden-dim 64 \
-                    --epochs 5 \
-                    --valid-every -1 \
-                    --save-every -1 \
-                    --render-tb-every -1
+                  pytest -s \
+                  --log-cli-level=INFO \
+                  --log-cli-format="%(asctime)s|%(levelname)8s| %(message)s" \
+                  tests/apps/test_nerf.py \
+                  -k test_hashgrid_V8 \
+                  --dataroot /data/ \
+                  --dataset-num-workers 0
                   '''
               }
           }
@@ -120,7 +114,7 @@ spec:
             stage("NeRF-hash standard-180") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/fox --epochs 5
+              WISP_HEADLESS=1 python app/nerf/main_nerf.py --config=app/nerf/configs/nerf_hash.yaml --dataset-path=/data/fox --max-epochs 5 --mip 2
               '''
             }
         }
@@ -217,7 +211,7 @@ spec:
             stage("SDF-octree") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_octree.yaml --dataset-path=/data/spot/spot_triangulated.obj
+              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_octree.yaml --blas.mesh-path=/data/spot/spot_triangulated.obj
               '''
             }
         }
@@ -227,11 +221,11 @@ spec:
       }
       // Train SDFs with triplanar feature maps
       try {
-        timeout(time: 500, unit: 'SECONDS') {
+        timeout(time: 750, unit: 'SECONDS') {
             stage("SDF-triplanar") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_triplanar.yaml --dataset-path=/data/spot/spot_triangulated.obj
+              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_triplanar.yaml --dataset.mesh-path=/data/spot/spot_triangulated.obj
               '''
             }
         }
@@ -245,7 +239,7 @@ spec:
             stage("SDF-hash") {
               sh '''
               cd /wisp
-              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_hash.yaml --dataset-path=/data/spot/spot_triangulated.obj
+              WISP_HEADLESS=1 python app/nglod/main_nglod.py --config=app/nglod/configs/nglod_hash.yaml --blas.mesh-path=/data/spot/spot_triangulated.obj
               '''
             }
         }

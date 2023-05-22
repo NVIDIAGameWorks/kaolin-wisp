@@ -16,10 +16,11 @@ For an overview on neural fields, we recommend you check out the EG STAR report:
 
 ## Latest Updates
 
+* _17/04/23_ The configuration system have been replaced! Check out [wisp/config](wisp/config) for usage instructions and backwards compatability (**breaking change**)  
+* _15/04/23_ Jupyter notebook support have been added - useful for machines without a display.
 * _01/02/23_ `attrdict` dependency added as part of the new datasets framework. If you pull latest, make sure to `pip install attrdict`.
 * _17/01/23_ `pycuda` replaced with `cuda-python`. Wisp can be installed from pip now  (If you pull, run **pip install -r requirements_app.txt**)
-* _05/01/23_ Mains are now introduced as standalone apps, for easier support of new pipelines (**breaking change**) 
-* _21/12/22_ Most modules have been cleaned, reorganized and documented. 
+* _05/01/23_ Mains are now introduced as standalone apps, for easier support of new pipelines (**breaking change**)  
 
 ## Installation
 
@@ -55,6 +56,7 @@ The following links contain additional information about various aspects of the 
   * [wisp/model](wisp/models) is a subpackage containing modules to construct neural fields.
   * [wisp/trainers](wisp/trainers) is a subpackage containing default trainers which are useful to extend.
   * [wisp/renderer](wisp/renderer) is a subpackage containing logic related to the interactive renderer.
+  * [wisp/config](wisp/models) is a subpackage containing the config system api.
 
 ## Applications: Training & Rendering with Wisp
 
@@ -105,19 +107,39 @@ tensorboard --logdir _results/logs/runs
 
 To run the apps interactively using the renderer engine, run:
 ```
-WISP_HEADLESS=0 python3 app/main_nerf.py -config app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
+python3 app/main_nerf.py --interactive=True --config app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
 ```
 
-To disable interactive mode, and run wisp _without_ loading the graphics API, set the env variable:
+To disable interactive mode, and run wisp _without_ loading the graphics API, use:
+```
+--interactive=False
+```
+
+wisp also supports globally turning off interactive mode by setting the env variable:
 ```
 WISP_HEADLESS=1
 ```
+
 Toggling this flag is useful for debugging on machines without a display. 
 This is also needed if you opt to avoid installing the interactive renderer requirements.
 
+### Jupyter Notebook Mode _(April 2023 Update)_
+
+Machines without a display can still use a simplified version of the interactive renderer.
+
+See: [Jupyter Notebook Example](examples/notebook/view_pretrained.ipynb`).
+
+
 ### Experiment Tracking with [Weights & Biases](https://wandb.ai/site)
 
-To track training and validation metrics, render 3D interactive plots, reproduce your configurations and results, and many more features in your Weights & Biases workspace just add the additional flag `--wandb_project <your-project-name>` when initializing the training script.
+Wisp's trainers use the [Tracker](wisp/trainers/tracker/tracker.py) module to track training and validation metrics, render 3D interactive plots, and reproduce your configurations and results.
+
+The tracker is a one-stop access for various modules, such as tensorboard, wandb, offline visualizations and metrics aggregation.
+
+#### Experiment Tracking with [Weights & Biases](https://wandb.ai/site)
+
+To enable wandb tracking in your Weights & Biases workspace just add the additional flag:
+`--tracker.enable_wandb=True` when initializing the training script.
 
 Complete list of features supported by Weights & Biases:
 
@@ -129,13 +151,15 @@ Complete list of features supported by Weights & Biases:
 - Sync experiment configs for reproducibility.
 - Host Tensorboard instance inside Weights & Biases run.
 
-The full list of optional arguments related to logging on Weights & Biases include:
+The list of optional arguments related to logging on Weights & Biases include:
 
-- `--wandb-project`: Name of Weights & Biases project
-- `--wandb-run-name`: Name of Weights & Biases run \[Optional\]
-- `--wandb-entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
-- `--wandb-viz-nerf-angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
-- `--wandb-viz-nerf-distance`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
+- `--tracker.wandb.project`: Name of Weights & Biases project
+- `--tracker.wandb.run_name`: Name of Weights & Biases run \[Optional\]
+- `--tracker.wandb.entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
+- `--tracker.wandb.job_type`: Name of Weights & Biases job type \[Optional\]
+- `--tracker.vis_camera.viz360_num_angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
+- `--tracker.vis_camera.viz360_radius`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
+- `--tracker.vis_camera.viz360_render_all_lods`: Set to True to render the neural field in all available levels of detail.
 
 
 ## What is "wisp"?

@@ -105,13 +105,13 @@ The additional arguments below ensure a raymarcher which considers the pre-prune
 **NeRF (Octree)**
 ```
 cd kaolin-wisp
-python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_octree.yaml --multiview-dataset-format rtmv --mip 2  --bg-color white --raymarch-type voxel --num-steps 16 --num-rays-sampled-per-img 4096 --dataset-num-workers 4 --dataset-path /path/to/V8
+python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_octree.yaml dataset:RTMVDataset --mip 2 --dataset.bg-color white --raymarch-type voxel --num-steps 16 --dataset-transform.num_samples 4096 --dataset-num-workers 4 --dataset-path /path/to/V8
 ```
 
 **NeRF (Codebook)**
 ```
 cd kaolin-wisp
-python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_codebook.yaml --multiview-dataset-format rtmv --mip 2 --bg-color white --raymarch-type voxel --num-steps 16 --num-rays-sampled-per-img 4096 --dataset-num-workers 4 --dataset-path /path/to/V8
+python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_codebook.yaml dataset:RTMVDataset --mip 2 --dataset.bg-color white --raymarch-type voxel --num-steps 16 --dataset-transform.num_samples 4096 --dataset-num-workers 4 --dataset-path /path/to/V8
 ```
 
 ### Memory considerations
@@ -184,7 +184,7 @@ python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_codebook.yaml --mul
       </tr>
       <tr>
           <td rowspan="3"> nerf_hash </td>
-          <td> --mip 0 --num-steps 2048 --raymarch-type ray --optimizer-type rmsprop --hidden-dim 128 </td>
+          <td> trainer.optimizer:RMSprop --mip 0 --num-steps 2048 --raymarch-type ray --hidden-dim 128 </td>
           <td> lego </td>
           <td> 31.05 </td>
           <td> 31.96 </td>
@@ -192,7 +192,7 @@ python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_codebook.yaml --mul
           <td> 01:38 </td>
       </tr>
       <tr>
-          <td> --mip 0 --num-steps 512 --raymarch-type ray --optimizer-type adam --hidden-dim 64 </td>
+          <td> trainer.optimizer:Adam --mip 0 --num-steps 512 --raymarch-type ray --hidden-dim 64 </td>
           <td> lego </td>
           <td> 28.58 </td>
           <td> 29.20 </td>
@@ -200,8 +200,7 @@ python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_codebook.yaml --mul
           <td> 01:16 </td>
       </tr>
       <tr>
-          <td> -mip 2 --num-steps 16 --raymarch-type voxel --optimizer-type adam --hidden-dim 64
-   </td>
+          <td> trainer.optimizer:Adam --mip 2 --num-steps 16 --raymarch-type voxel --hidden-dim 64 </td>
           <td> V8 </td>
           <td> 28.48 </td>
           <td> 29.25 </td>

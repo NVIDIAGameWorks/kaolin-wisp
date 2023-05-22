@@ -61,7 +61,8 @@ class OctreeAS(BaseAS):
         self.extent = dict()    # Additional optional information which may be stored in this struct
 
     @classmethod
-    def from_mesh(cls, mesh_path: str, level: int, sample_tex: bool = False, num_samples: int = 100000000) -> OctreeAS:
+    def from_mesh(cls, mesh_path: str, level: int, sample_tex: bool = False,
+                  num_samples_on_mesh: int = 100000000) -> OctreeAS:
         """ Builds the acceleration structure and initializes occupancy of cells from samples over mesh faces.
         Assumes a path to the mesh, only OBJ is supported for now.
 
@@ -71,12 +72,12 @@ class OctreeAS(BaseAS):
 
         Args:
             mesh_path (str): Path to the OBJ file.
-            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
-                This is essentially the depth of the octree
+            level (int):  Depth of the octree (number of occupancy levels),
+                used by acceleration structure for fast raymarching.
             sample_tex (bool): If True, will also sample textures and store it in the accelstruct within
                 self.texv, self.texf, self.mats fields.
                 This feature is currently unused.
-            num_samples (int): The number of samples to be generated on the mesh surface.
+            num_samples_on_mesh (int): The number of samples to be generated on the mesh surface.
                 More samples require additional processing time but are more likely to produce faithful occupancy
                 output without "holes".
         """
@@ -92,7 +93,7 @@ class OctreeAS(BaseAS):
 
         # Note: This function is not deterministic since it relies on sampling.
         # Eventually this will be replaced by 3D rasterization.
-        octree = wisp_spc_ops.mesh_to_octree(vertices, faces, level, num_samples)
+        octree = wisp_spc_ops.mesh_to_octree(vertices, faces, level, num_samples_on_mesh)
         accel_struct = OctreeAS(octree)
         accel_struct.extent['vertices'] = vertices
         accel_struct.extent['faces'] = faces
@@ -110,8 +111,8 @@ class OctreeAS(BaseAS):
         Args:
             pointcloud (torch.FloatTensor): 3D coordinates of shape [num_coords, 3] in 
                                             normalized space [-1, 1].
-            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
-                This is essentially the depth of the octree
+            level (int): Depth of the octree (number of occupancy levels),
+                used by acceleration structure for fast raymarching. This is essentially the depth of the octree
         """
         octree = wisp_spc_ops.pointcloud_to_octree(pointcloud, level, dilate=0)
         return OctreeAS(octree)
@@ -123,8 +124,8 @@ class OctreeAS(BaseAS):
         Args:
             quantized_points (torch.LongTensor): 3D coordinates of shape [num_coords, 3] in
                                                  integer coordinate space [0, 2**level]
-            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
-                This is essentially the depth of the octree
+            level (int):  Depth of the octree (number of occupancy levels),
+                used by acceleration structure for fast raymarching. This is essentially the depth of the octree
         """
         octree = spc_ops.unbatched_points_to_octree(quantized_points, level, sorted=False)
         return OctreeAS(octree)
@@ -134,8 +135,8 @@ class OctreeAS(BaseAS):
         """ Builds the acceleration structure and initializes full occupancy of all cells.
 
         Args:
-            level (int): Total number of occupancy levels in grid, used by acceleration structure for fast raymarching.
-                This is essentially the depth of the octree
+            level (int):  Depth of the octree (number of occupancy levels),
+                used by acceleration structure for fast raymarching. This is essentially the depth of the octree
         """
         octree = wisp_spc_ops.create_dense_octree(level)
         return OctreeAS(octree)
