@@ -103,8 +103,7 @@ class OfflineRenderer():
         shadow       : bool = False, 
         ao           : bool = False, 
         perf         : bool = False,
-        device       : torch.device = 'cuda',
-        **kwargs
+        device       : torch.device = 'cuda'
     ):
         """
         Args:

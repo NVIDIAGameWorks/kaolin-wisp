@@ -14,7 +14,7 @@ This is the main folder for the wisp library. The folders can be divided up into
 
 `renderer` contains everything that is used to build the interactive visualizer.
 
-`config_parser.py` contains the parser for the configs and the command-line interface (CLI) arguments.
+`config` contains code for the configuration system: a parser for yaml configs and the command-line interface (CLI) arguments.
 
 ## Building Blocks
 
