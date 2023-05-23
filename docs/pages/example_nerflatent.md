@@ -9,7 +9,7 @@ A full video walkthrough is [available here](https://www.nvidia.com/en-us/on-dem
 
 ## Overview
 
-<img src="../../media/example_latentnerf.jpg" alt="Latent NeRF" width="750"/>
+<img src="../_static/media/example_latentnerf.jpg" alt="Latent NeRF" width="750"/>
 
 ## Running the Demo
 

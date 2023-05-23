@@ -21,7 +21,7 @@ DESCRIPTION = 'Kaolin-Wisp: A PyTorch library for performing research on neural 
 URL = 'https://github.com/NVIDIAGameWorks/kaolin-wisp'
 AUTHOR = 'Towaki Takikawa'
 LICENSE = 'NVIDIA Source Code License'
-version = '0.1.0'
+version = '0.1.2'
 
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)

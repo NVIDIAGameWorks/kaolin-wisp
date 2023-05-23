@@ -13,7 +13,7 @@ However, some differences from the original paper stand out:
 
 The NGLOD app is made of the following building blocks:
 
-<img src="../../media/wisp_app_nglod.jpg" alt="NGLOD Diagram" width="1000"/>
+<img src="../_static/media/wisp_app_nglod.jpg" alt="NGLOD Diagram" width="1000"/>
 
 As described in the original NGLOD paper, training is performed directly over the SDF samples and sphere tracing is used only at inference time.
 

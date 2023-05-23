@@ -1,0 +1,27 @@
+/*.caption-text {*/
+/*    color: #003B71 !important;*/
+/*}*/
+
+table {
+  border: 1px solid white;
+  border-collapse: collapse;
+  /*border-spacing: 1px;*/
+  box-shadow: 0 0 5px #cccccc;
+}
+
+/*tr:hover {background-color: #add4f3;}*/
+
+td {
+  text-align: center;
+  padding: 10px;
+  border: 1px solid #cfd6e0;
+}
+
+th {
+    text-align: center;
+    padding: 3px;
+    /*background-color: #8bbce3;*/
+    background-color: #8bbce3;
+    border: 1px solid #cfd6e0;
+    color: white;
+}

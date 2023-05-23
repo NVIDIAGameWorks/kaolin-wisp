@@ -81,7 +81,7 @@ For example:
 from wisp.config.presets import ConfigAdam, ConfigRMSprop, ConfigDataloader
 ```
 
-# Converting older configs
+# Converting older configs (up to wisp v1.0.2)
 
 The following is a summary of the previous argparse definitions, mapped to the new config system.
 
