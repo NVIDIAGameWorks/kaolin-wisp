@@ -1,6 +1,6 @@
 # Kaolin Wisp: A PyTorch Library and Engine for Neural Fields Research
 
-<img src="media/demo.jpg" alt="drawing" width="1000"/>
+<img src="docs/_static/media/demo.jpg" alt="drawing" width="1000"/>
 
 NVIDIA Kaolin Wisp is a PyTorch library powered by [NVIDIA Kaolin Core](https://github.com/NVIDIAGameWorks/kaolin) to work with
 neural fields (including NeRFs, [NGLOD](https://nv-tlabs.github.io/nglod), [instant-ngp](https://nvlabs.github.io/instant-ngp/) and [VQAD](https://nv-tlabs.github.io/vqad)).
@@ -11,12 +11,17 @@ Wisp also comes with building blocks like differentiable renderers and different
 (like octrees, hash grids, triplanar features) which are useful to build complex neural fields. 
 It also includes debugging visualization tools, interactive rendering and training, logging, and trainer classes.
 
+**[Check our docsite for additional information!](https://kaolin-wisp.readthedocs.io/en/latest/pages/main.html)**
+
 For an overview on neural fields, we recommend you check out the EG STAR report: 
 [Neural Fields for Visual Computing and Beyond](https://arxiv.org/abs/2111.11426).
 
 ## Latest Updates
 
-* _17/04/23_ The configuration system have been replaced! Check out [wisp/config](wisp/config) for usage instructions and backwards compatability (**breaking change**)  
+**wisp 1.0.3** <-- `main`
+* _17/04/23_ The configuration system have been replaced! Check out [the config page](https://kaolin-wisp.readthedocs.io/en/latest/pages/config_system.html) for usage instructions and backwards compatability (**breaking change**). Note that the wisp core library remains compatible, mains and trainers should be updated.
+
+**wisp 1.0.2** <-- `stable`
 * _15/04/23_ Jupyter notebook support have been added - useful for machines without a display.
 * _01/02/23_ `attrdict` dependency added as part of the new datasets framework. If you pull latest, make sure to `pip install attrdict`.
 * _17/01/23_ `pycuda` replaced with `cuda-python`. Wisp can be installed from pip now  (If you pull, run **pip install -r requirements_app.txt**)
@@ -24,169 +29,13 @@ For an overview on neural fields, we recommend you check out the EG STAR report:
 
 ## Installation
 
-See installation instructions [here](INSTALL.md).
-
-## Building Blocks
-
-<img src="media/blocks_1_0.jpg" alt="drawing" width="1000"/>
-
-* Differentiable feature grids
-    * Octree grids (from NGLOD)
-    * Hash grids (from Instant-NGP)
-    * Triplanar texture grids (from ConvOccNet, EG3D)
-    * Codebook grids (from VQAD)
-* Acceleration structures for fast raytracing
-    * Octree acceleration structures based on Kaolin Core SPC
-* Tracers to trace rays against neural fields
-    * PackedSDFTracer for SDFs
-    * PackedRFTracer for radiance fields (NeRFs)
-* Various datasets for common neural fields
-    * Standard Instant-NGP compatible datasets
-    * RTMV dataset
-    * SDF sampled from meshes
-* An interactive renderer where you can train and visualize neural fields
-* A set of core framework features (`wisp.core`) for convenience
-* A set of utility functions (`wisp.ops`)
-
-Have a feature request? Leave a GitHub issue!
-
-### Quick Links
-The following links contain additional information about various aspects of the library:
-* [wisp](wisp) The core library, containing various building blocks useful for optimizing & building neural field based pipelines.
-  * [wisp/model](wisp/models) is a subpackage containing modules to construct neural fields.
-  * [wisp/trainers](wisp/trainers) is a subpackage containing default trainers which are useful to extend.
-  * [wisp/renderer](wisp/renderer) is a subpackage containing logic related to the interactive renderer.
-  * [wisp/config](wisp/models) is a subpackage containing the config system api.
-
-## Applications: Training & Rendering with Wisp
-
-The Wisp repository includes:
-* [app](app) - Complete implementations of papers & projects using Wisp components.
-  * [app/nerf](app/nerf) is the Wisp's upgraded NeRF app, with support for various grids types.
-  * [app/nglod](app/nglod) is an implementation of the paper _Neural Geometric Level of Detail ([Takikawa et al. 2021](https://nv-tlabs.github.io/nglod/)).
-* [examples](examples) - Smaller demos demonstrating specific features & use cases of Wisp.
-  * [examples/latent_nerf](examples/latent_nerf) - demonstrates how to add a new NeuralField module, which exposess the latent dimensions as output & visualizes it.
-  * [examples/spc_browser](examples/spc_browser) - an app for converting meshes to [Structured Point Clouds](https://kaolin.readthedocs.io/en/latest/notes/spc_summary.html), and visualizing them.
-
-
-### Configurations
-
-Want to run the Wisp apps with different options? Our configuration system makes this very easy.
-
-Wisp apps use a mixture of config files and CLI arguments, which take higher precedence.
-For example, if you want to run NeRF with a different number of levels of details:
-```
-python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_octree.yaml --dataset-path /path/to/lego --num-lods 1
-```
-
-Arg values not specified through yaml or CLI will resort to the default value the main script specifies, when available.
-
-Take a look at the respective `main_X.py` script of each app for the list of different options you can pass in, and `configs/Y.yaml` 
-for some complete configurations.
-
-Wisp also supports hierarchical configs, by using the `parent` argument in the config to set a parent 
-config file path in relative path from the config location or with an absolute path. Note however that 
-only a single level of hierarchy is allowed to keep the indirection manageable.
-
-If you get any errors from loading in config files, you likely made a typo in your field names. Check
-against the app main as your source of truth. (Or pass in `-h` for help).
-
-
-### Viewing Results
-
-Most apps, i.e. `main_nerf.py`, will generate logs inside `_results/logs/runs/test-X` in which you can find outputs like the trained 
-checkpoint, and `EXR` images of validation outputs. We highly recommend that you install 
-[tev](https://github.com/Tom94/tev) as the default application to open EXRs.
-
-To view the logs with TensorBoard:
-```
-tensorboard --logdir _results/logs/runs
-```
-
-### Interactive training
-
-To run the apps interactively using the renderer engine, run:
-```
-python3 app/main_nerf.py --interactive=True --config app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --dataset-num-workers 4
-```
-
-To disable interactive mode, and run wisp _without_ loading the graphics API, use:
-```
---interactive=False
-```
-
-wisp also supports globally turning off interactive mode by setting the env variable:
-```
-WISP_HEADLESS=1
-```
-
-Toggling this flag is useful for debugging on machines without a display. 
-This is also needed if you opt to avoid installing the interactive renderer requirements.
-
-### Jupyter Notebook Mode _(April 2023 Update)_
-
-Machines without a display can still use a simplified version of the interactive renderer.
-
-See: [Jupyter Notebook Example](examples/notebook/view_pretrained.ipynb`).
-
-
-### Experiment Tracking with [Weights & Biases](https://wandb.ai/site)
-
-Wisp's trainers use the [Tracker](wisp/trainers/tracker/tracker.py) module to track training and validation metrics, render 3D interactive plots, and reproduce your configurations and results.
-
-The tracker is a one-stop access for various modules, such as tensorboard, wandb, offline visualizations and metrics aggregation.
-
-#### Experiment Tracking with [Weights & Biases](https://wandb.ai/site)
-
-To enable wandb tracking in your Weights & Biases workspace just add the additional flag:
-`--tracker.enable_wandb=True` when initializing the training script.
-
-Complete list of features supported by Weights & Biases:
-
-- Log training and validation metrics in real time.
-- Log system metrics in real time.
-- Log RGB, RGBA, Depth renderings etc. during training.
-- Log interactive 360 degree renderings post training in all levels of detail.
-- Log model checkpoints as [Weights & Biases artifacts](https://wandb.ai/site/artifacts).
-- Sync experiment configs for reproducibility.
-- Host Tensorboard instance inside Weights & Biases run.
-
-The list of optional arguments related to logging on Weights & Biases include:
-
-- `--tracker.wandb.project`: Name of Weights & Biases project
-- `--tracker.wandb.run_name`: Name of Weights & Biases run \[Optional\]
-- `--tracker.wandb.entity`: Name of Weights & Biases entity under which your project resides \[Optional\]
-- `--tracker.wandb.job_type`: Name of Weights & Biases job type \[Optional\]
-- `--tracker.vis_camera.viz360_num_angles`: Number of angles in the 360 degree renderings \[Optional, default set to 20\]
-- `--tracker.vis_camera.viz360_radius`: Camera distance to visualize Scene from for 360 degree renderings on Weights & Biases \[Optional, default set to 3\]
-- `--tracker.vis_camera.viz360_render_all_lods`: Set to True to render the neural field in all available levels of detail.
-
-
-## What is "wisp"?
-
-<img src="media/wisp.jpg" alt="drawing" height="300"/>
-
-Our library is named after the atmospheric ghost light, will-o'-the-wisp, 
-which are volumetric ghosts that are harder to model with common standard 
-geometry representations like meshes. We provide a [multiview dataset](https://drive.google.com/file/d/1jKIkqm4XhdeEQwXTqbKlZw-9dO7kJfsZ/view) of the 
-wisp as a reference dataset for a volumetric object. 
-We also provide the [blender file and rendering scripts](https://drive.google.com/drive/folders/1Via1TOsnG-3mUkkGteEoRJdEYJEx3wgf?usp=sharing) if you want to generate specific data with this scene, please refer to the [readme.md](https://drive.google.com/file/d/1IrWKjxxrJOlD3C5lDYvejaSXiPtm_XI_/view?usp=sharing) for greater details on how to generate the data. 
+See installation instructions [here](https://kaolin-wisp.readthedocs.io/en/latest/pages/install.html).
 
 
 ## External Contributions
 
 We welcome & encourage external contributions to the codebase!
-Special thanks for community members:
-* [lightfield botanist](https://github.com/3a1b2c3)
-* [Soumik Rakshit](https://github.com/soumik12345)
-
-
-## Thanks
-
-We thank James Lucas, Jonathan Tremblay, Valts Blukis, Anita Hu, and Nishkrit Desai for giving us early feedback
-and testing out the code at various stages throughout development. 
-We thank Rogelio Olguin and Jonathan Tremblay for the Wisp reference data. 
-
+For further details, read the [FAQ](https://kaolin-wisp.readthedocs.io/en/latest/pages/faq.html) and [license page](https://kaolin-wisp.readthedocs.io/en/latest/pages/license.html).
 
 ## License and Citation
 
@@ -203,3 +52,25 @@ If you find the NVIDIA Kaolin Wisp library useful for your research, please cite
       howpublished={\url{https://github.com/NVIDIAGameWorks/kaolin-wisp}}
 }
 ```
+
+## Thanks
+
+We thank James Lucas, Jonathan Tremblay, Valts Blukis, Anita Hu, and Nishkrit Desai for giving us early feedback
+and testing out the code at various stages throughout development. 
+We thank Rogelio Olguin and Jonathan Tremblay for the Wisp reference data. 
+
+Special thanks for community members:
+* [lightfield botanist](https://github.com/3a1b2c3)
+* [Soumik Rakshit](https://github.com/soumik12345)
+
+
+## What is "wisp"?
+
+<img src="docs/_static/media/wisp.jpg" alt="drawing" height="300"/>
+
+Our library is named after the atmospheric ghost light, will-o'-the-wisp, 
+which are volumetric ghosts that are harder to model with common standard 
+geometry representations like meshes. We provide a [multiview dataset](https://drive.google.com/file/d/1jKIkqm4XhdeEQwXTqbKlZw-9dO7kJfsZ/view) of the 
+wisp as a reference dataset for a volumetric object. 
+We also provide the [blender file and rendering scripts](https://drive.google.com/drive/folders/1Via1TOsnG-3mUkkGteEoRJdEYJEx3wgf?usp=sharing) if you want to generate specific data with this scene, please refer to the [readme.md](https://drive.google.com/file/d/1IrWKjxxrJOlD3C5lDYvejaSXiPtm_XI_/view?usp=sharing) for greater details on how to generate the data. 
+
