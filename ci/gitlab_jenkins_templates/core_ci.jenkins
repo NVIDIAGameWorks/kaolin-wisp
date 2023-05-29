@@ -6,7 +6,7 @@ import groovy.transform.Field
 // (See: https://hub.docker.com/r/pytorch/pytorch/tags)
 def ubuntu_from_kaolin_configs = [
     [
-        'imageTag': 'master-2235-custom-torch1.13.1-cuda11.6.1-cudnn8-py3.9',
+        'imageTag': 'master-2670-custom-torch1.11.0-cuda11.3.1-cudnn8-py3.8',
         'archsToTest': 'GA100-E4720-DVT'
     ],
 ]

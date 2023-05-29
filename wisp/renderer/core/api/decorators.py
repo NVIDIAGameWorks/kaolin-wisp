@@ -11,7 +11,7 @@ from typing import Type
 from wisp.models.nefs import BaseNeuralField
 from wisp.tracers import BaseTracer
 from wisp.renderer.core.api.base_renderer import BottomLevelRenderer
-from wisp.renderer.core.api.renderers_factory import register_neural_field_type
+from wisp.renderer.core.api.renderers_factory import register_neural_field_type, register_rasterizer_type
 
 
 def field_renderer(field_type: Type[BaseNeuralField], tracer_type: Type[BaseTracer]):
@@ -22,5 +22,16 @@ def field_renderer(field_type: Type[BaseNeuralField], tracer_type: Type[BaseTrac
     """
     def _register_renderer_fn(renderer_class: Type[BottomLevelRenderer]):
         register_neural_field_type(field_type, tracer_type, renderer_class)
+        return renderer_class
+    return _register_renderer_fn
+
+def register_rasterizer(rasterizer_type: Type):
+    """ A decorator that registers a rasterizer type with a renderer.
+        By registering the renderer type, the interactive renderer knows what type of renderer to create
+        when dealing with this type of rasterizer.
+        Essentially, this allows displaying custom types of objects on the canvas.
+    """
+    def _register_renderer_fn(renderer_class: Type[BottomLevelRenderer]):
+        register_rasterizer_type(rasterizer_type, renderer_class)
         return renderer_class
     return _register_renderer_fn
