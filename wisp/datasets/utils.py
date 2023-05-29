@@ -12,7 +12,6 @@ from typing import Callable, Optional, Type
 import collections
 import inspect
 import torch
-from torch._six import string_classes
 from torch.utils.data._utils.collate import default_convert, default_collate_err_msg_format
 from wisp.core import Rays
 from wisp.datasets.base_datasets import WispDataset, MultiviewDataset, SDFDataset
@@ -154,7 +153,7 @@ def default_collate(batch):
         return torch.tensor(batch, dtype=torch.float64)
     elif isinstance(elem, int):
         return torch.tensor(batch)
-    elif isinstance(elem, string_classes):
+    elif isinstance(elem, (str, bytes)):
         return batch
     elif isinstance(elem, collections.abc.Mapping):
         try:

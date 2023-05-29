@@ -71,9 +71,9 @@ The Wisp repository also includes some sample apps aand examples:
 Want to run the Wisp apps with different options? Our configuration system makes this very easy.
 
 Wisp apps use a mixture of config files and CLI arguments, which take higher precedence.
-For example, if you want to run NeRF with a different number of levels of details:
+For example, if you want to run NeRF with a different number of hidden layer neurons:
 ```
-python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_octree.yaml --dataset-path /path/to/lego --num-lods 1
+python3 app/nerf/main_nerf.py --config app/nerf/configs/nerf_hash.yaml --dataset-path /path/to/lego --hidden_dim 128
 ```
 
 Arg values not specified through yaml or CLI will resort to the default value the main script specifies, when available.
