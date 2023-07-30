@@ -138,7 +138,7 @@ class BaseTrainer(ABC):
 
         # Training params
         self.epoch = 1
-        self.iteration = 0
+        self.iteration = 1
         self.max_epochs = num_epochs
         self.batch_size = batch_size
         self.exp_name = exp_name if exp_name else "unnamed_experiment"
@@ -321,6 +321,7 @@ class BaseTrainer(ABC):
         """Advances the training by one training step (batch).
         """
         if self.is_optimization_running:
+            print(f"{self.is_first_iteration()=}")
             if self.is_first_iteration():
                 self.pre_training()
             iter_start_time = time.time()
