@@ -321,7 +321,6 @@ class BaseTrainer(ABC):
         """Advances the training by one training step (batch).
         """
         if self.is_optimization_running:
-            print(f"{self.is_first_iteration()=}")
             if self.is_first_iteration():
                 self.pre_training()
             iter_start_time = time.time()
