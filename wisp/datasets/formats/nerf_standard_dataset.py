@@ -421,9 +421,6 @@ class NeRFSyntheticDataset(MultiviewDataset):
 
         rays = Rays.stack(rays).to(dtype=torch.float).to('cpu')
 
-        import gc; gc.collect()
-        torch.cuda.empty_cache()
-
         rgbs = imgs[... ,:3]
         alpha = imgs[... ,3:4]
         if alpha.numel() == 0:
