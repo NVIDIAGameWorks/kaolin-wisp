@@ -227,7 +227,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
         # Handle this... also handles the above case well too.
         if os.path.exists(fpath):
             img = load_rgb(fpath)
-            if mip is not None:
+            if mip is not None and mip > 0:
                 img = resize_mip(img, mip, interpolation=cv2.INTER_AREA)
             return dict(basename=basename,
                         img=torch.FloatTensor(img), pose=torch.FloatTensor(np.array(frame['transform_matrix'])))
@@ -417,10 +417,12 @@ class NeRFSyntheticDataset(MultiviewDataset):
             ray_grid = generate_centered_pixel_coords(camera.width, camera.height,
                                                       camera.width, camera.height, device='cuda')
             rays.append \
-                (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width, 3).to
-                    ('cpu'))
+                (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width, 3))
 
-        rays = Rays.stack(rays).to(dtype=torch.float)
+        rays = Rays.stack(rays).to(dtype=torch.float).to('cpu')
+
+        import gc; gc.collect()
+        torch.cuda.empty_cache()
 
         rgbs = imgs[... ,:3]
         alpha = imgs[... ,3:4]
