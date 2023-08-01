@@ -14,56 +14,6 @@ from wisp.core import RenderBuffer
 from wisp.tracers import BaseTracer
 from typing import Tuple
 
-class _TruncExp(torch.autograd.Function):  # pylint: disable=abstract-method
-    # Implementation from torch-ngp:
-    # https://github.com/ashawkey/torch-ngp/blob/93b08a0d4ec1cc6e69d85df7f0acdfb99603b628/activation.py
-    @staticmethod
-    @custom_fwd(cast_inputs=torch.float32)
-    def forward(ctx, x):  # pylint: disable=arguments-differ
-        ctx.save_for_backward(x)
-        return torch.exp(x)
-
-    @staticmethod
-    @custom_bwd
-    def backward(ctx, g):  # pylint: disable=arguments-differ
-        x = ctx.saved_tensors[0]
-        return g * torch.exp(torch.clamp(x, max=15))
-
-trunc_exp = _TruncExp.apply
-
-def exponential_integration(feats, tau, boundaries, exclusive=True):
-    r"""Exponential transmittance integration across packs using the optical thickness (tau).
-
-    Exponential transmittance is derived from the Beer-Lambert law. Typical implementations of
-    exponential transmittance is calculated with :func:`cumprod`, but the exponential allows a reformulation
-    as a :func:`cumsum` which its gradient is more stable and faster to compute. We opt to use the :func:`cumsum`
-    formulation.
-
-    For more details, we recommend "Monte Carlo Methods for Volumetric Light Transport" by Novak et al.
-
-    Args:
-        feats (torch.FloatTensor): features of shape :math:`(\text{num_rays}, \text{num_feats})`.
-        tau (torch.FloatTensor): optical thickness of shape :math:`(\text{num_rays}, 1)`.
-        boundaries (torch.BoolTensor): bools of shape :math:`(\text{num_rays})`.
-            Given some index array marking the pack IDs, the boundaries can be calculated with
-            :func:`mark_pack_boundaries`.
-        exclusive (bool): Compute exclusive exponential integration if true. (default: True)
-
-    Returns:
-        (torch.FloatTensor, torch.FloatTensor)
-        - Integrated features of shape :math:`(\text{num_packs}, \text{num_feats})`.
-        - Transmittance of shape :math:`(\text{num_rays}, 1)`.
-
-    """
-    # TODO(ttakikawa): This should be a fused kernel... we're iterating over packs, so might as well
-    #                  also perform the integration in the same manner.
-    alpha = 1.0 - trunc_exp(-tau.contiguous())
-    # Uses the reformulation as a cumsum and not a cumprod (faster and more stable gradients)
-    transmittance = trunc_exp(-1.0 * spc_render.cumsum(tau.contiguous(), boundaries.contiguous(), exclusive=exclusive))
-    transmittance = transmittance * alpha
-    feats_out = spc_render.sum_reduce(transmittance * feats.contiguous(), boundaries.contiguous())
-    return feats_out, transmittance
-
 class PackedRFTracer(BaseTracer):
     """Tracer class for sparse (packed) radiance fields.
     - Packed: each ray yields a custom number of samples, which are therefore packed in a flat form within a tensor,
@@ -201,7 +151,7 @@ class PackedRFTracer(BaseTracer):
         # Compute optical thickness
         tau = density * deltas
         del density, deltas
-        ray_colors, transmittance = exponential_integration(color, tau, boundary, exclusive=True)
+        ray_colors, transmittance = spc_render.exponential_integration(color, tau, boundary, exclusive=True)
 
         if "depth" in channels:
             ray_depth = spc_render.sum_reduce(depths.reshape(num_samples, 1) * transmittance, boundary)
@@ -220,7 +170,7 @@ class PackedRFTracer(BaseTracer):
                         lod_idx=lod_idx,
                         channels=channel)
             num_channels = feats.shape[-1]
-            ray_feats, transmittance = exponential_integration(
+            ray_feats, transmittance = spc_render.exponential_integration(
                 feats.view(num_samples, num_channels), tau, boundary, exclusive=True
             )
             composited_feats = alpha * ray_feats
