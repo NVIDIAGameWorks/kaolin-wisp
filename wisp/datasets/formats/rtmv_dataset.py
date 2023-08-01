@@ -492,8 +492,12 @@ class RTMVDataset(MultiviewDataset):
         """
         original_width, original_height = camera.width, camera.height
         if mip is not None:
+            # Update width, height and make sure the intrinsics remains unchanged
+            # (as of kaolin 0.14.0, the focal length is updated s.t. fov remains invariant).
+            intrinsics = camera.intrinsics.params.clone()
             camera.width = camera.width // (2 ** mip)
             camera.height = camera.height // (2 ** mip)
+            camera.intrinsics.params = intrinsics
 
         # assume no resizing
         RTMVDataset._rescale_rtmv_intrinsics(camera, camera.width, original_width, original_height)
