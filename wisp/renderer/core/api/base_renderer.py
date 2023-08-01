@@ -13,6 +13,7 @@ from typing import Optional, Dict, Set, Tuple, Any
 import torch
 from kaolin.render.camera import Camera
 from wisp.core import RenderBuffer, Rays, PrimitivesPack, WispModule
+from wisp.models import RasterizationPipeline
 
 
 @dataclass
@@ -102,6 +103,12 @@ class BottomLevelRenderer(WispModule, ABC):
 class RasterizedRenderer(BottomLevelRenderer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_pipeline(cls, pipeline: RasterizationPipeline, **kwargs):
+        """ Builds a bottom level renderer from the building block of a pipeline. """
+        # Pass the kwargs to the renderer also, in case it wants to further modify the tracer with them.
+        return cls(model=pipeline.rasterizer, **kwargs)
 
     @abstractmethod
     def render(self, camera: Camera) -> RenderBuffer:

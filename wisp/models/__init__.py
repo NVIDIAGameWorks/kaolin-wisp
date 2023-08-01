@@ -7,3 +7,4 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from .pipeline import Pipeline
+from .rasterization_pipeline import RasterizationPipeline

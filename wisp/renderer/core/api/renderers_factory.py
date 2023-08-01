@@ -8,29 +8,36 @@
 
 from __future__ import annotations
 from collections import defaultdict, deque
-from typing import Type, TYPE_CHECKING
-from wisp.models import Pipeline
+from typing import Type, TYPE_CHECKING, Union
+from wisp.models import Pipeline, RasterizationPipeline
 from wisp.models.nefs import BaseNeuralField
 from wisp.tracers import BaseTracer
 if TYPE_CHECKING:  # Prevent circular imports mess due to typed annotations
-    from wisp.renderer.core.api.base_renderer import BottomLevelRenderer
+    from wisp.renderer.core.api.base_renderer import BottomLevelRenderer, RasterizedRenderer
     from wisp.renderer.core.api.raytraced_renderer import RayTracedRenderer
 
 # All renderers supported by the interactive renderer should be registered here
 # Registration can be quickly achieved via the @field_renderer decorator.
 # Make sure custom modules are imported before neural renderers are constructed!
 _REGISTERED_RENDERABLE_NEURAL_FIELDS = defaultdict(dict)
-
+_REGISTERED_RENDERABLE_RASTERIZERS = defaultdict()
 
 def register_neural_field_type(neural_field_type: Type[BaseNeuralField],
                                tracer_type: Type[BaseTracer],
                                renderer_type: Type[BottomLevelRenderer]):
     """ Register new types of neural fields with their associated bottom level renderers using this function.
-        This allowes the interactive renderer to display this neural field type on the canvas.
+        This allows the interactive renderer to display this neural field type on the canvas.
     """
     field_name = neural_field_type.__name__
     tracer_name = tracer_type.__name__
     _REGISTERED_RENDERABLE_NEURAL_FIELDS[field_name][tracer_name] = renderer_type
+
+
+def register_rasterizer_type(rasterizer_type: Type, renderer_type: Type[BottomLevelRenderer]):
+    """ Register new types of rasterizers with their associated bottom level renderers using this function.
+        This allows the interactive renderer to display this rasterizer type on the canvas.
+    """
+    _REGISTERED_RENDERABLE_RASTERIZERS[rasterizer_type.__name__] = renderer_type
 
 
 def _neural_field_to_renderer_cls(pipeline: Pipeline) -> Type[RayTracedRenderer]:
@@ -83,10 +90,35 @@ def _neural_field_to_renderer_cls(pipeline: Pipeline) -> Type[RayTracedRenderer]
                          'type of neural field/tracer.')
     return renderer_cls
 
+def _neural_rasterizer_to_renderer_cls(pipeline: RasterizationPipeline) -> Type[RasterizedRenderer]:
+    # Start by iterating the current rasterizer_type type -
+    # look for renderers compatible with the current rasterizer_type type or any of its parents
+    renderer_cls = None
+    type_queue = deque([type(pipeline.rasterizer)])
+    while type_queue:
+        # Query rasterizer
+        rast_type = type_queue.popleft()
+        rast_name = rast_type.__name__
+        # Look for a renderer compatible with the current rasterizer type
+        renderer_cls = _REGISTERED_RENDERABLE_RASTERIZERS.get(rast_name)
 
-def create_neural_field_renderer(neural_object: Pipeline, **kwargs) -> RayTracedRenderer:
-    # TODO (operel): support creation of non ray traced renderers
+        if renderer_cls is not None:
+            break   # Matching renderer found
+        else:   # Current rasterizer class doesn't match any registered renderer
+            # Try querying all parent(rast_type) for compatibility
+            bases = rast_type.__bases__
+            if len(bases) > 0:
+                for b in bases:
+                    type_queue.append(b)
 
+    if renderer_cls is None:
+        raise ValueError(f'Renderer factory encountered an unknown neural rasterization pipeline: '
+                         f'{type(pipeline.rasterizer).__name__}. '
+                         'Please register the factory to reflect what kind of renderer should be created for this '
+                         'type of rasterization pipeline.')
+    return renderer_cls
+
+def create_neural_field_renderer(neural_object: Union[Pipeline, RasterizationPipeline], **kwargs) -> BottomLevelRenderer:
     # Fetch the neural field object. If given a pipeline, query the nef field.
     # Otherwise assume we're given the neural field explicitly.
     if isinstance(neural_object, Pipeline):
@@ -96,23 +128,12 @@ def create_neural_field_renderer(neural_object: Pipeline, **kwargs) -> RayTraced
         # In the case of a pipeline, we use a specialized constructor which builds the renderer from its components
         # kwargs may override the pipeline default settings
         renderer_instance = renderer_cls.from_pipeline(neural_object, **kwargs)
-    # else:
-        # TODO (operel): not sure we even need this path..
-        #   Would a NeF ever exist without a tracer? If needed we can just choose any tracer combo
-        # # Obtain the appropriate renderer class, compatible with this neural field type
-        # nef = neural_object
-        # renderer_cls = _neural_field_to_renderer_cls(nef)
-        # renderer_args = kwargs
-        #
-        # # Create an instance of a renderer, wrapping the neural field and using the given arguments
-        # renderer_instance = renderer_cls(nef, **renderer_args)
-
+    elif isinstance(neural_object, RasterizationPipeline):
+        renderer_cls = _neural_rasterizer_to_renderer_cls(neural_object)
+        # In the case of a rasterization pipeline,
+        # we use a specialized constructor which builds the renderer from its components
+        # kwargs may override the pipeline default settings
+        renderer_instance = renderer_cls.from_pipeline(neural_object, **kwargs)
+    else:
+        raise NotImplementedError(f"Unknown pipeline type: {neural_object}")
     return renderer_instance
-
-
-# TODO (operel): Double check the interactive app can loads a model from file and call create_renderer
-# Model loading should now be at the app's responsibility
-# # Load nerf if model_path is available and nerf is not
-# if nerf is None:
-#     model_path = kwargs['model_path']
-#     nerf = torch.load(model_path)
