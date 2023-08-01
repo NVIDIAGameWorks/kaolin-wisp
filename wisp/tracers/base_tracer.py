@@ -41,7 +41,7 @@ class BaseTracer(WispModule, ABC):
         it will override them as the default.
 
         Args:
-            bg_color (str): The clear background color used by default for the color channel.
+            bg_color (Tuple[float, float, float]): The clear background color used by default for the color channel.
         """
         super().__init__()
         self.bg_color = bg_color
@@ -133,18 +133,21 @@ class BaseTracer(WispModule, ABC):
         else:
             requested_extra_channels = set(extra_channels)
 
-        argspec = inspect.getfullargspec(self.trace)
+        required_args = dict(inspect.signature(BaseTracer.trace).parameters)
+        required_args.pop("self", None)
+        required_args.pop("args", None)
+        required_args.pop("kwargs", None)
 
-        # Skip self, nef, rays, channel, extra_channels
-        required_args = argspec.args[:-len(argspec.defaults)][5:]   # TODO (operel): this is brittle
-        optional_args = argspec.args[-len(argspec.defaults):]
+        optional_args = dict(inspect.signature(self.trace).parameters)
+        optional_args.pop("self", None)
+        optional_args.pop("args", None)
+        optional_args.pop("kwargs", None)
+
+        for _arg in required_args:
+            optional_args.pop(_arg)
         
         input_args = {}
-        for _arg in required_args:
-            # TODO(ttakiakwa): This doesn't actually format the string, fix :) 
-            if _arg not in kwargs:
-                raise Exception(f"Argument {_arg} not found as input to in {type(self)}.trace()")
-            input_args[_arg] = kwargs[_arg]
+        
         for _arg in optional_args:
             if _arg in kwargs:
                 # By default, the function args will take priority
