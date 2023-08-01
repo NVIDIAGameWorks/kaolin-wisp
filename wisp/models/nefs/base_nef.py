@@ -68,8 +68,8 @@ class BaseNeuralField(WispModule):
     @abstractmethod
     def register_forward_functions(self):
         """Register forward functions with the channels that they output.
-        
-        This function should be overrided and call `self._register_forward_function` to 
+
+        This function should be overrided and call `self._register_forward_function` to
         tell the class which functions output what output channels. The function can be called
         multiple times to register multiple functions.
 
@@ -84,8 +84,8 @@ class BaseNeuralField(WispModule):
 
     def get_forward_function(self, channel):
         """Will return the function that will return the channel.
-        
-        Args: 
+
+        Args:
             channel (str): The name of the channel to return.
 
         Returns:
@@ -125,8 +125,8 @@ class BaseNeuralField(WispModule):
             kwargs: Any keyword argument passed in will be passed into the respective forward functions.
 
         Returns:
-            (list or dict or torch.Tensor): 
-                If channels is a string, will return a tensor of the request channel. 
+            (list or dict or torch.Tensor):
+                If channels is a string, will return a tensor of the request channel.
                 If channels is a list, will return a list of channels.
                 If channels is a set, will return a dictionary of channels.
                 If channels is None, will return a dictionary of all channels.
@@ -144,25 +144,41 @@ class BaseNeuralField(WispModule):
         unsupported_channels = requested_channels - self.get_supported_channels()
         if unsupported_channels:
             raise Exception(f"Channels {unsupported_channels} are not supported in {self.__class__.__name__}")
-        
-        return_dict = {}
+
+        filtered_forward_functions = []
         for fn in self._forward_functions:
+            output_channels = self._forward_functions[fn]
+            supported_channels = output_channels & requested_channels
+            num_supported_channels = len(supported_channels)
+            if num_supported_channels != 0:
+                filtered_forward_functions.append((num_supported_channels, fn))
+        filtered_forward_functions = sorted(filtered_forward_functions, key=lambda x: x[0], reverse=True)
+
+        return_dict = {}
+        for _, fn in filtered_forward_functions:
             torch.cuda.nvtx.range_push(f"{fn.__name__}")
             output_channels = self._forward_functions[fn]
             # Filter the set of channels supported by the current forward function
             supported_channels = output_channels & requested_channels
+
+            # Remove the set of channels that are satisfied
+            requested_channels = requested_channels - supported_channels
 
             # Check that the function needs to be executed
             if len(supported_channels) != 0:
 
                 # Filter args to the forward function and execute
                 argspec = inspect.getfullargspec(fn)
-                required_args = argspec.args[:-len(argspec.defaults)][1:] # Skip first element, self
-                optional_args = argspec.args[-len(argspec.defaults):]
-                
+                if argspec.defaults is None:
+                    required_len = 0
+                else:
+                    required_len = len(argspec.defaults)
+                required_args = argspec.args[:-required_len][1:] # Skip first element, self
+                optional_args = argspec.args[-required_len:]
+
                 input_args = {}
                 for _arg in required_args:
-                    # TODO(ttakiakwa): This doesn't actually format the string, fix :) 
+                    # TODO(ttakiakwa): This doesn't actually format the string, fix :)
                     if _arg not in kwargs:
                         raise Exception(f"Argument {_arg} not found as input to in {self.__class__.__name__}.{fn.__name__}()")
                     input_args[_arg] = kwargs[_arg]
@@ -174,7 +190,7 @@ class BaseNeuralField(WispModule):
                 for channel in supported_channels:
                     return_dict[channel] = output[channel]
             torch.cuda.nvtx.range_pop()
-        
+
         if isinstance(channels, str):
             if channels in return_dict:
                 return return_dict[channels]
