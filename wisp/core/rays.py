@@ -145,9 +145,11 @@ class Rays:
             (Rays): The reshaped Rays struct
         """
         return Rays(origins=self.origins.reshape(*dims),
-                   dirs=self.dirs.reshape(*dims),
-                   dist_min=self.dist_min,
-                   dist_max=self.dist_max)
+                    dirs=self.dirs.reshape(*dims),
+                    dist_min=self.dist_min.reshape(*dims[:-1]) if \
+                        torch.is_tensor(self.dist_min) else self.dist_min,
+                    dist_max=self.dist_max.reshape(*dims[:-1]) if \
+                        torch.is_tensor(self.dist_max) else self.dist_max)
 
     def squeeze(self, dim: int) -> Rays:
         """ Squeezes the tensors of the rays struct.

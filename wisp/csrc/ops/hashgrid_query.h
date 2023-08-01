@@ -15,22 +15,21 @@
 
 namespace wisp {
 
-at::Tensor hashgrid_interpolate_cuda(
+at::Tensor hashgrid_query_cuda(
     at::Tensor coords,
-    at::Tensor codebook,
-    at::Tensor codebook_first_idx,
-    at::Tensor resolution,
-    int32_t codebook_bitwidth);
+    std::vector<at::Tensor> codebook,
+    std::vector<int32_t> resolution,
+    int32_t codebook_bitwidth,
+    int32_t probe_bitwidth);
 
-std::vector<at::Tensor> hashgrid_interpolate_backward_cuda(
+std::vector<at::Tensor> hashgrid_query_backward_cuda(
     at::Tensor coords,
     at::Tensor grad_output,
-    at::Tensor codebook,
-    at::Tensor codebook_first_idx,
-    at::Tensor resolution,
+    std::vector<int32_t> resolution,
+    std::vector<int32_t> codebook_shapes,
     int32_t codebook_bitwidth,
     int32_t feature_dim,
-    bool require_grad_coords);
+    int32_t probe_bitwidth);
 
 }
 

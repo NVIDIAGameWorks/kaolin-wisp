@@ -17,6 +17,7 @@ RUN apt-get -y update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python tools/linux/install_torchvision.py
 RUN pip install -r requirements.txt
 RUN pip install pyexr
 RUN python setup.py develop

@@ -15,7 +15,8 @@ from wisp.models.embedders import get_positional_embedder
 from wisp.models.layers import get_layer_class
 from wisp.models.activations import get_activation_class
 from wisp.models.decoders import BasicDecoder
-from wisp.models.grids import BLASGrid, HashGrid
+from wisp.models.grids import BLASGrid, HashGrid, TriplanarGrid
+from typing import Optional
 
 
 class NeuralRadianceField(BaseNeuralField):
@@ -39,6 +40,7 @@ class NeuralRadianceField(BaseNeuralField):
                  layer_type: str = 'linear',    # 'linear', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'
                  hidden_dim: int = 128,
                  num_layers: int = 1,
+                 bias: bool = False,
                  # pruning args
                  prune_density_decay: Optional[float] = (0.01 * 512) / np.sqrt(3),
                  prune_min_density: Optional[float] = 0.6,
@@ -86,6 +88,7 @@ class NeuralRadianceField(BaseNeuralField):
                  'none' / 'linear', 'spectral_norm', 'frobenius_norm', 'l_1_norm', 'l_inf_norm'.
             hidden_dim (int): Number of neurons in hidden layers of both decoders.
             num_layers (int): Number of hidden layers in both decoders.
+            bias (bool): Whether to use bias in the decoders.
             prune_density_decay (Optional[float]): Decay rate of density per "prune step",
                  using the pruning scheme from Muller et al. 2022. Used only for grids which support pruning.
             prune_min_density (Optional[float]): Minimal density allowed for "cells" before they get pruned during a "prune step".
@@ -94,6 +97,8 @@ class NeuralRadianceField(BaseNeuralField):
         super().__init__()
         self.grid = grid
 
+        self.pos_embedder_type = pos_embedder
+        self.view_embedder_type = view_embedder
         # Init Embedders
         self.pos_embedder, self.pos_embed_dim = self.init_embedder(pos_embedder, pos_multires,
                                                                    include_input=position_input)
@@ -105,6 +110,7 @@ class NeuralRadianceField(BaseNeuralField):
         self.layer_type = layer_type
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.bias = bias
         self.decoder_density, self.decoder_color = \
             self.init_decoders(activation_type, layer_type, num_layers, hidden_dim)
 
@@ -122,6 +128,22 @@ class NeuralRadianceField(BaseNeuralField):
             embedder, embed_dim = torch.nn.Identity(), 3    # Assumes pos / view input is always 3D
         elif embedder_type == 'positional':
             embedder, embed_dim = get_positional_embedder(frequencies=frequencies, include_input=include_input)
+        elif embedder_type == 'tcnn':
+            import tinycudann as tcnn
+            embedder = tcnn.Encoding(
+                n_input_dims=3,
+                encoding_config={
+                    "otype": "Composite",
+                    "nested": [
+                        {
+                            "n_dims_to_encode": 3,
+                            "otype": "SphericalHarmonics",
+                            "degree": 4,
+                        },
+                    ],
+                },
+            )
+            embed_dim = 16
         else:
             raise NotImplementedError(f'Unsupported embedder type for NeuralRadianceField: {embedder_type}')
         return embedder, embed_dim
@@ -132,17 +154,18 @@ class NeuralRadianceField(BaseNeuralField):
         decoder_density = BasicDecoder(input_dim=self.density_net_input_dim(),
                                        output_dim=16,
                                        activation=get_activation_class(activation_type),
-                                       bias=True,
+                                       bias=self.bias,
                                        layer=get_layer_class(layer_type),
                                        num_layers=num_layers,
                                        hidden_dim=hidden_dim,
                                        skip=[])
-        decoder_density.lout.bias.data[0] = 1.0
+        if decoder_density.lout.bias is not None:
+            decoder_density.lout.bias.data[0] = 1.0
 
         decoder_color = BasicDecoder(input_dim=self.color_net_input_dim(),
                                      output_dim=3,
                                      activation=get_activation_class(activation_type),
-                                     bias=True,
+                                     bias=self.bias,
                                      layer=get_layer_class(layer_type),
                                      num_layers=num_layers + 1,
                                      hidden_dim=hidden_dim,
@@ -155,7 +178,7 @@ class NeuralRadianceField(BaseNeuralField):
         if self.prune_density_decay is None or self.prune_min_density is None:
             return
         if self.grid is not None:
-            if isinstance(self.grid, HashGrid):
+            if isinstance(self.grid, (HashGrid, TriplanarGrid)):
                 density_decay = self.prune_density_decay
                 min_density = self.prune_min_density
 
@@ -186,7 +209,7 @@ class NeuralRadianceField(BaseNeuralField):
                                      "from_quantized_points, which is required for pruning.")
 
             else:
-                raise NotImplementedError(f'Pruning not implemented for grid type {self.grid}')
+                raise NotImplementedError(f'Pruning not implemented for grid type {self.grid.__class__.__name__}')
 
     def register_forward_functions(self):
         """Registers the forward function to call per requested channel.
@@ -223,14 +246,17 @@ class NeuralRadianceField(BaseNeuralField):
 
         # Concatenate embedded view directions.
         if self.view_embedder is not None:
-            embedded_dir = self.view_embedder(-ray_d).view(batch, self.view_embed_dim)
+            if self.view_embedder_type == 'tcnn':
+                ray_d = ((ray_d + 1.0) / 2.0)
+            embedded_dir = self.view_embedder(ray_d).view(batch, self.view_embed_dim)
             fdir = torch.cat([density_feats, embedded_dir], dim=-1)
         else:
             fdir = density_feats
 
         # Colors are values [0, 1] floats
         # colors ~ (batch, 3)
-        colors = torch.sigmoid(self.decoder_color(fdir))
+        # Need to also make sure to remove density from the input to color
+        colors = torch.sigmoid(self.decoder_color(fdir[..., 1:]))
 
         # Density is [particles / meter], so need to be multiplied by distance
         # density ~ (batch, 1)
@@ -248,7 +274,7 @@ class NeuralRadianceField(BaseNeuralField):
         return self.effective_feature_dim() + self.pos_embed_dim
 
     def color_net_input_dim(self):
-        return 16 + self.view_embed_dim
+        return 15 + self.view_embed_dim
 
     def public_properties(self) -> Dict[str, Any]:
         """ Wisp modules expose their public properties in a dictionary.

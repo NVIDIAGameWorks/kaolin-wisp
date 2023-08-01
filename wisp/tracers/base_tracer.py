@@ -7,7 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from abc import abstractmethod, ABC
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 import inspect
 import torch
 import torch.nn as nn
@@ -33,7 +33,7 @@ class BaseTracer(WispModule, ABC):
     though non-differentiable tracers are also allowed.
     """
 
-    def __init__(self, bg_color: str = 'black'):
+    def __init__(self, bg_color: Tuple[float, float, float] = (0.0, 0.0, 0.0)):
         """Initializes the tracer class and sets the default arguments for trace.
         This should be overrided and called if you want to pass custom defaults into the renderer.
         If overridden, it should keep the arguments to `self.trace` in `self.` class variables.

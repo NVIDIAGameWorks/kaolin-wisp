@@ -96,23 +96,28 @@ class Tracker:
     Since this module is complex, each of sub-modules uses a different config class.
     """
 
-    def __init__(self, cfg: ConfigTracker, exp_name: str):
+    def __init__(self, cfg: ConfigTracker, exp_name: str, log_fname: Optional[str] = None):
         """
         Args:
             cfg (ConfigTracker): Configuration object, with default definitions for visualization and
                 experiments tracking.
-            exp_name (str): Unique id for identifying experiments.
+            exp_name (str): Name for identifying sets of experiments.
+            log_fname (Optional[str]): Unique ID for experiments. 
+                                       Defaults to some generation according to datetime.
         """
         self.cfg = cfg
         self.exp_name = exp_name
+        # Unique ID for this experiment (default)
+        self.log_fname = log_fname
+        if self.log_fname is None:
+            self.log_fname = f'{datetime.now().strftime("%Y%m%d-%H%M%S")}'
         # dashboards includes tensorboard, wandb or both or neither.
-        self.dashboards: Dict[str, _BaseDashboard] = self._setup_dashboards(cfg, exp_name)
+        self.dashboards: Dict[str, _BaseDashboard] = self._setup_dashboards(cfg, self.exp_name, self.log_fname)
         # visualizer is the OfflineRenderer
         self.visualizer = instantiate(self.cfg.visualizer)
         self.metrics = MetricsBoard()
 
         # Log files will be saved to the following path
-        self.log_fname = f'{datetime.now().strftime("%Y%m%d-%H%M%S")}'
         self.log_dir = os.path.join(self.cfg.log_dir, self.exp_name, self.log_fname)
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
@@ -139,20 +144,30 @@ class Tracker:
             return self.app_config
 
     @staticmethod
-    def _setup_dashboards(cfg: ConfigTracker, exp_name: str):
+    def _setup_dashboards(cfg: ConfigTracker, exp_name: str, log_fname: str):
         """ Set up tensorboard and wand if they're enabled by the config, and their packages are installed.
         This function is invoked from the Tracker constructor, and must run before performing any experiment logging.
         """
         dashboards: Dict[str, _BaseDashboard] = dict()
         if cfg.enable_tensorboard:
+            if cfg.tensorboard.exp_name is None:
+                cfg.tensorboard.exp_name = exp_name
+            if cfg.tensorboard.log_fname is None:
+                cfg.tensorboard.log_fname = log_fname
             if _TENSORBOARD_AVAILABLE:
                 dashboards['tensorboard'] = instantiate(cfg.tensorboard)
             else:
                 log.warning("Tensorboard experiment tracking enabled, "
                             "but couldn't import torch.utils.tensorboard.SummaryBoard")
         if cfg.enable_wandb:
+            if cfg.wandb.entity is None:
+                raise Exception("You must set your username as the entity to use Wandb")
+            if cfg.wandb.project is None:
+                cfg.wandb.project = exp_name
+            if cfg.wandb.group is None:
+                cfg.wandb.group = exp_name
             if cfg.wandb.run_name is None:
-                cfg.wandb.run_name = exp_name
+                cfg.wandb.run_name = log_fname
             if _WANDB_AVAILABLE:
                 dashboards['wandb'] = instantiate(cfg.wandb)
             else:
@@ -332,17 +347,21 @@ class _BaseDashboard(ABC):
 class _Tensorboard(_BaseDashboard):
     """ Wraps around tensorboard functionality """
 
-    def __init__(self, log_dir: str):
+    def __init__(self, log_dir: str, exp_name: Optional[str], log_fname: Optional[str]):
         """ Tensorboard experiments dashboard.
         Args:
-            log_dir (str): Path where the SummaryBoard data is saved.
+            log_dir (str): Path where the tensorboard runs are saved.
+            exp_name (Optional[str]): Path where sets of experiments are saved (equivalent to project in wandb)
+            log_fname (Optional[str]): Path where specific experiments are saved (equivalent to run name in wandb)
         """
         super().__init__()
         self.log_dir = log_dir
+        self.exp_name = exp_name
+        self.log_fname = log_fname
         self.setup()
 
     def setup(self):
-        self.writer = SummaryWriter(self.log_dir, purge_step=0)
+        self.writer = SummaryWriter(os.path.join(self.log_dir, self.exp_name, self.log_fname), purge_step=0)
 
     def teardown(self):
         self.writer.close()
@@ -364,21 +383,24 @@ class _Tensorboard(_BaseDashboard):
 class _WandB(_BaseDashboard):
     """ Wraps around wandb functionality """
 
-    def __init__(self, project: Optional[str] = None, entity: Optional[str] = None, run_name: Optional[str] = None,
+    def __init__(self, entity: Optional[str] = None, project: Optional[str] = None,
+                 group: Optional[str] = None, run_name: Optional[str] = None,
                  job_type: Optional[str] = None, sync_tensorboard: Optional[bool] = True):
         """Weights & Biases experiment dashboard.
         See: https://docs.wandb.ai/ref/python/init
 
         Args:
-            project (Optional[str]): Weights & Biases project name
-            entity (Optional[str]): Weights & Biases entity name
-            run_name (Optional[str]): Weights & Biases Run name. Defaults to experiment name.
+            entity (Optional[str]): Weights & Biases entity name (i.e. username)
+            project (Optional[str]): Weights & Biases project name. Defaults to the experiment name.
+            group (Optional[str]): Weights & Biases group name. Default to the experiment name.
+            run_name (Optional[str]): Weights & Biases Run name. Defaults to the run ID.
             job_type (Optional[str]): Weights & Biases Job type, i.e: trainer mode of 'train', 'val', etc.
             sync_tensorboard (Optional[bool]): Sync wandb logs from tensorboard and save the relevant events file.
         """
         super().__init__()
-        self.project = project
         self.entity = entity
+        self.project = project
+        self.group = group
         self.run_name = run_name
         self.job_type = job_type
         self.sync_tensorboard = sync_tensorboard
@@ -387,6 +409,7 @@ class _WandB(_BaseDashboard):
     def setup(self):
         wandb.init(
             project=self.project,
+            group=self.group,
             name=self.run_name,
             entity=self.entity,
             job_type=self.job_type,

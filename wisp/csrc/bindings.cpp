@@ -12,6 +12,8 @@
 #include "./render/find_depth_bound.h"
 #include "./external/mesh_to_sdf.h"
 #include "./ops/hashgrid_interpolate.h"
+#include "./ops/hashgrid_query.h"
+#include "./ops/grid_interpolate.h"
 
 namespace wisp {
 
@@ -23,6 +25,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     py::module ops = m.def_submodule("ops");
     ops.def("hashgrid_interpolate_cuda", &hashgrid_interpolate_cuda);
     ops.def("hashgrid_interpolate_backward_cuda", &hashgrid_interpolate_backward_cuda);
+    ops.def("hashgrid_query_cuda", &hashgrid_query_cuda);
+    ops.def("hashgrid_query_backward_cuda", &hashgrid_query_backward_cuda);
+    ops.def("grid_interpolate_cuda", &grid_interpolate_cuda);
+    ops.def("grid_interpolate_backward_cuda", &grid_interpolate_backward_cuda);
 }
 
 }

@@ -18,6 +18,9 @@ class SampleRays:
     def __init__(self, num_samples: int):
         self.num_samples = num_samples
 
+    def set_num_samples(self, num_samples: int):
+        self.num_samples = num_samples
+
     @torch.cuda.nvtx.range("SampleRays")
     def __call__(self, inputs: MultiviewBatch):
         device = inputs['rays'].origins.device

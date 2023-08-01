@@ -39,7 +39,7 @@ nef:  # Neural field: combines grid, decoders and positional embedders
 
 tracer: # A tracer for intersecting rays with the blas, generating samples along rays for the neural field & integrating
   constructor: 'PackedRFTracer'
-  bg_color: 'white'
+  bg_color: [ 1.0, 1.0, 1.0 ]
   num_steps: 512   # Samples within the triplanar volume (e.g. AABB)
   raymarch_type: 'voxel'
   step_size: 1.0
@@ -48,7 +48,7 @@ dataset:  # Train & validation dataset
   constructor: 'NeRFSyntheticDataset'
   dataset_path: 'data/'
   split: 'train'      # Which subset of the dataset to use for training
-  bg_color: 'white'   # The background color to use for when alpha=0.
+  bg_color: [ 1.0, 1.0, 1.0 ]   # The background color to use for when alpha=0.
   mip: 0              # If provided, will rescale images by 2**mip. Useful when large images are loaded.
   dataset_num_workers: -1  # The number of workers to spawn for multiprocessed loading.
                            # If dataset_num_workers < 1, processing will take place on the main process.
@@ -93,6 +93,8 @@ tracker:
   enable_wandb: False
   tensorboard:                    # active when enable_tensorboard=True
     log_dir: '_results/logs/runs' # For TensorBoard summary
+    exp_name: null                # Only set this if you want to set an experiment set name specifically for TB
+    log_fname: null               # Only set this if you want to set a unique ID specifically for TB
   wandb:                          # active when enable_wandb=True
     project: 'wisp-nerf'
     entity: null                  # i.e. your wandb username here

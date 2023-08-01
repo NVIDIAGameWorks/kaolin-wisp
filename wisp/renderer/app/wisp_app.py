@@ -155,13 +155,20 @@ class WispApp(ABC):
         """
         add_pipeline_to_scene_graph(self.wisp_state, name, pipeline, transform=transform)
     
-    def add_widget(self, widget):
+    def add_widget(self, widget, idx=None):
         """ Adds a widget to the list of widgets.
+
+        By default, the widget is added to the end of the list of widgets, which means that it will be
+        last on the display order.
 
         Args:
             widget (wisp.renderer.gui.imgui.WidgetImgui): The widget to add.
+            idx (Optional[int]): If specified, will insert the widget at the specific display order.
         """
-        self.widgets.append(widget)
+        if idx is not None:
+            self.widgets.insert(0, widget)
+        else:
+            self.widgets.append(widget)
 
     def add_gizmo(self, name, gizmo):
         """Adds a gizmo to the list of gizmos.

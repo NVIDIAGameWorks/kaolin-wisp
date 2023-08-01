@@ -5,7 +5,6 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-
 import torch
 from typing import Tuple
 from wisp.config.utils import configure
@@ -19,6 +18,20 @@ from wisp.config.utils import configure
 #     adam_cfg = ConfigAdam(...)                              # Usually this is initialized during parse_config()
 #     optimizer = instantiate(adam_cfg, params=model.params)  # Add any missing args during instantiation
 # ```
+
+try:
+    import apex
+    @configure(target=apex.optimizers.FusedAdam)
+    class ConfigFusedAdam:
+        lr: float = 1e-3
+        betas: Tuple[float, float] = (0.9, 0.999)
+        eps: float = 1e-8
+        weight_decay: float = 0.0
+except:
+    print("apex import failed. apex optimizer will not be available")
+    class ConfigFusedAdam:
+        def __init__(self):
+            raise Exception("FusedAdam not available since apex import failed")
 
 
 @configure(target=torch.optim.Adam)

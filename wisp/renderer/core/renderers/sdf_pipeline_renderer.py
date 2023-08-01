@@ -54,7 +54,7 @@ class NeuralSDFPackedRenderer(RayTracedRenderer):
         self.tracer.num_steps = self.num_steps
         self.tracer.step_size = self.step_size
         self.tracer.min_dis = self.min_dis
-        self.tracer.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
+        self.tracer.bg_color = (0.0, 0.0, 0.0) if payload.clear_color == (0.0, 0.0, 0.0) else (1.0, 1.0, 1.0)
 
     def post_render(self) -> None:
         self._last_state['num_steps'] = self.tracer.num_steps

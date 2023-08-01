@@ -8,6 +8,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class FullSort(nn.Module):
     """The "FullSort" activation function from https://arxiv.org/abs/1811.05381.
@@ -74,5 +75,13 @@ def get_activation_class(activation_type):
         return torch.relu
     elif activation_type == 'sin':
         return torch.sin
+    elif activation_type == 'celu':
+        return F.celu
+    elif activation_type == 'selu':
+        return F.selu
+    elif activation_type == 'leaky_relu':
+        return F.leaky_relu
+    elif activation_type == 'gelu':
+        return F.gelu
     else:
         assert False and "activation type does not exist"

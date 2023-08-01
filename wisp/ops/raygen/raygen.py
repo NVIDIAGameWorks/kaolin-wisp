@@ -15,8 +15,8 @@ from wisp.core import Rays
 # -- Supersample / Ray jitter --
 
 def generate_default_grid(width, height, device=None):
-    h_coords = torch.arange(height, device=device)
-    w_coords = torch.arange(width, device=device)
+    h_coords = torch.arange(height, device=device, dtype=torch.long)
+    w_coords = torch.arange(width, device=device, dtype=torch.long)
     return torch.meshgrid(h_coords, w_coords)  # return pixel_y, pixel_x
 
 

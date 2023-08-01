@@ -133,7 +133,7 @@ def normalize_vector(c: torch.Tensor) -> torch.Tensor:
     Returns:
         (torch.Tensor): Input channel c is normalized by the L2 norm.
     """
-    return F.normalize(c, dim=-1)
+    return F.normalize(c, dim=-1) * 0.5 + 0.5
 
 
 ###############################################################################################################
