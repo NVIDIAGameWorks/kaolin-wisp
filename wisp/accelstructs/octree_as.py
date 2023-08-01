@@ -238,7 +238,8 @@ class OctreeAS(BaseAS):
             samples=samples,
             depth_samples=depth_samples,
             deltas=deltas,
-            boundary=boundary
+            boundary=boundary,
+            pack_info=None
         )
 
     def _raymarch_ray(self, rays, num_samples, level=None) -> ASRaymarchResults:
@@ -301,7 +302,8 @@ class OctreeAS(BaseAS):
             samples=samples.float(),
             depth_samples=depth_samples.float(),
             deltas=deltas.float(),
-            boundary=boundary
+            boundary=boundary,
+            pack_info=None
         )
 
     def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:

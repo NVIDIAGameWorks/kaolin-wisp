@@ -99,7 +99,6 @@ class SDFTrainer(BaseTrainer):
                 l2_loss += _l2_loss
             
                 loss += rgb_loss
-                self.log_dict['rgb_loss'] += rgb_loss.item()
         else:
             for lod_idx in self.loss_lods:
                 preds.append(*self.pipeline.nef(coords=pts, lod_idx=lod_idx, channels=["sdf"]))

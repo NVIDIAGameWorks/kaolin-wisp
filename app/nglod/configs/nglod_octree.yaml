@@ -88,6 +88,8 @@ tracker:
   enable_wandb: False
   tensorboard:
     log_dir: '_results/logs/runs' # For TensorBoard summary
+    exp_name: null                # Only set this if you want to set an experiment set name specifically for TB
+    log_fname: null               # Only set this if you want to set a unique ID specifically for TB
   wandb:                          # active when enable_wandb=True
     project: 'wisp-nglod'
     entity: null                  # i.e. your wandb username here

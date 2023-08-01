@@ -49,13 +49,13 @@ class NeuralRadianceFieldPackedRenderer(RayTracedRenderer):
         if raymarch_type is None:
             raymarch_type = tracer.raymarch_type
         self.raymarch_type = raymarch_type
-        self.bg_color = tracer.bg_color
+        self.bg_color = (0.0, 0.0, 0.0)
 
         self._last_state = dict()
 
     def pre_render(self, payload: FramePayload, *args, **kwargs) -> None:
         super().pre_render(payload)
-        self.bg_color = 'black' if payload.clear_color == (0.0, 0.0, 0.0) else 'white'
+        self.bg_color = (0.0, 0.0, 0.0) if payload.clear_color == (0.0, 0.0, 0.0) else (1.0, 1.0, 1.0)
         if payload.interactive_mode:
             self.tracer.num_steps = self.num_steps_interactive
         else:

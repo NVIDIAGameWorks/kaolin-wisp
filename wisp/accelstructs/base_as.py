@@ -79,6 +79,10 @@ class ASRaymarchResults:
         That is: [True, False, False, False, True, False False] represents two rays of 4 and 3 samples respectively. 
     """
 
+    pack_info: Optional[torch.IntTensor] = None
+    """ Encodes the position of boundaries as an int tensor. Equivalent to `boundary.nonzero()`.
+    """
+
 
 class BaseAS(WispModule, ABC):
     """

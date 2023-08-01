@@ -15,7 +15,7 @@ import json
 import copy
 from tqdm import tqdm
 import logging as log
-from typing import Callable, List, Dict, Union, Optional
+from typing import Callable, List, Dict, Union, Optional, Tuple
 import numpy as np
 import torch
 from torch.multiprocessing import Pool
@@ -34,8 +34,15 @@ class NeRFSyntheticDataset(MultiviewDataset):
         NeRF-synthetic scenes include RGBA / RGB information.
     """
 
-    def __init__(self, dataset_path: str, split: str, bg_color: str, mip: int = 0,
-                 dataset_num_workers: int = -1, transform: Optional[Callable] = None):
+    def __init__(
+        self, 
+        dataset_path        : str, 
+        split               : str, 
+        bg_color            : Tuple[float, float, float] = (0.0, 0.0, 0.0), 
+        mip                 : int = 0,
+        dataset_num_workers : int = -1, 
+        transform           : Optional[Callable] = None
+    ):
         """ Loads the NeRF-synthetic data and applies dataset specific transforms required for compatibility with the
         framework.
         The loaded data is cached inside the `data` field.
@@ -392,7 +399,8 @@ class NeRFSyntheticDataset(MultiviewDataset):
         poses[..., :3, 3] += torch.FloatTensor(offset)
 
         # nerf-synthetic uses a default far value of 6.0
-        default_far = 6.0
+        default_far = 5.0
+        default_near = 1.0
 
         rays = []
 
@@ -408,7 +416,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
                                       width=w,
                                       height=h,
                                       far=default_far,
-                                      near=0.0,
+                                      near=default_near,
                                       x0=x0,
                                       y0=y0,
                                       dtype=torch.float64)
@@ -427,14 +435,8 @@ class NeRFSyntheticDataset(MultiviewDataset):
             masks = torch.ones_like(rgbs[... ,0:1]).bool()
         else:
             masks = (alpha > 0.5).bool()
-
-            if self.bg_color == 'black':
-                rgbs[... ,:3] -= ( 1 -alpha)
-                rgbs = np.clip(rgbs, 0.0, 1.0)
-            else:
-                rgbs[... ,:3] *= alpha
-                rgbs[... ,:3] += ( 1 -alpha)
-                rgbs = np.clip(rgbs, 0.0, 1.0)
+            rgbs = rgbs[...,:3] * alpha + (1-alpha) * np.array(self.bg_color).astype(np.float32)
+            rgbs = np.clip(rgbs, 0.0, 1.0)
 
         return {"rgb": rgbs, "masks": masks, "rays": rays, "cameras": cameras}
 

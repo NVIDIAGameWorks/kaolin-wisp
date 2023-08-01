@@ -14,3 +14,4 @@ _*/
 build
 imgui.ini
 wandb/
+*.nsys-rep

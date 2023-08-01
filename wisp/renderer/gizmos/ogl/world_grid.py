@@ -125,5 +125,8 @@ class WorldGrid(Gizmo):
         # TODO(operel): state control should be elsewhere
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glDepthFunc(gl.GL_LEQUAL)
+        # TODO(ttakikawa): Alphas need to be fixed somewhere for this to work
+        # gl.glEnable(gl.GL_BLEND)
+        # gl.glBlendFunc(gl.GL_ONE_MINUS_DST_ALPHA, gl.GL_DST_ALPHA);
         self.canvas_program["u_viewprojection"] = camera.view_projection_matrix()[0].cpu().numpy().T
         self.canvas_program.draw(gl.GL_TRIANGLE_STRIP)

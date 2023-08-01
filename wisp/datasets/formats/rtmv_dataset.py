@@ -18,7 +18,7 @@ import math
 import numpy as np
 import torch
 from torch.multiprocessing import Pool
-from typing import Callable, List, Dict, Optional
+from typing import Callable, List, Dict, Optional, Tuple
 from kaolin.render.camera import Camera, blender_coords
 from wisp.core import Rays
 import wisp.ops.image as img_ops
@@ -35,7 +35,8 @@ class RTMVDataset(MultiviewDataset):
         RTMV scenes include RGB + depth information.
     """
 
-    def __init__(self, dataset_path: str, bg_color: str, mip: int = 0, split: str = 'train',
+    def __init__(self, dataset_path: str, bg_color: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                 mip: int = 0, split: str = 'train',
                  train_ratio: float = 2.0 / 3.0, val_ratio: float = 1.0 / 30.0,
                  coords_center: torch.Tensor = None, coords_scale: torch.Tensor = None,
                  dataset_num_workers: int = -1, transform: Optional[Callable] = None):
@@ -45,8 +46,7 @@ class RTMVDataset(MultiviewDataset):
         Args:
             dataset_path (str): The root directory of the dataset, where images and json files of a single multiview
                 scene reside.
-            bg_color (str): The background color to use for when alpha=0.
-                Options: 'black', 'white'.
+            bg_color Tuple[float, float, float]: The background color to use for when alpha=0.
             mip (int): If provided, will rescale images by 2**mip. Useful when large images are loaded.
             split (str): The dataset split to use. The exact split's content
                 are determined by train_ratio, val_ratio.
@@ -255,7 +255,7 @@ class RTMVDataset(MultiviewDataset):
         return images, alphas, depths, cameras
 
     @staticmethod
-    def _load_rtmv_images(root, basename, use_depth=False, mip=None, srgb=False, bg_color='white'):
+    def _load_rtmv_images(root, basename, use_depth=False, mip=None, srgb=False, bg_color=(0.0, 0.0, 0.0)):
         """Loads a set of RTMV images by path and basename.
         Args:
             root (str): Path to the root of the dataset.
@@ -348,13 +348,9 @@ class RTMVDataset(MultiviewDataset):
 
         alpha = img[..., 3:4]
 
-        if bg_color == 'black':
-            img[..., :3] -= (1 - alpha)
-            img = np.clip(img, 0.0, 1.0)
-        else:
-            img[..., :3] *= alpha
-            img[..., :3] += (1 - alpha)
-            img = np.clip(img, 0.0, 1.0)
+        img[..., :3] *= alpha
+        img[..., :3] += (1 - alpha) * np.array(self.bg_color).astype(np.float32)
+        img = np.clip(img, 0.0, 1.0)
 
         if mip is not None:
             # TODO(ttakikawa): resize_mip causes the mask to be squuezed... why?

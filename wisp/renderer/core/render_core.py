@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 import abc
+import math
 import numpy as np
 import torch
 import copy
@@ -52,7 +53,7 @@ class RendererCore:
         self._last_renderbuffer = None
 
         # Minimal resolution supported by RendererCore
-        self.MIN_RES = 128
+        self.MIN_RES = 64
 
     def _default_camera(self, lens="perspective"):
         # TODO: move defaults elsewhere
@@ -242,14 +243,34 @@ class RendererCore:
         res_x, res_y = self.res_x, self.res_y
 
         # If the FPS is slow, downscale the resolution for the render.
-        is_fps_lagging = time_delta is not None and \
-                         self.target_fps is not None and \
-                         self.target_fps > 0 and \
-                         time_delta > (1.0 / self.target_fps)
-        if self.interactive_mode and is_fps_lagging:
-            if res_x > self.MIN_RES and res_y > self.MIN_RES:
-               res_x //= 2
-               res_y //= 2
+
+        if self.interactive_mode:
+            #target_delta = 1.0 / self.target_interactive_fps
+            target_delta = 1.0 / 20.0
+        else:
+            #target_delta = 1.0 / self.target_static_fps
+            target_delta = 1.0 / 2.0
+
+        if 'res_x' in self._last_state:
+            num_pixels = self._last_state['res_x'] * self._last_state['res_y']
+        else:
+            num_pixels = res_x * res_y
+        time_per_pixel = time_delta / float(num_pixels)
+        target_num_pixels = target_delta / time_per_pixel
+        
+        screen_ratio = res_x / res_y
+        res = math.sqrt(target_num_pixels / screen_ratio)
+        res_x = min(res_x, int(math.floor(res * screen_ratio)))
+        res_y = min(res_y, int(math.floor(res)))
+        
+        if res_y < self.MIN_RES:
+            res_x = int(math.floor(self.MIN_RES*screen_ratio))
+            res_y = int(math.floor(self.MIN_RES))
+
+        if 'res_x' in self._last_state:
+            if abs(res_x - self._last_state['res_x']) < 10:
+                res_x = self._last_state['res_x']
+                res_y = self._last_state['res_y']
 
         # TODO(ttakikawa): Leaving a note here to think about whether this should be the case...
         # The renderer always needs depth, alpha, and rgb
@@ -377,10 +398,12 @@ class RendererCore:
             return True
 
         # Resolution check: if not full resolution - canvas is dirty
-        if self._last_state['res_x'] != self.camera.width or self._last_state['res_y'] != self.camera.height:
-            return True
+        #if self._last_state['res_x'] != self.camera.width or self._last_state['res_y'] != self.camera.height:
+        #    return True
 
         for att_name, prev_val in self._last_state.items():
+            if att_name in ['res_x', 'res_y']:
+                continue
             if not hasattr(self, att_name):
                 continue
             curr_val = self.__getattribute__(att_name)
@@ -432,7 +455,7 @@ class RendererCore:
         channels_kit = self.state.graph.channels
         channel_info = channels_kit.get(selected_output_channel, create_default_channel())
         normalized_channel = channel_info.normalize_fn(rb_channel.clone())  # Clone to protect from modifications
-
+        
         # To RGB (in normalized space)
         # TODO (operel): incorporate color maps
         channel_dim = normalized_channel.shape[-1]
@@ -460,10 +483,18 @@ class RendererCore:
     @camera.setter
     def camera(self, camera: Camera) -> None:
         self.state.renderer.selected_camera = camera
-
+    
     @property
     def target_fps(self) -> float:
         return self.state.renderer.target_fps
+
+    @property
+    def target_interactive_fps(self) -> float:
+        return self.state.renderer.target_interactive_fps
+    
+    @property
+    def target_static_fps(self) -> float:
+        return self.state.renderer.target_static_fps
 
     @property
     def interactive_mode(self) -> bool:

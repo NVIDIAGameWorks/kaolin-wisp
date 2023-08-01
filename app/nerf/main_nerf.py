@@ -65,7 +65,7 @@ cfg = parse_config(NeRFAppConfig, yaml_arg='--config')  # Obtain args by priorit
 device = torch.device(cfg.device)
 default_log_setup(cfg.log_level)
 if cfg.interactive:
-    cfg.tracer.bg_color = 'black'
+    cfg.tracer.bg_color = (0.0, 0.0, 0.0)
     cfg.trainer.render_every = -1
     cfg.trainer.save_every = -1
     cfg.trainer.valid_every = -1
@@ -81,7 +81,7 @@ dataset_transform = instantiate(cfg.dataset_transform)  # SampleRays creates bat
 train_dataset = instantiate(cfg.dataset, transform=dataset_transform)  # A Multiview dataset
 validation_dataset = None
 if cfg.trainer.valid_every > -1 or cfg.trainer.mode == 'validate':
-    validation_dataset = train_dataset.create_split(split='val', transform=None)
+    validation_dataset = train_dataset.create_split(split=cfg.trainer.valid_split, transform=None)
 
 if cfg.pretrained and cfg.trainer.model_format == "full":
     pipeline = torch.load(cfg.pretrained)   # Load a full pretrained pipeline: model + weights

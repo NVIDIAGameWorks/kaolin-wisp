@@ -10,14 +10,14 @@ import time
 import logging as log
 import torch
 import wisp
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 from abc import ABC, abstractmethod
 from torch.utils.data import DataLoader
 from wisp.trainers.tracker import Tracker
 from wisp.framework import WispState
 from wisp.datasets import WispDataset, default_collate
 from wisp.config import configure, autoconfig, instantiate, write_config_to_yaml
-from wisp.config.presets import ConfigAdam, ConfigRMSprop, ConfigDataloader
+from wisp.config.presets import ConfigAdam, ConfigRMSprop, ConfigFusedAdam, ConfigDataloader
 from wisp.renderer.core.api import add_to_scene_graph
 
 
@@ -25,7 +25,7 @@ from wisp.renderer.core.api import add_to_scene_graph
 class ConfigBaseTrainer:
     """ Configuration common to base trainer and its derivatives """
 
-    optimizer: Union[ConfigAdam, ConfigRMSprop]
+    optimizer: Union[ConfigAdam, ConfigRMSprop, ConfigFusedAdam]
     """ Optimizer to be used, includes optimizer modules available within `torch.optim` 
         and fused optimizers from `apex`.
     """
@@ -59,6 +59,9 @@ class ConfigBaseTrainer:
 
     valid_every: int = -1
     """ Runs validation every N epochs """
+    
+    valid_split : str = 'test'
+    """ Split to use for validation """
 
     enable_amp: bool = True
     """ If enabled, the step() training function will use mixed precision. """
@@ -70,6 +73,18 @@ class ConfigBaseTrainer:
     """ Learning rate weighting applied only for the grid parameters
         (e.g. parameters which contain "grid" in their name)
     """
+    
+    scheduler : bool = False
+    """ If enabled, will use learning rate scheduling. """
+
+    scheduler_milestones : Tuple[float, ...] = (0.5, 0.6, 0.8)
+    """ The milestones during training (as a ratio of total iterations) to adjust learning rate. """
+
+    scheduler_gamma : float = 0.333 
+    """ The amount to adjust learning rate at the milestones. """
+    
+    valid_metrics : Tuple[str, ...] = ('psnr', ) # lpips, ssim are also supported
+    """ The validation metrics to use. Will tend to vary based on application. """
 
 
 class BaseTrainer(ABC):
@@ -151,7 +166,7 @@ class BaseTrainer(ABC):
         self.enable_amp = cfg.enable_amp
         self.max_epochs = cfg.max_epochs
         self.epoch = 1
-        self.iteration = 1
+        self.iteration = 0
 
         # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
         self.populate_scenegraph()
@@ -211,13 +226,21 @@ class BaseTrainer(ABC):
         lr = self.cfg.optimizer.lr
         eps = self.cfg.optimizer.eps
         weight_decay = self.cfg.optimizer.weight_decay
-
+        
         params.append({"params": decoder_params, "lr": lr, "eps": eps, "weight_decay": weight_decay})
         params.append({"params": grid_params, "eps": eps, "lr": lr * self.cfg.grid_lr_weight})
         params.append({"params": rest_params, "eps": eps, "lr": lr})
 
+        max_steps = len(self.train_dataset) * self.cfg.max_epochs
+        milestone_iters = [max_steps * x for x in self.cfg.scheduler_milestones]
         self.optimizer = instantiate(self.cfg.optimizer, params=params)
         self.scaler = torch.cuda.amp.GradScaler()
+        if self.cfg.scheduler:
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                self.optimizer,
+                milestones=milestone_iters,
+                gamma=self.cfg.scheduler_gamma,
+            )
 
     #######################
     # Data load
@@ -253,7 +276,7 @@ class BaseTrainer(ABC):
     #######################
 
     def is_first_iteration(self):
-        return self.total_iterations == 1
+        return self.total_iterations == 0
 
     def is_any_iterations_remaining(self):
         return self.total_iterations < self.max_iterations
@@ -282,7 +305,7 @@ class BaseTrainer(ABC):
             self.validate()
 
         if self.epoch < self.max_epochs:
-            self.iteration = 1
+            self.iteration = 0
             self.epoch += 1
         else:
             self.is_optimization_running = False
@@ -291,6 +314,7 @@ class BaseTrainer(ABC):
         """Advances the training by one training step (batch).
         """
         if self.is_optimization_running:
+            # import pdb; pdb.set_trace()
             if self.is_first_iteration():
                 self.pre_training()
             iter_start_time = time.time()

@@ -20,7 +20,7 @@ class CameraDatalayers(Datalayers):
 
     def regenerate_data_layers(self, cameras: Dict[str, Camera],
                                bg_color: torch.Tensor = None) -> Dict[str, PrimitivesPack]:
-        if bg_color == white:
+        if bg_color == (1.0, 1.0, 1.0):
             color = torch.tensor((*black, 1.0))
         else:
             color = torch.tensor((*white, 1.0))

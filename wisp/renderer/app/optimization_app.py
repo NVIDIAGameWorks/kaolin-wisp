@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 from typing import Callable, Dict, List
+from glumpy import app
 from wisp.renderer.gui import WidgetImgui
 from wisp.renderer.gui import WidgetInteractiveVisualizerProperties, WidgetGPUStats, WidgetSceneGraph, WidgetOptimization
 from wisp.renderer.gizmos.gizmo import Gizmo
@@ -100,6 +101,13 @@ class OptimizationApp(WispApp):
         # Force render if target FPS is 0 (renderer only responds to specific events) or too much time have elapsed
         if self.is_time_to_render() or self.wisp_state.renderer.target_fps == 0:
             self.render()
+    
+    def on_key_press(self, symbol, modifiers):
+        super().on_key_press(symbol, modifiers)
+        symbol = self._update_imgui_keys(symbol)
+        if symbol == app.window.key.SPACE:
+            self.wisp_state.optimization.running = not self.wisp_state.optimization.running
+            self.wisp_state.renderer.background_tasks_paused = not self.wisp_state.renderer.background_tasks_paused
 
     def on_optimization_running_changed(self, value: bool):
         # When training starts / resumes, invoke a redraw() to refresh the renderer core with newly

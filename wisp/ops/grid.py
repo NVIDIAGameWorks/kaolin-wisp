@@ -11,15 +11,6 @@ from kaolin import _C
 import wisp._C as wisp_C
 import kaolin.ops.spc as spc_ops
 
-# Alternative set of primes
-#PRIMES = [2654436881, 5915587277, 1500450271, 3267000013, 5754853343,
-#          4093082899, 9576890767, 3628273133, 2860486313, 5463458053,
-#          3367900313, 5654500741, 5654500763, 5654500771, 5654500783,
-#          5654500801, 5654500811, 5654500861, 5654500879, 5654500889,
-#          5654500897, 5654500927, 5654500961, 5654500981, 5654500993,
-#          9999999967, 7654487179, 7654489553, 7654495087, 7654486423,
-#          7654488209, 8654487029, 8654489771, 8654494517, 8654495341]
-
 PRIMES = [1, 2654435761, 805459861]
 
 def hashgrid_naive(coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_lod_sizes, codebook_lod_first_idx):
@@ -87,14 +78,18 @@ class HashGridInterpolate(torch.autograd.Function):
     # TODO(ttakikawa): This class should also support the 2D case... which also means I have to write another kernel!
 
     @staticmethod
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
-    def forward(ctx, coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_sizes, codebook_first_idx):
+    @torch.cuda.amp.custom_fwd
+    def forward(ctx, coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_first_idx):
         if codebook[0].shape[-1] % 2 == 1:
             raise Exception("The codebook feature dimension needs to be a multiple of 2.")
 
+        assert(coords.shape[-1] in [2, 3])
+
+        if torch.is_autocast_enabled():
+            codebook = codebook.half()
 
         # TODO(ttakikawa): Make the kernel use the LOD
-        feats_out = wisp_C.ops.hashgrid_interpolate_cuda(coords.float().contiguous(), 
+        feats_out = wisp_C.ops.hashgrid_interpolate_cuda(coords.contiguous(), 
                                                          codebook,
                                                          codebook_first_idx,
                                                          resolutions,
@@ -111,24 +106,126 @@ class HashGridInterpolate(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
-
         coords = ctx.saved_tensors[0]
         codebook = ctx.saved_tensors[1]
         codebook_first_idx = ctx.saved_tensors[2]
         resolutions = ctx.resolutions
         feature_dim = ctx.feature_dim
         codebook_bitwidth = ctx.codebook_bitwidth
+        coords_requires_grad = ctx.needs_input_grad[0]
 
-        grad_codebook = wisp_C.ops.hashgrid_interpolate_backward_cuda(
+        grad_coords, grad_codebook = wisp_C.ops.hashgrid_interpolate_backward_cuda(
                 coords.float().contiguous(), grad_output.contiguous(), codebook,
                 codebook_first_idx,
                 resolutions,  
-                codebook_bitwidth, feature_dim, ctx.needs_input_grad[0])
-        return (None, None, None, None, grad_codebook, None, None)
+                codebook_bitwidth, feature_dim, coords_requires_grad)
+        
+        if coords_requires_grad:
+            return (grad_coords, None, None, None, grad_codebook, None, None)
+        else:
+            return (None, None, None, None, grad_codebook, None, None) 
 
-def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook_sizes, codebook_first_idx):
+def hashgrid(coords, codebook_bitwidth, lod_idx, codebook):
     """A hash-grid query + interpolation function, accelerated with CUDA.
 
+    Args:
+        coords (torch.FloatTensor): 3D coordinates of shape [batch, 3]
+        codebook_bitwidth (int): The bitwidth of the codebook. The codebook will have 2^bw entries.
+        lod_idx (int): The LOD to aggregate to.
+        codebook (wisp.models.grids.utils.MultiTable): A class that holds multiresolution tables.
+
+    Returns:
+        (torch.FloatTensor): Features of shape [batch, feature_dim]
+    """
+    batch, dim = coords.shape
+    feats = HashGridInterpolate.apply(coords.contiguous(), codebook.resolutions,
+                                      codebook_bitwidth, lod_idx, codebook.feats, codebook.begin_idxes)
+    feature_dim = codebook.feats.shape[1] * len(codebook.resolutions)
+    return feats.reshape(batch, feature_dim)
+
+class GridInterpolate(torch.autograd.Function):
+
+    @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float)
+    def forward(ctx, coords, feats):
+        feats_out = wisp_C.ops.grid_interpolate_cuda(coords.float().contiguous(), 
+                                                     feats.contiguous()).contiguous()
+        ctx.save_for_backward(coords)
+        ctx.feature_dim = feats.shape[-1]
+        return feats_out
+    
+    @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float)
+    def backward(ctx, grad_output):
+        coords = ctx.saved_tensors[0]
+        feature_dim = ctx.feature_dim
+        
+        grad_feats = wisp_C.ops.grid_interpolate_backward_cuda(
+                coords.float().contiguous(), grad_output.contiguous(), feature_dim)
+        return (None, grad_feats)
+        
+def grid_interpolate(coords, feats):
+    return GridInterpolate.apply(coords.contiguous(), feats.contiguous())
+
+class HashGridQuery(torch.autograd.Function):
+    @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
+    def forward(ctx, coords, resolutions, codebook_bitwidth, probe_bitwidth, lod_idx, *codebook):
+        if codebook[0].shape[-1] % 2 == 1:
+            raise Exception("The codebook feature dimension needs to be a multiple of 2.")
+        
+        # TODO(ttakikawa): Make the kernel use the LOD
+        feats_out = wisp_C.ops.hashgrid_query_cuda(coords.float().contiguous(), 
+                                                     codebook,
+                                                     resolutions,
+                                                     codebook_bitwidth,
+                                                     probe_bitwidth).contiguous()
+    
+        ctx.save_for_backward(coords)
+        ctx.resolutions = resolutions
+        ctx.num_lods = len(resolutions)
+        ctx.codebook_shapes = [_c.shape for _c in codebook]
+        ctx.codebook_size = 2**codebook_bitwidth
+        ctx.codebook_bitwidth = codebook_bitwidth
+        ctx.feature_dim = codebook[0].shape[-1]
+        ctx.probe_bitwidth = probe_bitwidth
+        return feats_out
+    
+    @staticmethod
+    @torch.cuda.amp.custom_bwd
+    def backward(ctx, grad_output):
+        coords = ctx.saved_tensors[0]
+        resolutions = ctx.resolutions
+        codebook_size = ctx.codebook_size
+        feature_dim = ctx.feature_dim
+        codebook_shapes = ctx.codebook_shapes
+        codebook_bitwidth = ctx.codebook_bitwidth
+        probe_bitwidth = ctx.probe_bitwidth
+
+        grad_codebook = wisp_C.ops.hashgrid_query_backward_cuda(
+                coords.float().contiguous(), grad_output.contiguous(), 
+                resolutions, [c_[0] for c_ in codebook_shapes], 
+                codebook_bitwidth, feature_dim, probe_bitwidth)
+        return (None, None, None, None, None, *grad_codebook)
+
+def hashgrid_query_fwd(coords, resolutions, codebook_bitwidth, lod_idx, codebook, probe_bitwidth=0):
+    """Non-differentiable version of hashgrid query. 
+
+    No assumptions on the typing of the codebook.
+    """
+    batch, dim = coords.shape
+    assert(coords.shape[-1] in [2, 3])
+    feats_out = wisp_C.ops.hashgrid_query_cuda(coords.float().contiguous(), 
+                                               codebook,
+                                               resolutions,
+                                               codebook_bitwidth,
+                                               probe_bitwidth).contiguous()
+    feature_dim = codebook[0].shape[1] * len(resolutions)
+    return feats_out.reshape(batch, 8, feature_dim*(2**probe_bitwidth))
+
+def hashgrid_query(coords, resolutions, codebook_bitwidth, lod_idx, codebook, probe_bitwidth=0):
+    """A hash-grid query, accelerated with CUDA.
+    
     Args:
         coords (torch.FloatTensor): 3D coordinates of shape [batch, 3]
         resolutions (torch.LongTensor): the resolution of the grid per level of shape [num_lods]
@@ -137,11 +234,12 @@ def hashgrid(coords, resolutions, codebook_bitwidth, lod_idx, codebook, codebook
         codebook (torch.ModuleList[torch.FloatTensor]): A list of codebooks of shapes [codebook_size, feature_dim].
 
     Returns:
-        (torch.FloatTensor): Features of shape [batch, feature_dim]
+        (torch.FloatTensor): Features of shape [batch, 8, feature_dim]
     """
     batch, dim = coords.shape
-    feats = HashGridInterpolate.apply(coords.contiguous(), resolutions,
-                                      codebook_bitwidth, lod_idx, codebook,
-                                      codebook_sizes, codebook_first_idx)
-    feature_dim = codebook.shape[1] * len(resolutions)
-    return feats.reshape(batch, feature_dim)
+    assert(coords.shape[-1] in [2, 3])
+    feats = HashGridQuery.apply(coords.contiguous(), resolutions,
+                                codebook_bitwidth, probe_bitwidth, lod_idx, *[_c for _c in codebook])
+    feature_dim = codebook[0].shape[1] * len(resolutions)
+    return feats.reshape(batch, 8, feature_dim*(2**probe_bitwidth))
+

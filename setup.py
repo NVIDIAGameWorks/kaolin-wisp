@@ -69,7 +69,7 @@ if not torch.cuda.is_available():
         )
 
 def get_extensions():
-    extra_compile_args = {'cxx': ['-O3']} 
+    extra_compile_args = {'cxx': ['-O3', '-fdiagnostics-color=always']} 
     define_macros = []
     include_dirs = []
     extensions = []

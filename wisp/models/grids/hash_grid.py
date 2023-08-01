@@ -7,15 +7,15 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
-from typing import Dict, Set, Any, Type, List
+from typing import Dict, Set, Any, Type, List, Tuple
 import torch
 import torch.nn as nn
 import numpy as np
 import kaolin.ops.spc as spc_ops
 import wisp.ops.grid as grid_ops
-from wisp.accelstructs import OctreeAS, BaseAS, ASRaymarchResults
+from wisp.accelstructs import BaseAS
 from wisp.models.grids import BLASGrid
-
+from wisp.models.grids.utils import MultiTable
 
 class HashGrid(BLASGrid):
     """A feature grid where hashed feature pointers are stored as multi-LOD grid nodes,
@@ -32,7 +32,8 @@ class HashGrid(BLASGrid):
         multiscale_type    : str = 'sum',  # options: 'cat', 'sum'
         feature_std        : float = 0.0,
         feature_bias       : float = 0.0,
-        codebook_bitwidth  : int   = 8
+        codebook_bitwidth  : int   = 8,
+        coord_dim          : int   = 3  # options: 2, 3
     ):
         """Builds a HashGrid instance, including the feature structure and an underlying BLAS for fast queries.
         The hash grid is constructed from a list of resolution sizes (each entry contains a RES for the RES x RES x RES
@@ -54,9 +55,11 @@ class HashGrid(BLASGrid):
                 standard deviation.
             feature_bias (float): The features are initialized with a Gaussian distribution with the given mean.
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
+            coord_dim (int): The dimension of the input coordinates. Should be 2 or 3.
         """
         # Occupancy Structure
         super().__init__(blas)
+        assert(coord_dim in (2, 3))
         self.dense_points = spc_ops.unbatched_get_level_points(self.blas.points,
                                                                self.blas.pyramid,
                                                                self.blas.max_level).clone()
@@ -77,23 +80,9 @@ class HashGrid(BLASGrid):
         self.max_lod = self.num_lods - 1
 
         self.codebook_size = 2 ** self.codebook_bitwidth
-        self.register_buffer("codebook_lod_sizes", torch.zeros(self.num_lods, dtype=torch.int32))
-        self.register_buffer("codebook_lod_first_idx", torch.zeros(self.num_lods, dtype=torch.int32))
-        
 
-        self.codebook = []
-
-        offset = 0
-        for lod, res in enumerate(resolutions):
-            num_pts = res ** 3
-            fts = torch.zeros(min(self.codebook_size, num_pts), self.feature_dim)
-            fts += torch.randn_like(fts) * self.feature_std
-            self.codebook.append(fts)
-            self.codebook_lod_sizes[lod] = fts.shape[0]
-            self.codebook_lod_first_idx[lod] = offset
-
-            offset += fts.shape[0]
-        self.codebook = nn.Parameter(torch.cat(self.codebook, dim=0))
+        self.coord_dim = coord_dim
+        self.codebook = MultiTable(resolutions, self.coord_dim, self.feature_dim, self.feature_std, self.codebook_size)
 
     @classmethod
     def from_octree(cls,
@@ -227,10 +216,12 @@ class HashGrid(BLASGrid):
             batch, num_samples, coords_dim = coords.shape  # batch x num_samples
             coords = coords.reshape(batch * num_samples, coords_dim)
 
-        feats = grid_ops.hashgrid(coords, self.resolutions, self.codebook_bitwidth, lod_idx, self.codebook, self.codebook_lod_sizes, self.codebook_lod_first_idx)
+        feats = grid_ops.hashgrid(coords, self.codebook_bitwidth, lod_idx, self.codebook)
 
         if self.multiscale_type == 'cat':
-            return feats.reshape(*output_shape, feats.shape[-1])
+            feats = feats.reshape(*output_shape, feats.shape[-1])
+            feats[..., lod_idx * self.feature_dim:] = 0
+            return feats
         elif self.multiscale_type == 'sum':
             return feats.reshape(*output_shape, len(self.resolutions), feats.shape[-1] // len(self.resolutions)).sum(-2)
         else:

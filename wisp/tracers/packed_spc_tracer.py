@@ -16,7 +16,7 @@ class PackedSPCTracer(BaseTracer):
 
     def __init__(self):
         """Set the default trace() arguments. """
-        super().__init__(bg_color='black')
+        super().__init__(bg_color=(0.0, 0.0, 0.0))
 
     def get_supported_channels(self):
         """Returns the set of channel names this tracer may output.
