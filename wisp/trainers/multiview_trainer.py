@@ -254,17 +254,10 @@ class MultiviewTrainer(BaseTrainer):
 
         self.pipeline.eval()
         
-        record_dict = self.tracker.get_app_config(as_dict=True)
+        record_dict = self.tracker.get_record_dict()
         if record_dict is None:
             log.info("app_config not supplied to Tracker, config won't be logged in the pandas log")
             record_dict = {}
-        else:
-            record_dict = pd.json_normalize(record_dict, sep='.').to_dict(orient='records')[0]
-
-        # record_dict contains config args, but omits torch.Tensor fields which were not explicitly converted to
-        # numpy or some other format. This is required as parquet doesn't support torch.Tensors
-        # (and also for output size considerations)
-        record_dict = {k: v for k, v in record_dict.items() if not isinstance(v, torch.Tensor)}
 
         try:
             repo = git.Repo(search_parent_directories=True)

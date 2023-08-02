@@ -7,6 +7,7 @@
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
 from __future__ import annotations
+import torch
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Dict, Tuple
 import os
@@ -16,6 +17,7 @@ import logging as log
 from tqdm import tqdm
 from PIL import Image
 import dataclasses
+import pandas as pd
 from wisp.config import configure, autoconfig, instantiate
 from wisp.trainers.tracker.offline_renderer import OfflineRenderer
 from wisp.trainers.tracker.metrics import MetricsBoard
@@ -133,8 +135,10 @@ class Tracker:
 
     def get_app_config(self, as_dict: bool = False):
         """ Returns the app logic cached in this Tracker.
-        If as_dict is True, the returned value is converted to a dict (e.g. a config dataclass will be converted to a
-        dict).
+
+        Args:
+            as_dict (bool): If True, the returned value is converted to a dict 
+                            (e.g. a config dataclass will be converted to a dict).
         """
         if self.app_config is None:
             return None
@@ -142,6 +146,31 @@ class Tracker:
             return dataclasses.asdict(self.app_config)
         else:
             return self.app_config
+
+    def get_record_dict(self):
+        """ Returns the app logic cached in this Tracker for purposes of logging.
+
+        This is close to get_app_config, but will also flatten the dictionary with hierarchical keys,
+        and also will filter out any Tensor fields. This is convenient for purposes of logging config
+        arguments as a Pandas dataframe or equivalent.
+        """
+        app_config = self.get_app_config(as_dict=True)
+        if app_config is None:
+            return None
+        else:
+            flattened_dict = pd.json_normalize(app_config, sep='.').to_dict(orient='records')[0]
+            
+            # record_dict contains config args, but omits torch.Tensor fields which were not explicitly converted to
+            # numpy or some other format. This is required as parquet doesn't support torch.Tensors
+            # (and also for output size considerations)
+            def record_dict_filter(k, v):
+                is_not_tensor = not isinstance(v, torch.Tensor)
+                is_not_underscore = all([not _k.startswith("_") for _k in k.split(".")])
+                return is_not_tensor and is_not_underscore
+    
+            record_dict = {k: v for k, v in flattened_dict.items() if record_dict_filter(k, v)}
+            return record_dict
+
 
     @staticmethod
     def _setup_dashboards(cfg: ConfigTracker, exp_name: str, log_fname: str):
