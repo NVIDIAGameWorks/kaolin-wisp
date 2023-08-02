@@ -106,6 +106,7 @@ else:  # Create model from scratch
 exp_name: str = cfg.trainer.exp_name
 scene_state: WispState = WispState()
 tracker = Tracker(cfg=cfg.tracker, exp_name=exp_name)
+tracker.save_app_config(cfg)
 trainer = MultiviewTrainer(cfg=cfg.trainer,
                            pipeline=pipeline,
                            train_dataset=train_dataset,
