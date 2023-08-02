@@ -21,4 +21,9 @@ std::vector<at::Tensor> mesh_to_sdf_cuda(
     at::Tensor points,
     at::Tensor mesh);
 
+std::vector<at::Tensor> mesh_to_sdf_triangle_cuda(
+    at::Tensor points,
+    at::Tensor mesh);
+
+
 }

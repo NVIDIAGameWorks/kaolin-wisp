@@ -15,6 +15,10 @@ std::vector<at::Tensor> mesh2sdf_gpu_fast_nopre(
     at::Tensor& points,
     at::Tensor& mesh);
 
+std::vector<at::Tensor> mesh2sdf_triangle_gpu_fast_nopre(
+    at::Tensor& points,
+    at::Tensor& mesh);
+
 namespace wisp {
 
 std::vector<at::Tensor> mesh_to_sdf_cuda(
@@ -22,6 +26,16 @@ std::vector<at::Tensor> mesh_to_sdf_cuda(
     at::Tensor mesh) {
 #ifdef WITH_CUDA
   return mesh2sdf_gpu_fast_nopre(points, mesh);
+#else
+  AT_ERROR(__func__);
+#endif  // WITH_CUDA
+}
+
+std::vector<at::Tensor> mesh_to_sdf_triangle_cuda(
+    at::Tensor points,
+    at::Tensor mesh) {
+#ifdef WITH_CUDA
+  return mesh2sdf_triangle_gpu_fast_nopre(points, mesh);
 #else
   AT_ERROR(__func__);
 #endif  // WITH_CUDA
