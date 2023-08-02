@@ -138,7 +138,7 @@ class BaseTrainer(ABC):
 
         # Training params
         self.epoch = 1
-        self.iteration = 0
+        self.iteration = 1
         self.max_epochs = num_epochs
         self.batch_size = batch_size
         self.exp_name = exp_name if exp_name else "unnamed_experiment"
@@ -334,15 +334,14 @@ class BaseTrainer(ABC):
                 if self.is_any_iterations_remaining():
                     self.begin_epoch()
                     data = self.next_batch()
+                else:
+                    self.post_training()
             if self.is_any_iterations_remaining():
                 self.pre_step()
                 with torch.cuda.amp.autocast(self.enable_amp):
                     self.step(data)
                 self.post_step()
-                iter_end_time = time.time()
-            else:
-                iter_end_time = time.time()
-                self.post_training()
+            iter_end_time = time.time()
             self.scene_state.optimization.elapsed_time += iter_end_time - iter_start_time
 
     def save_model(self):
