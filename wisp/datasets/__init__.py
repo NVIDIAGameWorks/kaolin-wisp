@@ -10,3 +10,4 @@ from .base_datasets import *
 from .utils import *
 from .formats import *
 from .transforms import *
+from .image_dataset import *

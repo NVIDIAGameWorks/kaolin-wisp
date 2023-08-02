@@ -9,3 +9,4 @@
 from .base_trainer import *
 from .multiview_trainer import *
 from .sdf_trainer import *
+from .image_trainer import *

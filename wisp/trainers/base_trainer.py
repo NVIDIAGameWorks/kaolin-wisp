@@ -86,7 +86,6 @@ class ConfigBaseTrainer:
     valid_metrics : Tuple[str, ...] = ('psnr', ) # lpips, ssim are also supported
     """ The validation metrics to use. Will tend to vary based on application. """
 
-
 class BaseTrainer(ABC):
     """
     Base class for the trainer.
@@ -167,6 +166,10 @@ class BaseTrainer(ABC):
         self.max_epochs = cfg.max_epochs
         self.epoch = 1
         self.iteration = 0
+
+        # Dictionary for any return values at the end of training
+        # (useful for when integrating with external hyperparameter optimizers, etc)
+        self.return_dict = {}
 
         # Add object to scene graph: if interactive mode is on, this will make sure the visualizer can display it.
         self.populate_scenegraph()
@@ -358,12 +361,17 @@ class BaseTrainer(ABC):
     def train(self):
         """
         Override this if some very specific training procedure is needed.
+        
+        Returns:
+            (dict): The dictionary with validation metrics and other information as needed.
         """
         with torch.autograd.profiler.emit_nvtx(enabled=self.cfg.profile_nvtx):
             self.is_optimization_running = True
             while self.is_optimization_running:
                 self.iterate()
             log.info('Training completed.')
+
+        return self.return_dict
 
     #######################
     # Training Events

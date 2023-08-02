@@ -242,6 +242,10 @@ class MultiviewTrainer(BaseTrainer):
         log_text = 'EPOCH {}/{}'.format(self.epoch, self.max_epochs)
         for key in metrics_dict:
             metrics_dict[key] /= len(imgs)
+            if not key in self.return_dict:
+                self.return_dict[key] = metrics_dict[key]
+            else:
+                self.return_dict[key] = max(self.return_dict[key], metrics_dict[key])
             if key == 'psnr':
                 log_text += ' | {}: {:.2f}'.format(f"{name} {key}", metrics_dict[key])
             else:

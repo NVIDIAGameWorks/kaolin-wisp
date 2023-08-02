@@ -1,0 +1,66 @@
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# NVIDIA CORPORATION & AFFILIATES and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto.  Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
+
+device: 'cuda'   # Device used to run the optimization
+log_level: 20    # Log level: logging.INFO
+scaling_factor: 2.0
+
+grid: # Feature grid, the backbone of the neural field
+    feature_dim: 2
+    num_lods: 16
+    multiscale_type: 'cat'
+    feature_std: 1.0e-09
+    feature_bias:  0.0
+    codebook_bitwidth: 19
+    min_grid_res: 16
+
+nef:  # Neural field: combines grid, decoders and positional embedders
+  activation_type: 'relu'
+  layer_type: 'linear'
+  hidden_dim: 64
+  num_layers: 1
+
+dataset:  # Train & validation dataset
+  num_pixels_per_image: 4096
+
+trainer:
+  # Base Trainer config
+  exp_name: "image-hash"  # Name of the experiment: a unique id to use for logging, model names, etc.
+  mode: 'train'            # Choices: 'train', 'validate'
+  max_epochs: 100          # Number of epochs to run the training.
+  save_every: 100          # Saves the optimized model every N epochs
+  save_as_new: False       # If True, will save the model as a new file every time the model is saved
+  model_format: 'full'     # Format to save the model: 'full' (weights+model) or 'state_dict'
+  render_every: 100        # Renders an image of the neural field every N epochs
+  valid_every: 100         # Runs validation every N epochs
+  enable_amp: True         # If enabled, the step() training function will use mixed precision.
+  profile_nvtx: False      # If enabled, nvtx markers will be emitted by torch for profiling.
+  grid_lr_weight: 500.0    # Learning rate weighting applied only for the grid parameters (contain "grid" in their name)
+  scheduler: True
+
+  optimizer:  # torch optimizer to use, and its args
+    constructor: 'FusedAdam'
+    lr: 0.001
+    eps: 1.0e-16
+    weight_decay: 1.0e-06      # Applies to decoder params only
+
+  dataloader:
+    batch_size: 1
+
+tracker:
+  log_dir: '_results/logs/runs'   # For logs and snapshots
+  enable_tensorboard: True
+  enable_wandb: False
+  tensorboard:                    # active when enable_tensorboard=True
+    log_dir: '_results/logs/runs' # For TensorBoard summary
+    exp_name: null                # Only set this if you want to set an experiment set name specifically for TB
+    log_fname: null               # Only set this if you want to set a unique ID specifically for TB
+  wandb:                          # active when enable_wandb=True
+    project: 'wisp-image'
+    entity: null                  # i.e. your wandb username here
+    job_type: 'train'

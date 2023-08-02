@@ -60,11 +60,12 @@ class HashGrid(BLASGrid):
         # Occupancy Structure
         super().__init__(blas)
         assert(coord_dim in (2, 3))
-        self.dense_points = spc_ops.unbatched_get_level_points(self.blas.points,
-                                                               self.blas.pyramid,
-                                                               self.blas.max_level).clone()
-        self.num_cells = self.dense_points.shape[0]
-        self.occupancy = torch.zeros(self.num_cells)
+        if not self.blas is None:
+            self.dense_points = spc_ops.unbatched_get_level_points(self.blas.points,
+                                                                   self.blas.pyramid,
+                                                                   self.blas.max_level).clone()
+            self.num_cells = self.dense_points.shape[0]
+            self.occupancy = torch.zeros(self.num_cells)
 
         # Feature Structure - dims
         self.feature_dim = feature_dim

@@ -217,8 +217,7 @@ hashgrid_interpolate_2d_cuda_kernel(
     const int64_t num_coords,
     const int32_t codebook_size,
     const int64_t feature_dim,
-    const int32_t resolution_x,
-    const int32_t resolution_y,
+    const int32_t resolution,
     const int32_t lod_idx,
     const int32_t num_lods,
     const float* __restrict__ coords,
@@ -233,8 +232,8 @@ hashgrid_interpolate_2d_cuda_kernel(
     
     for (int64_t i=tidx; i<num_coords; i+=stride) { 
         
-        float2 x = make_float2(clamp(resolution_x * (coords[i*2+0] * 0.5 + 0.5), 0, resolution_x-1-1e-5), 
-                               clamp(resolution_y * (coords[i*2+1] * 0.5 + 0.5), 0, resolution_y-1-1e-5));
+        float2 x = make_float2(clamp(resolution * (coords[i*2+0] * 0.5 + 0.5), 0, resolution-1-1e-5), 
+                               clamp(resolution * (coords[i*2+1] * 0.5 + 0.5), 0, resolution-1-1e-5));
         int2 pos = make_int2(floor(x.x), floor(x.y));
         float2 x_ = make_float2(x.x - static_cast<float>(pos.x), 
                                 x.y - static_cast<float>(pos.y));
@@ -251,7 +250,7 @@ hashgrid_interpolate_2d_cuda_kernel(
             int2 corner;
             corner.x = pos.x + ((j & 2) >> 1);
             corner.y = pos.y + ((j & 1) >> 0);
-            corner_idx[j] = hash_index_2d(corner, resolution_x, resolution_y, codebook_size);
+            corner_idx[j] = hash_index_2d(corner, resolution, resolution, codebook_size);
         }
         
         for (uint32_t j=0; j<feature_dim; ++j) {
@@ -272,8 +271,7 @@ hashgrid_interpolate_2d_backward_cuda_kernel(
     const int64_t num_coords,
     const int32_t codebook_size,
     const int64_t feature_dim,
-    const int32_t resolution_x,
-    const int32_t resolution_y,
+    const int32_t resolution,
     const int32_t lod_idx,
     const int32_t num_lods,
     const bool require_grad_coords,
@@ -292,8 +290,8 @@ hashgrid_interpolate_2d_backward_cuda_kernel(
     
     for (int64_t i=tidx; i<num_coords; i+=stride) { 
         
-        float2 x = make_float2(clamp(resolution_x * (coords[i*2+0] * 0.5 + 0.5), 0, resolution_x-1-1e-5), 
-                               clamp(resolution_y * (coords[i*2+1] * 0.5 + 0.5), 0, resolution_y-1-1e-5));
+        float2 x = make_float2(clamp(resolution * (coords[i*2+0] * 0.5 + 0.5), 0, resolution-1-1e-5), 
+                               clamp(resolution * (coords[i*2+1] * 0.5 + 0.5), 0, resolution-1-1e-5));
         int2 pos = make_int2(floor(x.x), floor(x.y));
         float2 x_ = make_float2(x.x - static_cast<float>(pos.x), 
                                 x.y - static_cast<float>(pos.y));
@@ -311,7 +309,7 @@ hashgrid_interpolate_2d_backward_cuda_kernel(
             int2 corner;
             corner.x = pos.x + ((j & 2) >> 1);
             corner.y = pos.y + ((j & 1) >> 0);
-            corner_idx[j] = hash_index_2d(corner, resolution_x, resolution_y, codebook_size);
+            corner_idx[j] = hash_index_2d(corner, resolution, resolution, codebook_size);
         }
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
         if (std::is_same<scalar_t, at::Half>::value) {
@@ -382,7 +380,6 @@ void hashgrid_interpolate_cuda_impl(
                 codebook_size,
                 feature_dim,
                 resolution[0].item<int>(),
-                resolution[1].item<int>(),
                 lod_idx,
                 num_lods,
                 coords.data_ptr<float>(),
@@ -441,7 +438,6 @@ void hashgrid_interpolate_backward_cuda_impl(
                 codebook_size,
                 feature_dim,
                 resolution[0].item<int>(),
-                resolution[1].item<int>(),
                 lod_idx,
                 num_lods,
                 require_grad_coords,

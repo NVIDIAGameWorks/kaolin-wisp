@@ -72,7 +72,7 @@ trainer:
   render_every: 100        # Renders an image of the neural field every N epochs
   valid_every: 100         # Runs validation every N epochs
   enable_amp: True         # If enabled, the step() training function will use mixed precision.
-  profile_nvtx: True       # If enabled, nvtx markers will be emitted by torch for profiling.
+  profile_nvtx: False      # If enabled, nvtx markers will be emitted by torch for profiling.
   grid_lr_weight: 500.0    # Learning rate weighting applied only for the grid parameters (contain "grid" in their name)
   scheduler: True
 
