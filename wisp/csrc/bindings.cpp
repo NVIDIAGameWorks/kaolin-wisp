@@ -22,6 +22,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     render.def("find_depth_bound_cuda", &find_depth_bound_cuda);
     py::module external = m.def_submodule("external");
     external.def("mesh_to_sdf_cuda", &mesh_to_sdf_cuda);
+    external.def("mesh_to_sdf_triangle_cuda", &mesh_to_sdf_triangle_cuda);
     py::module ops = m.def_submodule("ops");
     ops.def("hashgrid_interpolate_cuda", &hashgrid_interpolate_cuda);
     ops.def("hashgrid_interpolate_backward_cuda", &hashgrid_interpolate_backward_cuda);
