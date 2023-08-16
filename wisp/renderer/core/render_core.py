@@ -398,12 +398,10 @@ class RendererCore:
             return True
 
         # Resolution check: if not full resolution - canvas is dirty
-        #if self._last_state['res_x'] != self.camera.width or self._last_state['res_y'] != self.camera.height:
-        #    return True
+        if self._last_state['res_x'] != self.camera.width or self._last_state['res_y'] != self.camera.height:
+            return True
 
         for att_name, prev_val in self._last_state.items():
-            if att_name in ['res_x', 'res_y']:
-                continue
             if not hasattr(self, att_name):
                 continue
             curr_val = self.__getattribute__(att_name)
