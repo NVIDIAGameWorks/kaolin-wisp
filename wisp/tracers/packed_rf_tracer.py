@@ -123,7 +123,7 @@ class PackedRFTracer(BaseTracer):
         deltas = raymarch_results.deltas
         depths = raymarch_results.depth_samples
         self.prev_num_samples = samples.shape[0]
-     
+
         pack_info = raymarch_results.pack_info
         boundary = raymarch_results.boundary
         
@@ -140,7 +140,7 @@ class PackedRFTracer(BaseTracer):
         else: 
             depth = None
         
-        rgb = torch.zeros(N, 3, device=rays.origins.device) + self.bg_color
+        rgb = torch.zeros(N, 3, device=rays.origins.device) + self.bg_color 
         
         hit = torch.zeros(N, device=rays.origins.device, dtype=torch.bool)
         out_alpha = torch.zeros(N, 1, device=rays.origins.device)
@@ -154,7 +154,7 @@ class PackedRFTracer(BaseTracer):
         ray_colors, transmittance = spc_render.exponential_integration(color, tau, boundary, exclusive=True)
 
         if "depth" in channels:
-            ray_depth = spc_render.sum_reduce(depths.reshape(num_samples, 1) * transmittance, boundary)
+            ray_depth = spc_render.sum_reduce(depths.reshape(num_samples, 1) * transmittance, boundary)           
             depth[ridx_hit, :] = ray_depth
 
         alpha = spc_render.sum_reduce(transmittance, boundary)

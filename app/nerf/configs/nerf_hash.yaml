@@ -15,15 +15,15 @@ blas: # Occupancy structure (blas: bottom level acceleration structure, for fast
   level: 7
 
 grid: # Feature grid, the backbone of the neural field
-    constructor: 'HashGrid.from_geometric'
-    feature_dim: 2
-    num_lods: 16
-    multiscale_type: 'cat'
-    feature_std: 1.0e-09
-    feature_bias:  0.0
-    codebook_bitwidth: 19
-    min_grid_res: 16
-    max_grid_res: 512
+  constructor: 'HashGrid.from_geometric'
+  feature_dim: 2
+  num_lods: 16
+  multiscale_type: 'cat'
+  feature_std: 1.0e-09
+  feature_bias:  0.0
+  codebook_bitwidth: 19
+  min_grid_res: 16
+  max_grid_res: 1024
 
 nef:  # Neural field: combines grid, decoders and positional embedders
   constructor: 'NeuralRadianceField'
@@ -39,13 +39,13 @@ nef:  # Neural field: combines grid, decoders and positional embedders
   bias: True
   prune_density_decay: 0.95             # prune parameter for occupancy blas according to feature struct
   prune_min_density: 2.956033378250884  # prune parameter for occupancy blas according to feature struct
-                                        # 2.956 = (0.01 * 512) / np.sqrt(3)
+                                        # 2.956 = (0.01 * 1024) / (2 * np.sqrt(3))
 
 tracer: # A tracer for intersecting rays with the blas, generating samples along rays for the neural field & integrating
   constructor: 'PackedRFTracer'
   bg_color: [ 0.0, 0.0, 0.0 ]
-  num_steps: 1024
-  raymarch_type: 'ray'
+  num_steps: 1024 # The step size when raymarch_type='uniform' will be 2*sqrt(3) /num_steps
+  raymarch_type: 'uniform'
   step_size: 1.0
 
 dataset:  # Train & validation dataset
