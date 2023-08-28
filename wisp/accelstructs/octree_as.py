@@ -8,13 +8,15 @@
 
 from __future__ import annotations
 from typing import List, Tuple
+import numpy as np
 import torch
 import kaolin.ops.spc as spc_ops
 import kaolin.render.spc as spc_render
 import wisp.ops.mesh as mesh_ops
 import wisp.ops.spc as wisp_spc_ops
 from wisp.accelstructs.base_as import BaseAS, ASQueryResults, ASRaytraceResults, ASRaymarchResults
-
+from kaolin import _C
+import wisp._C as wisp_C
 
 @torch.jit.script
 def fast_filter_method(mask_idx: torch.Tensor, depth: torch.Tensor, deltas: torch.Tensor, samples: torch.Tensor,
@@ -306,6 +308,75 @@ class OctreeAS(BaseAS):
             pack_info=None
         )
 
+    def _raymarch_uniform(self, rays, num_samples, level=None) -> ASRaymarchResults:
+        """Samples points along the ray inside the SPC structure.
+        Raymarch is achieved by intersecting the rays with the SPC cells.
+
+        Args:
+            rays (wisp.core.Rays): Ray origins and directions of shape [batch, 3].
+            num_samples (int) : Will step at uniform distances where the distance is 2*sqrt(3) / num_samples
+            level (int) : The level of the octree to raytrace. If None, traces the highest level.
+
+        Returns:
+            (ASRaymarchResults) with fields containing:
+                - Indices into rays.origins and rays.dirs of shape [num_hit_samples]
+                - Sample coordinates of shape [num_hit_samples, 3]
+                - Sample depths of shape [num_hit_samples, 1]
+                - Sample depth diffs of shape [num_hit_samples, 1]
+                - Boundary tensor which marks the beginning of each variable-sized
+                  sample pack of shape [num_hit_samples]
+        """
+
+        # NUM_INTERSECTIONS = number of nuggets: ray / cell intersections
+        # NUM_INTERSECTIONS can be 0!
+        # ridx, pidx ~ (NUM_INTERSECTIONS,)
+        # depth ~ (NUM_INTERSECTIONS, 2)
+        raytrace_results = self.raytrace(rays, level, with_exit=True)
+        
+        step_size = 2 * np.sqrt(3) / num_samples
+        scale = int(np.ceil(1.0 / step_size))
+        step_size = 1.0 / float(scale)
+
+        ia = torch.ceil(scale*raytrace_results.depth[...,0]).int()
+        ib = torch.ceil(scale*raytrace_results.depth[...,1]).int()
+        interval_cnt = ib-ia
+
+        # remove voxels that do not contain samples (simplifies uniform_sample kernel)
+        non_zero_elements = interval_cnt != 0
+
+        filtered_ridx = raytrace_results.ridx[non_zero_elements]
+        filtered_depth = raytrace_results.depth[non_zero_elements]
+        filtered_interval_cnt = interval_cnt[non_zero_elements]
+
+        insum = _C.render.spc.inclusive_sum_cuda(filtered_interval_cnt)
+
+        results = wisp_C.ops.uniform_sample_cuda(scale, filtered_ridx.contiguous(), filtered_depth, insum)
+
+        # TOTAL_NUM_INTERSECTIONS = sum of all samples lieing within spc voxel structure at level
+        # ridx ~ (TOTAL_NUM_INTERSECTIONS)
+        # depth_samples ~ (TOTAL_NUM_INTERSECTIONS, 1)
+        # boundary ~ (TOTAL_NUM_INTERSECTIONS)
+        # deltas ~ (TOTAL_NUM_INTERSECTIONS)
+        # samples ~ (TOTAL_NUM_INTERSECTIONS, 3)
+        ridx = results[0]
+        depth_samples = results[1]
+        boundary = results[2]
+        deltas = step_size*torch.ones((ridx.shape[0],1), dtype=torch.float32, device=depth_samples.device)
+        samples = torch.addcmul(rays.origins.index_select(0, ridx),
+                                rays.dirs.index_select(0, ridx), depth_samples)
+
+        return ASRaymarchResults(
+            ridx=ridx,
+            samples=samples,
+            depth_samples=depth_samples,
+            deltas=deltas,
+            boundary=boundary
+        )
+
+
+
+
+
     def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Samples points along the ray inside the SPC structure.
         The exact algorithm employed for raymarching is determined by `raymarch_type`.
@@ -348,6 +419,9 @@ class OctreeAS(BaseAS):
         # inside-looking-out scenes. The camera near and far planes will have to be adjusted carefully, however.
         elif raymarch_type == 'ray':
             raymarch_results = self._raymarch_ray(rays=rays, num_samples=num_samples, level=level)
+
+        elif raymarch_type == 'uniform':
+            raymarch_results = self._raymarch_uniform(rays=rays, num_samples=num_samples, level=level)
 
         else:
             raise TypeError(f"Raymarch sampler type: {raymarch_type} is not supported by OctreeAS.")

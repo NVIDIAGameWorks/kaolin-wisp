@@ -77,7 +77,7 @@ class ConfigBaseTrainer:
     scheduler : bool = False
     """ If enabled, will use learning rate scheduling. """
 
-    scheduler_milestones : Tuple[float, ...] = (0.5, 0.6, 0.8)
+    scheduler_milestones : Tuple[float, ...] = (0.5, 0.75, 0.9)
     """ The milestones during training (as a ratio of total iterations) to adjust learning rate. """
 
     scheduler_gamma : float = 0.333 

@@ -214,8 +214,9 @@ class OctreeGrid(BLASGrid):
                     feats = feats.sum(-2)
                 else:
                     feats = feats.sum(-2)
+                num_feats = 1
             
-            return feats.reshape(*output_shape, self.feature_dim)
+            return feats.reshape(*output_shape, self.feature_dim*num_feats)
 
     def raymarch(self, rays, raymarch_type, num_samples, level=None) -> ASRaymarchResults:
         """Mostly a wrapper over OctreeAS.raymarch. See corresponding function for more details.

@@ -14,6 +14,7 @@
 #include "./ops/hashgrid_interpolate.h"
 #include "./ops/hashgrid_query.h"
 #include "./ops/grid_interpolate.h"
+#include "./ops/uniform_sample.h"
 
 namespace wisp {
 
@@ -30,6 +31,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     ops.def("hashgrid_query_backward_cuda", &hashgrid_query_backward_cuda);
     ops.def("grid_interpolate_cuda", &grid_interpolate_cuda);
     ops.def("grid_interpolate_backward_cuda", &grid_interpolate_backward_cuda);
+    ops.def("uniform_sample_cuda", &uniform_sample_cuda);
 }
 
 }
