@@ -158,7 +158,7 @@ class HashGrid(BLASGrid):
             max_grid_res (int): max resolution of the feature grid.
         """
         b = np.exp((np.log(max_grid_res) - np.log(min_grid_res)) / (num_lods-1))
-        resolutions = [np.ceil(min_grid_res*(b**l)) for l in range(num_lods)]
+        resolutions = [int(np.floor(min_grid_res*(b**l))) for l in range(num_lods)]
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
                    feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth, coord_dim=coord_dim)
 
