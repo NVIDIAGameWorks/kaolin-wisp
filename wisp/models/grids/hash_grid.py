@@ -163,7 +163,7 @@ class HashGrid(BLASGrid):
     def from_resolutions(cls,
                          blas: BaseAS,
                          feature_dim: int,
-                         resolutions: List[int],
+                         resolutions: List[int] = None,
                          multiscale_type: str = 'sum',  # options: 'cat', 'sum'
                          feature_std: float = 0.0,
                          feature_bias: float = 0.0,
@@ -190,6 +190,7 @@ class HashGrid(BLASGrid):
             codebook_bitwidth (int): Codebook dictionary_size is set as 2**bitwidth
 
         """
+        assert resolutions is not None, 'HashGrid.from_resolutions() constructor cannot accept a None resolutions arg.'
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
                    feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
 
