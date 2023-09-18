@@ -83,8 +83,10 @@ class HashGrid(BLASGrid):
         self.codebook_size = 2 ** self.codebook_bitwidth
 
         self.coord_dim = coord_dim
+        # TODO(nasib): codebook size is not max num of features. It is the max num of rows.
         self.codebook = MultiTable(resolutions, self.coord_dim, self.feature_dim, self.feature_std, self.codebook_size)
 
+    # TODO(Nasib): add the coord_dim argument
     @classmethod
     def from_octree(cls,
                     blas               : BaseAS,
@@ -130,7 +132,8 @@ class HashGrid(BLASGrid):
                        feature_bias       : float = 0.0,
                        codebook_bitwidth  : int   = 8,
                        min_grid_res       : int   = 16,
-                       max_grid_res       : int   = None) -> HashGrid:
+                       max_grid_res       : int   = None,
+                       coord_dim          : int   = 3) -> HashGrid:
         """
         Builds a hash grid using the geometric sequence initialization pattern from Muller et al. 2022 (Instant-NGP).
         This is an implementation of the geometric multiscale grid from
@@ -154,11 +157,14 @@ class HashGrid(BLASGrid):
             min_grid_res (int): min resolution of the feature grid.
             max_grid_res (int): max resolution of the feature grid.
         """
+        # TODO(nasib): Bug in geometric sequence initialization. min_res is off by 1.
         b = np.exp((np.log(max_grid_res) - np.log(min_grid_res)) / (num_lods-1))
+        # alternative: resolutions = [np.ceil(min_grid_res*(b**l)) for l in range(num_lods)]
         resolutions = [int(1 + np.floor(min_grid_res*(b**l))) for l in range(num_lods)]
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
-                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
+                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth, coord_dim=coord_dim)
 
+    # TODO(Nasib): add the coord_dim argument
     @classmethod
     def from_resolutions(cls,
                          blas: BaseAS,

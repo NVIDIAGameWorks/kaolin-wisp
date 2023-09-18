@@ -101,6 +101,7 @@ class ImageTrainer(BaseTrainer):
             log.info("app_config not supplied to Tracker, config won't be logged in the pandas log")
             record_dict = {}
         
+        sha = None
         try:
             repo = git.Repo(search_parent_directories=True)
             sha = repo.head.object.hexsha[:8]
