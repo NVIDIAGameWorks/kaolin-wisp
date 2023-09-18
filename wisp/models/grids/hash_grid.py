@@ -29,11 +29,11 @@ class HashGrid(BLASGrid):
         blas               : BaseAS,
         feature_dim        : int,
         resolutions        : List[int],
-        multiscale_type    : str = 'sum',  # options: 'cat', 'sum'
-        feature_std        : float = 0.0,
-        feature_bias       : float = 0.0,
-        codebook_bitwidth  : int   = 8,
-        coord_dim          : int   = 3  # options: 2, 3
+        multiscale_type    : str    = 'sum',  # options: 'cat', 'sum'
+        feature_std        : float  = 0.0,
+        feature_bias       : float  = 0.0,
+        codebook_bitwidth  : int    = 8,
+        coord_dim          : int    = 3  # options: 2, 3
     ):
         """Builds a HashGrid instance, including the feature structure and an underlying BLAS for fast queries.
         The hash grid is constructed from a list of resolution sizes (each entry contains a RES for the RES x RES x RES
@@ -83,7 +83,6 @@ class HashGrid(BLASGrid):
         self.codebook_size = 2 ** self.codebook_bitwidth
 
         self.coord_dim = coord_dim
-        # TODO(nasib): codebook size is not max num of features. It is the max num of rows.
         self.codebook = MultiTable(resolutions, self.coord_dim, self.feature_dim, self.feature_std, self.codebook_size)
 
     # TODO(Nasib): add the coord_dim argument
@@ -93,10 +92,11 @@ class HashGrid(BLASGrid):
                     feature_dim        : int,
                     base_lod           : int   = 2,
                     num_lods           : int   = 1,
-                    multiscale_type    : str = 'sum',   # options: 'cat', 'sum'
+                    multiscale_type    : str   = 'sum',   # options: 'cat', 'sum'
                     feature_std        : float = 0.0,
                     feature_bias       : float = 0.0,
-                    codebook_bitwidth  : int   = 8) -> HashGrid:
+                    codebook_bitwidth  : int   = 8,
+                    coord_dim          : int   = 3) -> HashGrid:
         """
         Builds a hash grid using an octree sampling pattern.
 
@@ -120,7 +120,7 @@ class HashGrid(BLASGrid):
         octree_lods = [base_lod + x for x in range(num_lods)]
         resolutions = [2 ** lod for lod in octree_lods]
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
-                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
+                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth, coord_dim=coord_dim)
 
     @classmethod
     def from_geometric(cls,
@@ -157,23 +157,21 @@ class HashGrid(BLASGrid):
             min_grid_res (int): min resolution of the feature grid.
             max_grid_res (int): max resolution of the feature grid.
         """
-        # TODO(nasib): Bug in geometric sequence initialization. min_res is off by 1.
         b = np.exp((np.log(max_grid_res) - np.log(min_grid_res)) / (num_lods-1))
-        # alternative: resolutions = [np.ceil(min_grid_res*(b**l)) for l in range(num_lods)]
-        resolutions = [int(1 + np.floor(min_grid_res*(b**l))) for l in range(num_lods)]
+        resolutions = [np.ceil(min_grid_res*(b**l)) for l in range(num_lods)]
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
                    feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth, coord_dim=coord_dim)
 
-    # TODO(Nasib): add the coord_dim argument
     @classmethod
     def from_resolutions(cls,
-                         blas: BaseAS,
-                         feature_dim: int,
-                         resolutions: List[int] = None,
-                         multiscale_type: str = 'sum',  # options: 'cat', 'sum'
-                         feature_std: float = 0.0,
-                         feature_bias: float = 0.0,
-                         codebook_bitwidth: int = 8) -> HashGrid:
+                         blas               : BaseAS,
+                         feature_dim        : int,
+                         resolutions        : List[int] = None,
+                         multiscale_type    : str   = 'sum',  # options: 'cat', 'sum'
+                         feature_std        : float = 0.0,
+                         feature_bias       : float = 0.0,
+                         codebook_bitwidth  : int   = 8,
+                         coord_dim          : int   = 3) -> HashGrid:
         """
         Builds a hash grid from a list of resolution sizes (each entry contains a RES for the RES x RES x RES
         lod of nodes pointing at the actual hash table) .
@@ -198,7 +196,7 @@ class HashGrid(BLASGrid):
         """
         assert resolutions is not None, 'HashGrid.from_resolutions() constructor cannot accept a None resolutions arg.'
         return cls(blas=blas, feature_dim=feature_dim, resolutions=resolutions, multiscale_type=multiscale_type,
-                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth)
+                   feature_std=feature_std, feature_bias=feature_bias, codebook_bitwidth=codebook_bitwidth, coord_dim=coord_dim)
 
     def freeze(self):
         """Freezes the feature grid.
