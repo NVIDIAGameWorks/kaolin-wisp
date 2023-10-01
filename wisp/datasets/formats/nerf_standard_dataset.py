@@ -427,7 +427,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
             rays.append \
                 (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width, 3))
 
-        rays = Rays.stack(rays).to(device='cpu', dtype=torch.float)
+        rays = Rays.stack(rays).to(dtype=torch.float).to('cpu')
 
         rgbs = imgs[... ,:3]
         alpha = imgs[... ,3:4]
