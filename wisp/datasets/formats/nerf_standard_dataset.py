@@ -419,7 +419,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
                                       near=default_near,
                                       x0=x0,
                                       y0=y0,
-                                      dtype=torch.float64)
+                                      dtype=torch.float)
             camera.change_coordinate_system(blender_coords())
             cameras[basenames[i]] = camera
             ray_grid = generate_centered_pixel_coords(camera.width, camera.height,
@@ -427,7 +427,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
             rays.append \
                 (generate_pinhole_rays(camera.to(ray_grid[0].device), ray_grid).reshape(camera.height, camera.width, 3))
 
-        rays = Rays.stack(rays).to(dtype=torch.float).to('cpu')
+        rays = Rays.stack(rays).to(device='cpu', dtype=torch.float)
 
         rgbs = imgs[... ,:3]
         alpha = imgs[... ,3:4]
@@ -435,7 +435,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
             masks = torch.ones_like(rgbs[... ,0:1]).bool()
         else:
             masks = (alpha > 0.5).bool()
-            rgbs = rgbs[...,:3] * alpha + (1-alpha) * np.array(self.bg_color).astype(np.float32)
+            rgbs = rgbs[...,:3] * alpha + (1-alpha) * np.array(self.bg_color).astype(np.float)
             rgbs = np.clip(rgbs, 0.0, 1.0)
 
         return {"rgb": rgbs, "masks": masks, "rays": rays, "cameras": cameras}
