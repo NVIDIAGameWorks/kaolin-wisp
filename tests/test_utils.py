@@ -62,10 +62,11 @@ def _get_metric_from_log_line(line_with_metrics, metric_name):
     tokens = [t.lower() for t in tokens]
     try:
         epoch = tokens[tokens.index('epoch') + 1]
+        epoch = epoch.split('/')[0]
+        metric = tokens[tokens.index(metric_name.lower()) + 1]
     except ValueError:
         epoch = -1
-    metric = tokens[tokens.index(metric_name.lower()) + 1]
-
+        metric = 0
     return int(epoch), metric
 
 
@@ -78,11 +79,15 @@ def collect_metrics_from_log(out, metric_names):
         If the epoch number is listed in the same line, it will be returned along with the metric.
         Otherwise, -1 will be returned (to signify the last occurrence of the metric in the log).
     """
+    out = out.lower()
     metrics = defaultdict(lambda: dict())
     for metric_name in metric_names:
-        all_lines_with_criteria = list(filter(lambda line: metric_name in line, re.split('\n', out)))
+        metric_name_lower = metric_name.lower()
+        all_lines_with_criteria = list(filter(lambda line: metric_name_lower in line, re.split('\n', out)))
         for line in all_lines_with_criteria:
-            epoch, metric = _get_metric_from_log_line(line, metric_name)
+            epoch, metric = _get_metric_from_log_line(line, metric_name_lower)
+            if epoch == -1:
+                continue
             metrics[epoch][metric_name] = metric
     return metrics
 

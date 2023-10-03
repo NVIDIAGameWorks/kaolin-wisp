@@ -19,23 +19,39 @@ from wisp.config.utils import configure
 #     optimizer = instantiate(adam_cfg, params=model.params)  # Add any missing args during instantiation
 # ```
 
+class FusedAdam:
+    def __init__(self):
+        raise Exception("apex optimizer is not be available, "
+                        "install from https://github.com/nvidia/apex#from-source")
+
 try:
     import apex
-    @configure(target=apex.optimizers.FusedAdam)
-    class ConfigFusedAdam:
-        lr: float = 1e-3
-        betas: Tuple[float, float] = (0.9, 0.999)
-        eps: float = 1e-8
-        weight_decay: float = 0.0
+    FusedAdamTarget = apex.optimizers.FusedAdam
+    import_err_msg = None
 except:
-    print("apex import failed. apex optimizer will not be available")
-    class ConfigFusedAdam:
-        def __init__(self):
-            raise Exception("FusedAdam not available since apex import failed")
+    import_err_msg = "Cannot load FusedAdam optimizer. The apex package is not available, install from https://github.com/nvidia/apex#from-source"
+    class FusedAdam:    # Dummy, will raise an exception
+        def __init__(self, *args, **kwargs):
+            raise Exception(import_err_msg)
+    FusedAdamTarget = FusedAdam
+@configure(target=FusedAdamTarget, import_error=import_err_msg)
+class ConfigFusedAdam:
+    lr: float = 1e-3
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0.0
 
 
 @configure(target=torch.optim.Adam)
 class ConfigAdam:
+    lr: float = 1e-3
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0.0
+
+
+@configure(target=torch.optim.AdamW)
+class ConfigAdamW:
     lr: float = 1e-3
     betas: Tuple[float, float] = (0.9, 0.999)
     eps: float = 1e-8

@@ -59,19 +59,19 @@ class RendererCore:
         # TODO: move defaults elsewhere
         if lens == 'perspective':
             return Camera.from_args(
-                eye=torch.tensor([4.0, 4.0, 4.0]),
+                eye=torch.tensor([6.0, 6.0, 6.0]),
                 at=torch.tensor([0.0, 0.0, 0.0]),
                 up=torch.tensor([0.0, 1.0, 0.0]),
-                fov=30 * np.pi / 180,  # In radians
+                fov=40 * np.pi / 180,  # In radians
                 x0=0.0, y0=0.0,
-                width=800, height=800,
-                near=1e-2, far=20,
+                width=900, height=675,
+                near=1e-2, far=30,
                 dtype=torch.float64,
                 device=self.device
             )
         elif lens == 'orthographic':
             return Camera.from_args(
-                eye=torch.tensor([4.0, 4.0, 4.0]),
+                eye=torch.tensor([6.0, 6.0, 6.0]),
                 at=torch.tensor([0.0, 0.0, 0.0]),
                 up=torch.tensor([0.0, 1.0, 0.0]),
                 width=800, height=800,
@@ -244,33 +244,30 @@ class RendererCore:
 
         # If the FPS is slow, downscale the resolution for the render.
 
-        if self.interactive_mode:
+        if self.interactive_mode and time_delta is not None:
             #target_delta = 1.0 / self.target_interactive_fps
             target_delta = 1.0 / 20.0
-        else:
-            #target_delta = 1.0 / self.target_static_fps
-            target_delta = 1.0 / 2.0
 
-        if 'res_x' in self._last_state:
-            num_pixels = self._last_state['res_x'] * self._last_state['res_y']
-        else:
-            num_pixels = res_x * res_y
-        time_per_pixel = time_delta / float(num_pixels)
-        target_num_pixels = target_delta / time_per_pixel
-        
-        screen_ratio = res_x / res_y
-        res = math.sqrt(target_num_pixels / screen_ratio)
-        res_x = min(res_x, int(math.floor(res * screen_ratio)))
-        res_y = min(res_y, int(math.floor(res)))
-        
-        if res_y < self.MIN_RES:
-            res_x = int(math.floor(self.MIN_RES*screen_ratio))
-            res_y = int(math.floor(self.MIN_RES))
+            if 'res_x' in self._last_state:
+                num_pixels = self._last_state['res_x'] * self._last_state['res_y']
+            else:
+                num_pixels = res_x * res_y
+            time_per_pixel = time_delta / float(num_pixels)
+            target_num_pixels = target_delta / time_per_pixel
 
-        if 'res_x' in self._last_state:
-            if abs(res_x - self._last_state['res_x']) < 10:
-                res_x = self._last_state['res_x']
-                res_y = self._last_state['res_y']
+            screen_ratio = res_x / res_y
+            res = math.sqrt(target_num_pixels / screen_ratio)
+            res_x = min(res_x, int(math.floor(res * screen_ratio)))
+            res_y = min(res_y, int(math.floor(res)))
+
+            if res_y < self.MIN_RES:
+                res_x = int(math.floor(self.MIN_RES*screen_ratio))
+                res_y = int(math.floor(self.MIN_RES))
+
+            if 'res_x' in self._last_state:
+                if abs(res_x - self._last_state['res_x']) < 10:
+                    res_x = self._last_state['res_x']
+                    res_y = self._last_state['res_y']
 
         # TODO(ttakikawa): Leaving a note here to think about whether this should be the case...
         # The renderer always needs depth, alpha, and rgb
@@ -398,7 +395,7 @@ class RendererCore:
             return True
 
         # Resolution check: if not full resolution - canvas is dirty
-        if self._last_state['res_x'] != self.camera.width or self._last_state['res_y'] != self.camera.height:
+        if self._last_state['res_x'] < self.camera.width or self._last_state['res_y'] < self.camera.height:
             return True
 
         for att_name, prev_val in self._last_state.items():

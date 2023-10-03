@@ -6,6 +6,8 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+### -- Default configuration for hashgrid, good performance, but subpar to nerf_hash_fused.yaml --
+
 device: 'cuda'   # Device used to run the optimization
 pretrained: null # If specified, a pretrained model will be loaded from this path. None will create a new model.
 log_level: 20    # Log level: logging.INFO
@@ -23,7 +25,7 @@ grid: # Feature grid, the backbone of the neural field
   feature_bias:  0.0
   codebook_bitwidth: 19
   min_grid_res: 16
-  max_grid_res: 1024
+  max_grid_res: 512
 
 nef:  # Neural field: combines grid, decoders and positional embedders
   constructor: 'NeuralRadianceField'
@@ -39,13 +41,13 @@ nef:  # Neural field: combines grid, decoders and positional embedders
   bias: True
   prune_density_decay: 0.95             # prune parameter for occupancy blas according to feature struct
   prune_min_density: 2.956033378250884  # prune parameter for occupancy blas according to feature struct
-                                        # 2.956 = (0.01 * 1024) / (2 * np.sqrt(3))
+                                        # 2.956 = (0.01 * 512) / (2 * np.sqrt(3))
 
 tracer: # A tracer for intersecting rays with the blas, generating samples along rays for the neural field & integrating
   constructor: 'PackedRFTracer'
   bg_color: [ 0.0, 0.0, 0.0 ]
-  num_steps: 1024 # The step size when raymarch_type='uniform' will be 2*sqrt(3) /num_steps
-  raymarch_type: 'uniform'
+  num_steps: 2048  # Lower if running out of memory
+  raymarch_type: 'ray'
   step_size: 1.0
 
 dataset:  # Train & validation dataset
@@ -89,7 +91,7 @@ trainer:
     num_workers: 0         # Number of cpu workers used to fetch data, always 0 here as data is already processed.
 
   optimizer:  # torch optimizer to use, and its args
-    constructor: 'FusedAdam'
+    constructor: 'AdamW'
     lr: 0.001
     eps: 1.0e-16
     weight_decay: 1.0e-06      # Applies to decoder params only

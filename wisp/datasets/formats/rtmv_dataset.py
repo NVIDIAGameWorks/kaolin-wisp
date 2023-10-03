@@ -349,7 +349,7 @@ class RTMVDataset(MultiviewDataset):
         alpha = img[..., 3:4]
 
         img[..., :3] *= alpha
-        img[..., :3] += (1 - alpha) * np.array(self.bg_color).astype(np.float32)
+        img[..., :3] += (1 - alpha) * np.array(bg_color).astype(np.float32)
         img = np.clip(img, 0.0, 1.0)
 
         if mip is not None:

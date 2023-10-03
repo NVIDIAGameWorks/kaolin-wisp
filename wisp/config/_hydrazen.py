@@ -228,7 +228,8 @@ def _build_config_for_callable(cls: Type, func: Callable, use_manual_fields: boo
     return cfg
 
 
-def build_config_for_target(target: Callable[..., typing.Any], config_fields: typing.Dict[str, Type] = None):
+def build_config_for_target(target: Callable[..., typing.Any], config_fields: typing.Dict[str, Type] = None,
+                            import_error: str = None):
 
     if config_fields is None:
         config_fields = dict()
@@ -249,7 +250,9 @@ def build_config_for_target(target: Callable[..., typing.Any], config_fields: ty
         frozen=False,
         zen_meta={'__ctor_name__': cmd_name,
                   '__supported_args__': '$'.join(supported_args),
-                  '__missing_args__': '$'.join(unsupported_args)},  # Ignored by hydra-zen, used to identify this func name
+                  '__missing_args__': '$'.join(unsupported_args),  # Ignored by hydra-zen, used to identify this func name
+                  '__import_error__': import_error,
+        },
         zen_partial=len(unsupported_args) > 0,
         hydra_convert="all"
     )
@@ -406,4 +409,16 @@ def get_missing_args(config) -> Optional[List[str]]:
 
 def get_target(config) -> Any:
     """ Returns the target buildable from the given config dataclass. """
+    try:
+        # Try to import the target. If it's unavailable, and the target is attached to an
+        # optional import error, display that. Otherwise, let hydrazen prompt the error message.
+        # We use the hydra implementation for dynamic import here, which is on par with hydrazen.
+        from hydra._internal.utils import _locate
+        _locate(config._zen_target)
+    except (ImportError, ModuleNotFoundError) as e:
+        if hasattr(config, '__import_error__'):
+            raise type(e)(config.__import_error__) from None
+    except:
+        # In case importing sparked some dubious exception, fail silently and let hydrazen handle it
+        pass
     return hydra_zen.get_target(config)

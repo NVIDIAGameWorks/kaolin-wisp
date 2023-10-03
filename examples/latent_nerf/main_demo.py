@@ -72,7 +72,7 @@ cfg = parse_config(DemoAppConfig, yaml_arg='--config')
 device = torch.device(cfg.device)
 default_log_setup(cfg.log_level)
 if cfg.interactive:
-    cfg.tracer.bg_color = 'black'
+    cfg.tracer.bg_color = (0.0, 0.0, 0.0)
     cfg.trainer.render_every = -1
     cfg.trainer.save_every = -1
     cfg.trainer.valid_every = -1
