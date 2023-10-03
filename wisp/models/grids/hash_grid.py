@@ -85,7 +85,6 @@ class HashGrid(BLASGrid):
         self.coord_dim = coord_dim
         self.codebook = MultiTable(resolutions, self.coord_dim, self.feature_dim, self.feature_std, self.codebook_size)
 
-    # TODO(Nasib): add the coord_dim argument
     @classmethod
     def from_octree(cls,
                     blas               : BaseAS,
