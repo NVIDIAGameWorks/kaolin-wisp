@@ -101,6 +101,7 @@ class ImageTrainer(BaseTrainer):
             log.info("app_config not supplied to Tracker, config won't be logged in the pandas log")
             record_dict = {}
         
+        sha = None
         try:
             repo = git.Repo(search_parent_directories=True)
             sha = repo.head.object.hexsha[:8]
@@ -163,7 +164,7 @@ class ImageTrainer(BaseTrainer):
         
         record_dict.update({"img_name" : img_name, "epoch": self.epoch, 
                             "log_fname" : self.tracker.log_fname, "model_fname": model_fname,
-                            "git_sha" : sha, "width": self.train_dataset.w, "height": self.train_dataset.h, 
+                            "git_sha" : sha if not sha is None else "", "width": self.train_dataset.w, "height": self.train_dataset.h, 
                             "num_pixels": self.train_dataset.w * self.train_dataset.h})
 
         record_dict.update(metrics_dict)
