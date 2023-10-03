@@ -15,7 +15,7 @@ class TestNerfApp(TestWispApp):
         cmd = 'app/nerf/main_nerf.py'
         cli_args = \
             'dataset:NeRFSyntheticDataset ' \
-            'trainer.optimizer:Adam ' \
+            'trainer.optimizer:AdamW ' \
             f'--dataset-path {lego_path} ' \
             '--config app/nerf/configs/nerf_hash.yaml ' \
             f'--dataset-num-workers {dataset_num_workers} ' \
@@ -41,7 +41,7 @@ class TestNerfApp(TestWispApp):
         cmd = 'app/nerf/main_nerf.py'
         cli_args = \
             'dataset:NeRFSyntheticDataset ' \
-            'trainer.optimizer:RMSprop ' \
+            'trainer.optimizer:AdamW ' \
             f'--dataset-path {lego_path} ' \
             '--config app/nerf/configs/nerf_hash.yaml ' \
             f'--dataset-num-workers {dataset_num_workers} ' \
@@ -65,7 +65,7 @@ class TestNerfApp(TestWispApp):
     def test_hashgrid_V8(self, V8_path, dataset_num_workers):
         cmd = 'app/nerf/main_nerf.py'
         cli_args = \
-            'trainer.optimizer:Adam ' \
+            'trainer.optimizer:AdamW ' \
             'dataset:RTMVDataset ' \
             'blas:OctreeAS.from-pointcloud ' \
             f'--dataset-path {V8_path} ' \

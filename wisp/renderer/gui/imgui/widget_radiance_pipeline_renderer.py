@@ -16,7 +16,7 @@ from .widget_property_editor import WidgetPropertyEditor
 @widget(NeuralRadianceFieldPackedRenderer)
 class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
 
-    marcher_types = ['ray', 'voxel']
+    marcher_types = ['ray', 'voxel', 'uniform']
 
     def __init__(self):
         super().__init__()
@@ -26,12 +26,15 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
         if imgui.tree_node("Tracer", imgui.TREE_NODE_DEFAULT_OPEN):
             MAX_SAMPLES = 128               # For general tracers
             MAX_SAMPLES_RAY_MODE = 2048      # For 'ray' sampling mode
+            MAX_SAMPLES_UNIFORM_MODE = 2048  # For 'uniform' sampling mode
 
             # TODO (operel): Update the ## ids below with a unique object name to avoid imgui bug
             def _num_samples_property():
                 max_value = MAX_SAMPLES
                 if renderer.raymarch_type == 'ray':
                     max_value = MAX_SAMPLES_RAY_MODE
+                elif renderer.raymarch_type == 'uniform':
+                    max_value = MAX_SAMPLES_UNIFORM_MODE
                 value = min(renderer.num_steps, max_value)
                 changed, value = imgui.core.slider_int(f"##samples_per_ray", value=value,
                                                        min_value=2, max_value=max_value)
@@ -42,6 +45,8 @@ class WidgetNeuralRadianceFieldRenderer(WidgetImgui):
                 max_value = MAX_SAMPLES
                 if renderer.raymarch_type == 'ray':
                     max_value = MAX_SAMPLES_RAY_MODE
+                elif renderer.raymarch_type == 'uniform':
+                    max_value = MAX_SAMPLES_UNIFORM_MODE
                 value = min(renderer.num_steps_interactive, max_value)
                 changed, value = imgui.core.slider_int(f"##samples_per_ray_interactive", value=value,
                                                        min_value=2, max_value=max_value)

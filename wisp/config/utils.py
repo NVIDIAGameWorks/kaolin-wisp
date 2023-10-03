@@ -197,7 +197,7 @@ def autoconfig(*classes_and_callables: Type, exclude: List[Callable] = None) -> 
             return Union.__getitem__(tuple(annotated_dataclasses))
 
 
-def configure(cls=None, /, *, target: Callable[..., Any] = None):
+def configure(cls=None, /, *, target: Callable[..., Any] = None, import_error: str = None):
     """ @configure decorates a given dataclass type, cls, as a configuration class that instantiates the target type.
         Use this function when configuring non-typed constructors, for example:
 
@@ -274,6 +274,8 @@ def configure(cls=None, /, *, target: Callable[..., Any] = None):
                 Constructors in wisp are assumed to simplistic, and defined as either:
                 (1) __init__ explicitly defined within the class body. By default, this is used for target classes.
                 (2) A @classmethod that is annotated as returning the same class type.
+            import_error (str):
+                An optional import error to show in case the target class is missing.
         """
     def _process_class(cls):
         """ Execute the wrapper logic: replace this class with a proper config class which is also compatible with
@@ -286,7 +288,8 @@ def configure(cls=None, /, *, target: Callable[..., Any] = None):
             config_fields = dict()
             if cls is not None:
                 config_fields.update(cls.__annotations__)   # Tell hydra-zen what typed args cls has
-            wrapper = hydrazen_parser.build_config_for_target(target=target, config_fields=config_fields)
+            wrapper = hydrazen_parser.build_config_for_target(target=target, config_fields=config_fields,
+                                                              import_error=import_error)
             is_annotate_subcommand = True
         else:
             # No target, so defer to act as a @dataclass wrapper
@@ -306,6 +309,7 @@ def configure(cls=None, /, *, target: Callable[..., Any] = None):
 
         if is_annotate_subcommand:  # Make it CLI / yaml compatible
             config_class = tyro_parser.annotate_subcommand(config_class)
+
         return config_class
 
     if cls is None:

@@ -17,7 +17,7 @@ from wisp.trainers.tracker import Tracker
 from wisp.framework import WispState
 from wisp.datasets import WispDataset, default_collate
 from wisp.config import configure, autoconfig, instantiate, write_config_to_yaml
-from wisp.config.presets import ConfigAdam, ConfigRMSprop, ConfigFusedAdam, ConfigDataloader
+from wisp.config.presets import ConfigAdam, ConfigRMSprop, ConfigFusedAdam, ConfigAdamW, ConfigDataloader
 from wisp.renderer.core.api import add_to_scene_graph
 
 
@@ -25,7 +25,7 @@ from wisp.renderer.core.api import add_to_scene_graph
 class ConfigBaseTrainer:
     """ Configuration common to base trainer and its derivatives """
 
-    optimizer: Union[ConfigAdam, ConfigRMSprop, ConfigFusedAdam]
+    optimizer: Union[ConfigAdam, ConfigRMSprop, ConfigFusedAdam, ConfigAdamW]
     """ Optimizer to be used, includes optimizer modules available within `torch.optim` 
         and fused optimizers from `apex`.
     """
