@@ -435,7 +435,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
             masks = torch.ones_like(rgbs[... ,0:1]).bool()
         else:
             masks = (alpha > 0.5).bool()
-            rgbs = rgbs[...,:3] * alpha + (1-alpha) * np.array(self.bg_color).astype(np.float)
+            rgbs = rgbs[...,:3] * alpha + (1-alpha) * np.array(self.bg_color).astype(np.float32)
             rgbs = np.clip(rgbs, 0.0, 1.0)
 
         return {"rgb": rgbs, "masks": masks, "rays": rays, "cameras": cameras}
