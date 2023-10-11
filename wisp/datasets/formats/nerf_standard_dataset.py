@@ -419,7 +419,7 @@ class NeRFSyntheticDataset(MultiviewDataset):
                                       near=default_near,
                                       x0=x0,
                                       y0=y0,
-                                      dtype=torch.float64)
+                                      dtype=torch.float)
             camera.change_coordinate_system(blender_coords())
             cameras[basenames[i]] = camera
             ray_grid = generate_centered_pixel_coords(camera.width, camera.height,
