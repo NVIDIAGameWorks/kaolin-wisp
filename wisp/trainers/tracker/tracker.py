@@ -450,7 +450,7 @@ class _WandB(_BaseDashboard):
         wandb.finish()
 
     def log_table(self, caption: str, data: Dict[str, Any], step=None):
-        table = wandb.Table(columns=data.keys(), data=[[*data.values()]])
+        table = wandb.Table(columns=[*data.keys()], data=[[*data.values()]])
         wandb.log({caption: table}, step=step, commit=False)
 
     def log_metric(self, metric, value, step=None):
