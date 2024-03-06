@@ -13,8 +13,7 @@
 #include <c10/cuda/CUDAGuard.h>
 
 namespace wisp {
-
-
+typedef unsigned int uint;
 
 __global__ void
 uniform_sample_cuda_kernel(
