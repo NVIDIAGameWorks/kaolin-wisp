@@ -28,5 +28,5 @@ GitPython
 docstring_parser
 pytest>=7.1.0
 attrdict
-tyro>=0.3.38
+tyro==0.3.38
 hydra-zen>=0.9.1
