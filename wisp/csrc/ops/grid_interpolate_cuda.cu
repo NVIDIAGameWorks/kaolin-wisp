@@ -12,6 +12,7 @@
 #include <c10/cuda/CUDAGuard.h>
 
 namespace wisp {
+typedef unsigned int uint;
 
 template<typename scalar_t>
 __global__ void
