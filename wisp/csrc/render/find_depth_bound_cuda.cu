@@ -26,7 +26,7 @@ find_depth_bound_cuda_kernel(
   if (tidx < num_packs && curr_idxes_in[tidx] > -1) {
     
     uint iidx = curr_idxes_in[tidx]; 
-    uint max_iidx = (tidx == num_packs-1) ? num_packs : curr_idxes_in[tidx+1];
+    uint max_iidx = (tidx == num_packs-1) ? num_nugs : curr_idxes_in[tidx+1];
     float query = query_depth[tidx];
     
     while (iidx < max_iidx) {
