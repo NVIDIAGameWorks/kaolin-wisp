@@ -178,16 +178,6 @@ class Tracker:
         This function is invoked from the Tracker constructor, and must run before performing any experiment logging.
         """
         dashboards: Dict[str, _BaseDashboard] = dict()
-        if cfg.enable_tensorboard:
-            if cfg.tensorboard.exp_name is None:
-                cfg.tensorboard.exp_name = exp_name
-            if cfg.tensorboard.log_fname is None:
-                cfg.tensorboard.log_fname = log_fname
-            if _TENSORBOARD_AVAILABLE:
-                dashboards['tensorboard'] = instantiate(cfg.tensorboard)
-            else:
-                log.warning("Tensorboard experiment tracking enabled, "
-                            "but couldn't import torch.utils.tensorboard.SummaryBoard")
         if cfg.enable_wandb:
             if cfg.wandb.entity is None:
                 raise Exception("You must set your username as the entity to use Wandb")
@@ -201,6 +191,16 @@ class Tracker:
                 dashboards['wandb'] = instantiate(cfg.wandb)
             else:
                 log.warning("wandb experiment tracking enabled, but couldn't import wandb")
+        if cfg.enable_tensorboard:
+            if cfg.tensorboard.exp_name is None:
+                cfg.tensorboard.exp_name = exp_name
+            if cfg.tensorboard.log_fname is None:
+                cfg.tensorboard.log_fname = log_fname
+            if _TENSORBOARD_AVAILABLE:
+                dashboards['tensorboard'] = instantiate(cfg.tensorboard)
+            else:
+                log.warning("Tensorboard experiment tracking enabled, "
+                            "but couldn't import torch.utils.tensorboard.SummaryBoard")
         return dashboards
 
     def teardown(self):
@@ -450,7 +450,7 @@ class _WandB(_BaseDashboard):
         wandb.finish()
 
     def log_table(self, caption: str, data: Dict[str, Any], step=None):
-        table = wandb.Table(columns=data.keys(), data=data.values())
+        table = wandb.Table(columns=[*data.keys()], data=[[*data.values()]])
         wandb.log({caption: table}, step=step, commit=False)
 
     def log_metric(self, metric, value, step=None):
