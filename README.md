@@ -19,7 +19,7 @@ For an overview on neural fields, we recommend you check out the EG STAR report:
 ## Latest Updates
 
 **wisp 1.0.3** <-- `main`
-* _17/04/23_ The configuration system have been replaced! Check out [the config page](https://kaolin-wisp.readthedocs.io/en/latest/pages/config_system.html) for usage instructions and backwards compatability (**breaking change**). Note that the wisp core library remains compatible, mains and trainers should be updated.
+* _17/04/23_ The configuration system have been replaced! Check out [the config page](https://kaolin-wisp.readthedocs.io/en/latest/pages/config_system.html) for usage instructions and backwards compatibility (**breaking change**). Note that the wisp core library remains compatible, mains and trainers should be updated.
 
 **wisp 1.0.2** <-- `stable`
 * _15/04/23_ Jupyter notebook support have been added - useful for machines without a display.
